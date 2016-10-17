@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
         printf("*\n");
         printf("* Usage\n");
         printf("* =========\n");
-        printf("* ./test_spMSV -mat <matrix_file_name> [-nrhs <nrhs>]\n");
+        printf("* ./test_spMSV -m <matrix_file_name> [-nrhs <nrhs>]\n");
         printf("*\n");
         printf("* Arguments\n");
         printf("* =========\n");
@@ -141,7 +141,7 @@ int main(int argc, char *argv[]) {
     
     if(strlen(matrix_filename)==0){
 	  
-	    s_abort("Error: unknown Matrix. Usage ./test_spMSV -mat <matrix_file_name> [-nrhs <nrhs>]");
+	    s_abort("Error: unknown Matrix. Usage ./test_spMSV -m <matrix_file_name> [-nrhs <nrhs>]");
          
     }
 	
