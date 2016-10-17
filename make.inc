@@ -2,8 +2,8 @@
 # Environment of the project
 #
 
-BINDIR		= bin
-LIBDIR		= lib
+BINDIR	  = bin
+LIBDIR	  = lib
 INCDIR    = include
 UTILS     = utils
 SRC       = src
@@ -79,7 +79,7 @@ endif
 USE_SUITESPARSE=1
 
 ifdef USE_SUITESPARSE
-  SUITESPARSE_DIR   = /Users/donfack/app/SuiteSparse
+  SUITESPARSE_DIR   = 
   SUITESPARSE_INC   = -I$(SUITESPARSE_DIR)/include
   SUITESPARSE_LIB   = -L$(SUITESPARSE_DIR)/lib -lspqr -lcholmod -lcolamd -lcamd -lsuitesparseconfig -lamd -lccolamd -lmetis
 endif
@@ -101,7 +101,7 @@ ifdef USE_PARMETIS
   PARMETIS_LIB      =
 endif
 
-
+#preAlps can use METIS from SuiteSparse, if your version of SuiteSparse does not provide METIS then set it here.
 #USE_METIS=1
 
 ifdef USE_METIS
