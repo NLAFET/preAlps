@@ -70,9 +70,10 @@ endif
 #USE_LAPACK=1
 
 ifdef USE_LAPACK
-  LAPACK_INC        = -I$(LAPACK_DIR)/include
-  LAPACK_LIB        = -L$(LAPACK_DIR)/lib
-  LIB_DIRECTIVES   += -DLAPACK
+  LAPACK_DIR        = 
+  LAPACK_INC        = -I$(LAPACK_DIR)/LAPACKE/include
+  LAPACK_LIB        = -L$(LAPACK_DIR)/lib -llapacke -llapack -lrefblas -lgfortran -lm
+  LIB_DIRECTIVES   += -DLAPACK 
 endif
 
 
