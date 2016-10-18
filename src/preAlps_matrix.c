@@ -635,10 +635,11 @@ int preAlps_matrix_readmm_csc(char *filename, int *m, int *n, int *nnz, int **xa
   /************************/
   /* now write out matrix */
   /************************/
-
+#ifdef DEBUG
   mm_write_banner(stdout, matcode);
   mm_write_mtx_crd_size(stdout, M, N, nz);
-
+#endif
+  
   preAlps_matrix_print(MATRIX_CSC, M, xa_ptr, asub_ptr, a_ptr, "CSC matrix");
   
     
