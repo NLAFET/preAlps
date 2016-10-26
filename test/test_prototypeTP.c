@@ -3,8 +3,9 @@
  Name        : test_prototypeTP.c
  Author      : Alan Ayala
  Version     : 0.1
- Description : Performs tournament pivoting on a sparse matrix and gets its singular values
- Date        : Sept 27, 2016
+ Description : Performs tournament pivoting on a sparse matrix and gets its approximated
+               singular values.
+ Date        : Oct 21, 2016
  ==========================================================================================
  */
 
@@ -22,7 +23,8 @@ int main(int argc, char **argv){
   MPI_Init(&argc,&argv);
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   MPI_Comm_size(MPI_COMM_WORLD,&size);
-
+  MPI_Comm comm;
+  MPI_Comm_dup(MPI_COMM_WORLD, &comm);
 
   /* Initialize variables (can be donde by stdin too) */
   int ordering = 0; //  if set to 1 -> Uses Metis ordering
@@ -33,18 +35,24 @@ int main(int argc, char **argv){
 
 
   /* Reading parameters from stdin */
-  preAlps_TP_parameters_display(&matrixName,&k,ordering,&printSVal,&checkFact,&printFact,argc,argv);
+  preAlps_TP_parameters_display(comm,&matrixName,&k,ordering,&printSVal,&checkFact,&printFact,argc,argv);
 
-/* Reading matrix in Master processor */
-  int *row_indx = NULL, *col_indx = NULL;
+  /* Reading matrix in Master processor */
+  int *xa = NULL, *ia = NULL;
   double *a = NULL;
   int m=0, n=0, nnz=0;
 
   if(rank ==0){
-  preAlps_matrix_readmm_csc(matrixName, &m, &n, &nnz, &row_indx, &col_indx, &a);
+    preAlps_matrix_readmm_csc(matrixName, &m, &n, &nnz, &xa, &ia, &a);
   }
-
   free(matrixName);
+
+
+
+/* Distribute the matrix among all processors */
+  long col_offset=0;
+  preAlps_spTP_distribution(comm,&m, &n, &nnz, &xa, &ia, &a, &col_offset, checkFact);
+
 
   /* Alocate memory for the vectors Jc and Sval to be used in the tournament pivoting scheme */
   ASSERT(k>0);
@@ -57,7 +65,7 @@ int main(int argc, char **argv){
   /* Call tournamentPivoting and get Jc and the singular values (if required) */
   double t_begin, t_tp;
   t_begin=MPI_Wtime();
-  preAlps_tournamentPivoting(row_indx,col_indx,a,m,n,nnz,k,Jc,&Sval,printSVal,ordering);
+  preAlps_tournamentPivoting(comm,xa,ia,a,m,n,nnz,col_offset,k,Jc,&Sval,printSVal,ordering);
   t_tp = MPI_Wtime()-t_begin;
 
 
@@ -86,6 +94,9 @@ if(rank==0) {
   }
 }
 
+free(xa);
+free(ia);
+free(a);
 
   MPI_Finalize();
 

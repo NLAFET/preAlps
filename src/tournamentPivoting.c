@@ -9,7 +9,8 @@
  * Arguments
  * =========
  * Inputs:
- *  xa,ja,a: vectors that define the matrix,
+ *  xa,ia,a: vectors that define the CSC matrix (Columns pointer, row indexes
+ *           and matrix values respectively),
  *  m,n,nnz: dimensions of the matrix,
  *  k: rank of the approximation,
  *  Flags: printSVal (to print the singular values) and ordering (to activate METIS).
@@ -18,31 +19,35 @@
  *  Sval: vector containing the approximated k first singular values.
  */
 
-int preAlps_tournamentPivoting(int *xa, int *ja, double *a, int m,  int n,  int nnz, int k, long *Jc,
+int preAlps_tournamentPivoting(MPI_Comm comm, int *xa, int *ia, double *a, int m,  int n,  int nnz, long col_offset, int k, long *Jc,
    double **Sval, int printSVal, int ordering){
 
+  /* MPI initialization */
+  int rank,size;
+  MPI_Status stat;
+  MPI_Comm_rank(comm,&rank);
+  MPI_Comm_size(comm,&size);
 
-  long col_offset=0;
-  cholmod_sparse *A;
-  cholmod_sparse *A_test; // Only used when error analysis is required
-
-  cholmod_common *cc,Common;
-  cc = &Common;
-  cc->print=0;
-
-  /* local variables */
+ /* Global variables */
   double tol=DBL_EPSILON;
   int status=0;
 
+ /* Start cholmod */
+  cholmod_common *cc,Common;
+  cc = &Common;
+  cc->print=0;
+  cholmod_l_start(cc);
+  cholmod_sparse *A;
+
+/* Setting the ordering method */
 if(ordering){
   ordering = SPQR_ORDERING_METIS;
 }
   long *spqrOrd;
 
-  /* local variables */
+  /* Reduction tree variables */
   cholmod_sparse *R;
   cholmod_dense *Rdense;
-
 
   /* Panel and their indexes */
   cholmod_sparse *tempPanel;
@@ -59,8 +64,7 @@ if(ordering){
   for(long i=0;i<k;i++)  kseq[i]=i;
   double *tau;
 
-
-  /*  MKL variables */
+  /*  MKL-LAPACK variables */
 #ifdef MKL
   MKL_INT info;
   MKL_INT *pivot, pivotSize;
@@ -74,14 +78,9 @@ if(ordering){
 #endif
 
 
-  /* MPI initialization */
-  int rank,size;
-  MPI_Status stat;
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&size);
+  /* Getting local matrix in cholmod */
+  preAlps_CSC_to_cholmod_l_sparse(m, n, nnz, xa, ia, a, &A, cc);
 
-  /* Distribute the glabal matrix among all processors  */
-  preAlps_TP_matrix_distribute(rank,size,xa,ja,a,m,n,nnz,&col_offset,&A,0,&A_test,cc);
 
  /* Let's begin*/
  /* Section 1:  initialization of common variables */
@@ -214,14 +213,14 @@ if(panelIndSize>2){
     int dest=complement;
 
   /* Send panel */
-      MPI_Send(&panel->nzmax,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(&panel->ncol,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(panel->p,panel->ncol+1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(panel->i,panel->nzmax,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(panel->x,panel->nzmax,MPI_DOUBLE,dest,tag,MPI_COMM_WORLD);
+      MPI_Send(&panel->nzmax,1,MPI_LONG,dest,tag,comm);
+      MPI_Send(&panel->ncol,1,MPI_LONG,dest,tag,comm);
+      MPI_Send(panel->p,panel->ncol+1,MPI_LONG,dest,tag,comm);
+      MPI_Send(panel->i,panel->nzmax,MPI_LONG,dest,tag,comm);
+      MPI_Send(panel->x,panel->nzmax,MPI_DOUBLE,dest,tag,comm);
 
   /* Send colPos */
-      MPI_Send(colPos,panel->ncol,MPI_LONG,dest,tag,MPI_COMM_WORLD);
+      MPI_Send(colPos,panel->ncol,MPI_LONG,dest,tag,comm);
 
   if(k < A->ncol)
     cholmod_l_free_sparse(&panel,cc);
@@ -234,15 +233,15 @@ if(panelIndSize>2){
     long nzmaxRecv=0,ncolRecv;
 
   /* Receive panel */
-      MPI_Recv(&nzmaxRecv,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(&ncolRecv,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
+      MPI_Recv(&nzmaxRecv,1,MPI_LONG,src,tag,comm,&stat);
+      MPI_Recv(&ncolRecv,1,MPI_LONG,src,tag,comm,&stat);
       panelRecv = cholmod_l_allocate_sparse(panel->nrow,ncolRecv,nzmaxRecv,1,1,0,CHOLMOD_REAL,cc);
-      MPI_Recv(panelRecv->p,panelRecv->ncol+1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(panelRecv->i,panelRecv->nzmax,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(panelRecv->x,panelRecv->nzmax,MPI_DOUBLE,src,tag,MPI_COMM_WORLD,&stat);
+      MPI_Recv(panelRecv->p,panelRecv->ncol+1,MPI_LONG,src,tag,comm,&stat);
+      MPI_Recv(panelRecv->i,panelRecv->nzmax,MPI_LONG,src,tag,comm,&stat);
+      MPI_Recv(panelRecv->x,panelRecv->nzmax,MPI_DOUBLE,src,tag,comm,&stat);
 
   /* Receive colPos */
-      MPI_Recv(colPos+panel->ncol,panelRecv->ncol,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);ASSERT(panel->ncol+panelRecv->ncol<=colPosSize);
+      MPI_Recv(colPos+panel->ncol,panelRecv->ncol,MPI_LONG,src,tag,comm,&stat);ASSERT(panel->ncol+panelRecv->ncol<=colPosSize);
 
   /* Create a tree node conformed by merging the 2 panels (analogous to the flat tree case) */
     tempPanel=cholmod_l_horzcat(panel,panelRecv,1,cc);
@@ -310,8 +309,7 @@ else{
 }
   cholmod_l_free_sparse(&tempPanel,cc);
 
-  }else
-      debug("[%d] Idle processor, no working processor at each level of the tree\n",rank);
+  }
 
     Pcontrol=Pcontrol/2+Pcontrol%2;
 

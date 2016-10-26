@@ -9,7 +9,8 @@
  * Arguments
  * =========
  * Inputs:
- *  xa,ja,a: vectors that define the matrix,
+ *  xa,ia,a: vectors that define the CSC matrix (Columns pointer, row indexes
+ *           and matrix values respectively),
  *  m,n,nnz: dimensions of the matrix,
  *  k: rank of the approximation,
  *  Flags: printSVal (to print the singular values), checkFact (to print the factorization error),
@@ -19,22 +20,28 @@
  *  Sval: vector containing the approximated k first singular values.
  */
 
-int preAlps_tournamentPivotingQR(int *xa, int *ja, double *a, int m,  int n,  int nnz, int k,
-   long *Jc, double **Sval, int printSVal, int checkFact, int printFact, int ordering){
+int preAlps_tournamentPivotingQR(MPI_Comm comm, int *xa, int *ia, double *a, int m,  int n,  int nnz,
+  long col_offset, int k, long *Jc, double **Sval, int printSVal, int checkFact, int printFact, int ordering){
 
+/* MPI initialization */
+  int rank,size;
+  MPI_Status stat;
+  MPI_Comm_rank(comm,&rank);
+  MPI_Comm_size(comm,&size);
 
 /* Global variables */
-  long col_offset=0;
-  cholmod_sparse *A;
-  cholmod_sparse *A_test; // Only used when error analysis is required
+  double tol=DBL_EPSILON;
+  int status=0;
 
+/* Start cholmod */
   cholmod_common *cc,Common;
   cc = &Common;
   cc->print=0;
+  cholmod_l_start(cc);
 
+  cholmod_sparse *A;
+  cholmod_sparse *A_test; // Only used when error analysis is required
 
-  double tol=DBL_EPSILON;
-  int status=0;
 
 if(ordering){
   ordering = SPQR_ORDERING_METIS;
@@ -63,7 +70,7 @@ if(ordering){
   double *tau;
 
 
-  /*  MKL variables */
+  /*  MKL-LAPACK variables */
 #ifdef MKL
   MKL_INT info;
   MKL_INT *pivot, pivotSize;
@@ -77,17 +84,21 @@ if(ordering){
 #endif
 
 
-  /* MPI initialization */
-  int rank,size;
-  MPI_Status stat;
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&size);
+/* Getting A_test for error analysis */
+if(checkFact==1 && rank ==0){
+  preAlps_CSC_to_cholmod_l_sparse(m, n, nnz, xa, ia, a, &A_test, cc);
+  n = col_offset;
+  nnz= xa[col_offset];
+  col_offset = 0;
+}
 
-  /* Distribute the glabal matrix among all processors  */
-  preAlps_TP_matrix_distribute(rank,size,xa,ja,a,m,n,nnz,&col_offset,&A,checkFact,&A_test,cc);
+/* Getting local matrix in cholmod */
+preAlps_CSC_to_cholmod_l_sparse(m, n, nnz, xa, ia, a, &A, cc);
 
- /* Let's begin*/
- /* Section 1:  initialization of common variables */
+
+
+/* Let's begin*/
+  /* Section 1:  initialization of common variables */
 
   ncol = A->ncol;
   remainCols = ncol % k;
@@ -217,14 +228,14 @@ if(panelIndSize>2){
     int dest=complement;
 
   /* Send panel */
-      MPI_Send(&panel->nzmax,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(&panel->ncol,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(panel->p,panel->ncol+1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(panel->i,panel->nzmax,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(panel->x,panel->nzmax,MPI_DOUBLE,dest,tag,MPI_COMM_WORLD);
+      MPI_Send(&panel->nzmax,1,MPI_LONG,dest,tag,comm);
+      MPI_Send(&panel->ncol,1,MPI_LONG,dest,tag,comm);
+      MPI_Send(panel->p,panel->ncol+1,MPI_LONG,dest,tag,comm);
+      MPI_Send(panel->i,panel->nzmax,MPI_LONG,dest,tag,comm);
+      MPI_Send(panel->x,panel->nzmax,MPI_DOUBLE,dest,tag,comm);
 
   /* Send colPos */
-      MPI_Send(colPos,panel->ncol,MPI_LONG,dest,tag,MPI_COMM_WORLD);
+      MPI_Send(colPos,panel->ncol,MPI_LONG,dest,tag,comm);
 
   if(k < A->ncol)
     cholmod_l_free_sparse(&panel,cc);
@@ -237,15 +248,15 @@ if(panelIndSize>2){
     long nzmaxRecv=0,ncolRecv;
 
   /* Receive panel */
-      MPI_Recv(&nzmaxRecv,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(&ncolRecv,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
+      MPI_Recv(&nzmaxRecv,1,MPI_LONG,src,tag,comm,&stat);
+      MPI_Recv(&ncolRecv,1,MPI_LONG,src,tag,comm,&stat);
       panelRecv = cholmod_l_allocate_sparse(panel->nrow,ncolRecv,nzmaxRecv,1,1,0,CHOLMOD_REAL,cc);
-      MPI_Recv(panelRecv->p,panelRecv->ncol+1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(panelRecv->i,panelRecv->nzmax,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(panelRecv->x,panelRecv->nzmax,MPI_DOUBLE,src,tag,MPI_COMM_WORLD,&stat);
+      MPI_Recv(panelRecv->p,panelRecv->ncol+1,MPI_LONG,src,tag,comm,&stat);
+      MPI_Recv(panelRecv->i,panelRecv->nzmax,MPI_LONG,src,tag,comm,&stat);
+      MPI_Recv(panelRecv->x,panelRecv->nzmax,MPI_DOUBLE,src,tag,comm,&stat);
 
   /* Receive colPos */
-      MPI_Recv(colPos+panel->ncol,panelRecv->ncol,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);ASSERT(panel->ncol+panelRecv->ncol<=colPosSize);
+      MPI_Recv(colPos+panel->ncol,panelRecv->ncol,MPI_LONG,src,tag,comm,&stat);ASSERT(panel->ncol+panelRecv->ncol<=colPosSize);
 
   /* Create a tree node conformed by merging the 2 panels (analogous to the flat tree case) */
     tempPanel=cholmod_l_horzcat(panel,panelRecv,1,cc);
@@ -313,8 +324,7 @@ else{
 }
   cholmod_l_free_sparse(&tempPanel,cc);
 
-  }else
-      debug("[%d] Idle processor, no working processor at each level of the tree\n",rank);
+  }
 
     Pcontrol=Pcontrol/2+Pcontrol%2;
 
@@ -349,9 +359,11 @@ if(rank==0){
 
 /* sending the k selected columns to other processors */
 for(int dest = 1; dest<size; dest++) {
-    MPI_Send(panel->p,panel->ncol+1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-    MPI_Send(panel->i,panel->nzmax,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-    MPI_Send(panel->x,panel->nzmax,MPI_DOUBLE,dest,tag,MPI_COMM_WORLD);
+    MPI_Send(&panel->nzmax,1,MPI_LONG,dest,tag,comm);
+    MPI_Send(&panel->ncol,1,MPI_LONG,dest,tag,comm);
+    MPI_Send(panel->p,panel->ncol+1,MPI_LONG,dest,tag,comm);
+    MPI_Send(panel->i,panel->nzmax,MPI_LONG,dest,tag,comm);
+    MPI_Send(panel->x,panel->nzmax,MPI_DOUBLE,dest,tag,comm);
 }
 
 /*
@@ -370,13 +382,15 @@ else {
 /* Processor receiving from the master processor */
   int src = 0;
   cholmod_sparse *QT;
-  long nzmaxRecv= A->nrow * k;
+  long nzmaxRecv=0,ncolRecv;
 
 /* Receiving QT matrix */
-  QT = cholmod_l_allocate_sparse(A->nrow,k,nzmaxRecv,1,1,0,CHOLMOD_REAL,cc);
-  MPI_Recv(QT->p,QT->ncol+1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-  MPI_Recv(QT->i,QT->nzmax,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-  MPI_Recv(QT->x,QT->nzmax,MPI_DOUBLE,src,tag,MPI_COMM_WORLD,&stat);
+  MPI_Recv(&nzmaxRecv,1,MPI_LONG,src,tag,comm,&stat);
+  MPI_Recv(&ncolRecv,1,MPI_LONG,src,tag,comm,&stat);
+  QT = cholmod_l_allocate_sparse(A->nrow,ncolRecv,nzmaxRecv,1,1,0,CHOLMOD_REAL,cc);
+  MPI_Recv(QT->p,QT->ncol+1,MPI_LONG,src,tag,comm,&stat);
+  MPI_Recv(QT->i,QT->nzmax,MPI_LONG,src,tag,comm,&stat);
+  MPI_Recv(QT->x,QT->nzmax,MPI_DOUBLE,src,tag,comm,&stat);
 
 
  /* Multiplying QT*A */
@@ -393,21 +407,28 @@ else {
 if(rank>0) {
   int src = 0;
   /* Sending local part of the matrix [S_11, S_12]*P' to master processor */
-  MPI_Send(A->p,A->ncol+1,MPI_LONG,src,tag,MPI_COMM_WORLD);
-  MPI_Send(A->i,A->nzmax,MPI_LONG,src,tag,MPI_COMM_WORLD);
-  MPI_Send(A->x,A->nzmax,MPI_DOUBLE,src,tag,MPI_COMM_WORLD);
+  MPI_Send(&A->nzmax,1,MPI_LONG,src,tag,comm);
+  MPI_Send(&A->ncol,1,MPI_LONG,src,tag,comm);
+  MPI_Send(A->p,A->ncol+1,MPI_LONG,src,tag,comm);
+  MPI_Send(A->i,A->nzmax,MPI_LONG,src,tag,comm);
+  MPI_Send(A->x,A->nzmax,MPI_DOUBLE,src,tag,comm);
 }
  else { // Master processor
  cholmod_sparse *tempS;
- int nzmax = k*(A->ncol);
- tempS = cholmod_l_allocate_sparse(k,A->ncol,nzmax,1,1,0,CHOLMOD_REAL,cc);
+ long nzmaxRecv=0,ncolRecv;
+
 
  /* Assembling matrix [S_11, S_12]*P' */
   for(int dest = 1; dest<size;dest++) {
-    MPI_Recv(tempS->p,tempS->ncol+1,MPI_LONG,dest,tag,MPI_COMM_WORLD,&stat);
-    MPI_Recv(tempS->i,tempS->nzmax,MPI_LONG,dest,tag,MPI_COMM_WORLD,&stat);
-    MPI_Recv(tempS->x,tempS->nzmax,MPI_DOUBLE,dest,tag,MPI_COMM_WORLD,&stat);
+    MPI_Recv(&nzmaxRecv,1,MPI_LONG,dest,tag,comm,&stat);
+    MPI_Recv(&ncolRecv,1,MPI_LONG,dest,tag,comm,&stat);
+    tempS = cholmod_l_allocate_sparse(k,ncolRecv,nzmaxRecv,1,1,0,CHOLMOD_REAL,cc);
+    MPI_Recv(tempS->p,tempS->ncol+1,MPI_LONG,dest,tag,comm,&stat);
+    MPI_Recv(tempS->i,tempS->nzmax,MPI_LONG,dest,tag,comm,&stat);
+    MPI_Recv(tempS->x,tempS->nzmax,MPI_DOUBLE,dest,tag,comm,&stat);
     A = cholmod_l_horzcat(A,tempS,1,cc);
+
+    cholmod_l_free_sparse(&tempS,cc);
   }
 
  /* Getting Q1 matrix */
@@ -434,10 +455,9 @@ if(rank>0) {
     fclose(matR);
     printf("Matrix Q and R written in Q.mtx and R.mtx respectively \n");
   }
-  cholmod_l_free_sparse(&tempS,cc);
-  cholmod_l_free_sparse(&Q,cc);
-}
 
+   cholmod_l_free_sparse(&Q,cc);
+}
 
 
 

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <spTP_utils.h>
 
-void preAlps_TP_parameters_display( char **matrixName, int *k, int ordering, int *printSVal, int *checkFact,
+void preAlps_TP_parameters_display(MPI_Comm comm, char **matrixName, int *k, int ordering, int *printSVal, int *checkFact,
   int *printFact, int argc, char **argv){
   /* Default parameters */
   int kD=2;
@@ -14,8 +14,8 @@ void preAlps_TP_parameters_display( char **matrixName, int *k, int ordering, int
 
   /* MPI parameters */
   int rank,size;
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&size);
+  MPI_Comm_rank(comm,&rank);
+  MPI_Comm_size(comm,&size);
 
 
   /* User can change inputs from the terminal */
@@ -47,7 +47,7 @@ void preAlps_TP_parameters_display( char **matrixName, int *k, int ordering, int
           printf("Error in input : argv[%d]=%s\n",i,argv[i]);
           printf("Usage | Default values: %s [-m <matrixName : %s>] [-k <value : %d>]  [--metis] [--printSVal] [--checkFact] [--printFact]\n",
                   argv[0], matrixNameD, kD);
-          MPI_Abort(MPI_COMM_WORLD,1);
+          MPI_Abort(comm,1);
         }
     }
 
@@ -76,114 +76,143 @@ void preAlps_TP_parameters_display( char **matrixName, int *k, int ordering, int
 }
 
 
+/* Change the matrix format to cholmod sparse long format */
+void preAlps_CSC_to_cholmod_l_sparse(int m, int n, int nnz, int *colPtr, int *rowInd, double *a, cholmod_sparse **A, cholmod_common *cc){
+  long *Arow, *Acol;
+
+  (*A) = cholmod_l_allocate_sparse((long)m,(long)n,(long)nnz,1,1,0,CHOLMOD_REAL,cc);
+  Acol=malloc((n+1)*sizeof(long));
+  Arow=malloc(nnz*sizeof(long));
+
+  for(int i=0;i< n+1;i++)
+    Acol[i]=(long)colPtr[i];
+  for(int i=0;i< nnz;i++)
+    Arow[i]=(long)rowInd[i];
+
+  memcpy((*A)->p,Acol,(n+1)*sizeof(long));
+  memcpy((*A)->i,Arow,(nnz)*sizeof(long));
+  memcpy((*A)->x,a,(nnz)*sizeof(double));
+
+  (*A)->nzmax=(long)(nnz);
+
+
+
+}
+
+
+void preAlps_l_CSC_to_cholmod_l_sparse(long m, long n, long nnz, long *colPtr, long *rowInd, double *a, cholmod_sparse **A, cholmod_common *cc){
+
+  (*A) = cholmod_l_allocate_sparse(m,n,nnz,1,1,0,CHOLMOD_REAL,cc);
+
+  memcpy((*A)->p,colPtr,(n+1)*sizeof(long));
+  memcpy((*A)->i,rowInd,(nnz)*sizeof(long));
+  memcpy((*A)->x,a,(nnz)*sizeof(double));
+
+  (*A)->nzmax=nnz;
+
+
+
+}
+
 /* Distribute the global matrix among all processors */
-void preAlps_TP_matrix_distribute(int rank, int size, int *row_indx, int *col_indx, double *a, int m, int n, int nnz,
-  long *col_offset, cholmod_sparse **A, int checkFact, cholmod_sparse **A_test, cholmod_common *cc){
-    int tag = 0;
-    MPI_Status stat;
+void preAlps_spTP_distribution(MPI_Comm comm, int *m, int *n, int *nnz, int **colPtr, int **rowInd,
+  double **a, long *col_offset, int checkFact){
 
-    cholmod_sparse *A_global;
-    long localStart = 0;
-    cholmod_l_start(cc);
+  long localStart = 0;
+  int localNCol = 0;
+  int neb; // Number of non-zero elements per in each processor
+  int nrows;
+  int rank,size;
+  MPI_Comm_rank(comm,&rank);
+  MPI_Comm_size(comm,&size);
+  MPI_Status stat;
+  int tag = 0;
+  int *colPtrLoc = NULL, *rowIndLoc = NULL;
+  double *aLoc = NULL;
 
-    if(rank==0) {
-    cholmod_triplet *T;
+/* Distribute among all processors */
+if(rank ==0){
 
-    long ml = (long)m;
-    long nl = (long)n;
-    long nnzl = (long)nnz;
+  nrows = *m; // same number of rows for all processors
+  int nbProcWithExtraSize= *n % size;
 
-    long *ix;
-    long *iy;
-    double *ai;
-    ix =  malloc(nnzl*sizeof(long));
-    iy =  malloc(nnzl*sizeof(long));
-    ai =  malloc(nnzl*sizeof(double));
+  for(int dest = 1; dest<size; dest++) {
+    localNCol = *n / size;
+    if(dest<nbProcWithExtraSize){
+      localNCol++;
+      localStart=dest*localNCol;
+    }else{
+      localStart=nbProcWithExtraSize*(localNCol+1)+(dest-nbProcWithExtraSize)*localNCol;
+     }
 
-
-    int count = 0;
-      for (int i=0; i<m; i++){
-        for (int j=row_indx[i]; j<row_indx[i+1]; j++){
-            ix[count] = col_indx[j];
-            iy[count] = i;
-            ai[count] = a[j];
-            count +=1;
-        }
-      }
+     neb = (*colPtr)[localStart+localNCol] - (*colPtr)[localStart];
+     colPtrLoc = malloc((localNCol+1)*sizeof(int));
+     rowIndLoc = malloc(neb*sizeof(int));
+     aLoc = malloc(neb*sizeof(double));
 
 
-    T=cholmod_l_allocate_triplet(ml,nl,nnzl,0,CHOLMOD_REAL,cc);
-    memcpy(T->i,ix,sizeof(long)*nnzl);
-    memcpy(T->j,iy,sizeof(long)*nnzl);
-    memcpy(T->x,ai,sizeof(double)*nnz);
-    T->nnz=nnzl;
-    A_global=cholmod_l_triplet_to_sparse(T,nnzl,cc);
+     for(int i =0;i<localNCol+1;i++)
+       colPtrLoc[i]=(*colPtr)[i+localStart]-(*colPtr)[localStart];
 
-    if(checkFact){
-      *A_test = cholmod_l_copy_sparse(A_global,cc);
+     for(int i =0;i<neb;i++){
+         rowIndLoc[i]= (*rowInd)[i + (*colPtr)[localStart]];
+         aLoc[i] = (*a)[i + (*colPtr)[localStart]];
+     }
+
+    MPI_Send(&nrows,1,MPI_INT,dest,tag,comm);
+    MPI_Send(&localStart,1,MPI_LONG,dest,tag,comm);
+    MPI_Send(&localNCol,1,MPI_INT,dest,tag,comm);
+    MPI_Send(&neb,1,MPI_INT,dest,tag,comm);
+
+    MPI_Send(colPtrLoc,localNCol+1,MPI_INT,dest,tag,comm);
+    MPI_Send(rowIndLoc,neb,MPI_INT,dest,tag,comm);
+    MPI_Send(aLoc,neb,MPI_DOUBLE,dest,tag,comm);
+  }
+
+  /* Getting submatrix in processor 0 */
+
+  localNCol = *n / size;
+  if(nbProcWithExtraSize>0) localNCol = localNCol + 1;
+
+  if(checkFact==1){
+  *col_offset = localNCol;
+  } else{
+  *col_offset = 0;
+  neb = (*colPtr)[localNCol];
+  *n = localNCol;
+  *nnz= neb;
+  realloc((*colPtr),(localNCol+1)*sizeof(int));
+  realloc((*rowInd),neb*sizeof(int));
+  realloc((*a),neb*sizeof(double));
+  }
+
+} else {
+  /* Processor receiving local matrix from the master */
+        int src = 0;
+        MPI_Recv(&nrows,1,MPI_INT,src,tag,comm,&stat);
+        *m = nrows;
+        MPI_Recv(&localStart,1,MPI_LONG,src,tag,comm,&stat);
+        *col_offset = localStart;
+        MPI_Recv(&localNCol,1,MPI_INT,src,tag,comm,&stat);
+        *n = localNCol;
+        MPI_Recv(&neb,1,MPI_INT,src,tag,comm,&stat);
+        *nnz = neb;
+
+        colPtrLoc = malloc((localNCol+1)*sizeof(int));
+        rowIndLoc = malloc(neb*sizeof(int));
+        aLoc = malloc(neb*sizeof(double));
+
+        *colPtr = NULL; *rowInd = NULL; *a = NULL;
+        *colPtr = malloc((localNCol+1)*sizeof(int));
+        *rowInd = malloc(neb*sizeof(int));
+        *a = malloc(neb*sizeof(double));
+
+        MPI_Recv(colPtrLoc,localNCol+1,MPI_INT,src,tag,comm,&stat);
+        MPI_Recv(rowIndLoc,neb,MPI_INT,src,tag,comm,&stat);
+        MPI_Recv(aLoc,neb,MPI_DOUBLE,src,tag,comm,&stat);
+
+        memcpy((*colPtr),colPtrLoc,(localNCol+1)*sizeof(int));
+        memcpy((*rowInd),rowIndLoc,neb*sizeof(int));
+        memcpy((*a),aLoc,neb*sizeof(double));
     }
-
-    /* Print global matrix */
-    cc->print = 6;
-    //cholmod_l_print_sparse(A_global,"A Global matrix",cc);
-    cc->print = 0;
-
-    /* Get localStart to update columns position */
-    cholmod_sparse *A_temp;
-    long localSize;
-    long nbProcWithExtraSize= n % size;
-
-    long *colInd;
-    colInd = malloc(sizeof(long)*n);
-    for(int i=0; i<n; i++)  colInd[i] = i;
-
-    for(int dest = 1; dest<size; dest++) {
-      localSize = n / size;
-
-      if(dest<nbProcWithExtraSize){
-        localSize++;
-        localStart=dest*localSize;
-      }else{
-        localStart=nbProcWithExtraSize*(localSize+1)+(dest-nbProcWithExtraSize)*localSize;
-      }
-
-    /* Distribute the matrix over all the processors */
-      A_temp =  cholmod_l_submatrix(A_global,NULL,-1,colInd + localStart,localSize,1,1,cc);
-
-      MPI_Send(&localStart,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-
-      MPI_Send(&A_temp->nzmax,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(&A_temp->ncol,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(&A_temp->nrow,1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(A_temp->p,A_temp->ncol+1,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(A_temp->i,A_temp->nzmax,MPI_LONG,dest,tag,MPI_COMM_WORLD);
-      MPI_Send(A_temp->x,A_temp->nzmax,MPI_DOUBLE,dest,tag,MPI_COMM_WORLD);
-    }
-
-    *col_offset = 0;
-    localSize = n / size;
-    if(nbProcWithExtraSize>0) localSize++;
-    (*A) =  cholmod_l_submatrix(A_global,NULL,-1,colInd,localSize,1,1,cc);
-    free(colInd);
-    cholmod_l_free_sparse(&A_temp,cc);
-    cholmod_l_free_sparse(&A_global,cc); // to be used in CUR
-    free(row_indx);
-    free(col_indx);
-    free(a);
-    }
-    else {
-      int src = 0;
-      long nzmaxRecv=0,ncolRecv,nrowRecv;
-      MPI_Recv(&localStart,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      *col_offset = localStart;
-
-      MPI_Recv(&nzmaxRecv,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(&ncolRecv,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv(&nrowRecv,1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      *A = cholmod_l_allocate_sparse(nrowRecv,ncolRecv,nzmaxRecv,1,1,0,CHOLMOD_REAL,cc);
-      MPI_Recv((*A)->p,(*A)->ncol+1,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv((*A)->i,(*A)->nzmax,MPI_LONG,src,tag,MPI_COMM_WORLD,&stat);
-      MPI_Recv((*A)->x,(*A)->nzmax,MPI_DOUBLE,src,tag,MPI_COMM_WORLD,&stat);
-    }
-
 }
