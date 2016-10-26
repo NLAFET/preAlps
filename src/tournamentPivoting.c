@@ -9,9 +9,10 @@
  * Arguments
  * =========
  * Inputs:
- *  xa,ia,a: vectors that define the CSC matrix (Columns pointer, row indexes
+ *  xa,ia,a: vectors that define the CSC matrix (column pointers, row indexes
  *           and matrix values respectively),
  *  m,n,nnz: dimensions of the matrix,
+ *  col_offset: offset of local column indexes with respect to global indexes,
  *  k: rank of the approximation,
  *  Flags: printSVal (to print the singular values) and ordering (to activate METIS).
  * Outputs:
