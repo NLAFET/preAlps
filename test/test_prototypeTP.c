@@ -44,6 +44,13 @@ int main(int argc, char **argv){
 
   if(rank ==0){
     preAlps_matrix_readmm_csc(matrixName, &m, &n, &nnz, &xa, &ia, &a);
+    printf("Matrix dimensions: m=%d,  n=%d,  nnz=%d.\n", m,n,nnz);
+  /* Sanity check */
+    if(k<1 || k>n) {
+      printf("ERROR: choose k from the set {1,...,%d}. \n", n);
+      MPI_Abort(comm,1);
+      exit(1);
+    }
   }
   free(matrixName);
 
@@ -67,7 +74,6 @@ int main(int argc, char **argv){
   t_begin=MPI_Wtime();
   preAlps_tournamentPivoting(comm,xa,ia,a,m,n,nnz,col_offset,k,Jc,&Sval,printSVal,ordering);
   t_tp = MPI_Wtime()-t_begin;
-
 
   /* Print the results */
 if(rank==0) {

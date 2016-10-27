@@ -87,8 +87,9 @@ if(ordering){
  /* Section 1:  initialization of common variables */
 
   ncol = A->ncol;
-  remainCols = ncol % k;
-  npanel = ncol / k + (remainCols?1:0);
+  remainCols = (int)ncol % k;
+  npanel = (int)ncol / k + (remainCols?1:0);
+
 
   tau = malloc(pivotSize*sizeof(double));
   colPosSize  = MAX(2*k,ncol);
@@ -98,6 +99,11 @@ if(ordering){
 
   for(long i=0;i<colPosSize ;i++)
     colPos[i]=i;
+
+long *alan_rows;
+alan_rows = malloc(sizeof(long)*m);
+    for(long i=0;i<m ;i++)
+      alan_rows[i]=i;
 
  /* 2. Local Flat Tree:
   *     Inside each processor a flat tree is performed to select a local set of k pivot columns
@@ -124,12 +130,14 @@ if(ordering){
   /* Get 2 panels and merge them into a temporal panel */
   tempPanel=cholmod_l_submatrix(A,NULL,-1,colPos+k*i,panelSize,1,1,cc);
 
+
   /* Get the QR-sparse factorization of the merged panel */
   if(ordering){
     status=SuiteSparseQR_C_QR (ordering, tol, panelSize, tempPanel, NULL, &R, &spqrOrd, cc) ;
   }else{
     status=SuiteSparseQR_C_QR (ordering, tol, panelSize, tempPanel, NULL, &R, NULL, cc) ;
   }
+
 
   cholmod_l_free_sparse(&tempPanel,cc);
   Rdense = cholmod_l_sparse_to_dense(R,cc);
@@ -140,6 +148,7 @@ if(ordering){
   cholmod_l_free_dense(&Rdense,cc);
 
   /* Copy permutation of columns into bestCol */
+
 
   for(long j=0;j<panelSize;j++){
       if(ordering){
@@ -167,6 +176,7 @@ if(ordering){
 if(panelIndSize>2){
   memcpy(colPos,bestCol,k*sizeof(long));
 }
+
 
 /* 3. Global Binary Tree:
  *     Perform a binary tree between all processors to select the global set of k pivot columns

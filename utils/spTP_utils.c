@@ -80,7 +80,10 @@ void preAlps_TP_parameters_display(MPI_Comm comm, char **matrixName, int *k, int
 void preAlps_CSC_to_cholmod_l_sparse(int m, int n, int nnz, int *colPtr, int *rowInd, double *a, cholmod_sparse **A, cholmod_common *cc){
   long *Arow, *Acol;
 
+long alan = (long)nnz;
+
   (*A) = cholmod_l_allocate_sparse((long)m,(long)n,(long)nnz,1,1,0,CHOLMOD_REAL,cc);
+
   Acol=malloc((n+1)*sizeof(long));
   Arow=malloc(nnz*sizeof(long));
 
@@ -94,8 +97,6 @@ void preAlps_CSC_to_cholmod_l_sparse(int m, int n, int nnz, int *colPtr, int *ro
   memcpy((*A)->x,a,(nnz)*sizeof(double));
 
   (*A)->nzmax=(long)(nnz);
-
-
 
 }
 
@@ -181,9 +182,9 @@ if(rank ==0){
   neb = (*colPtr)[localNCol];
   *n = localNCol;
   *nnz= neb;
-  realloc((*colPtr),(localNCol+1)*sizeof(int));
-  realloc((*rowInd),neb*sizeof(int));
-  realloc((*a),neb*sizeof(double));
+  (*colPtr)=realloc((*colPtr),(localNCol+1)*sizeof(int));
+  (*rowInd)=realloc((*rowInd),neb*sizeof(int));
+  (*a)=realloc((*a),neb*sizeof(double));
   }
 
 } else {
