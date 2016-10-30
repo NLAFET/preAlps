@@ -22,13 +22,13 @@
 
 
 int preAlps_tournamentPivoting(MPI_Comm comm, int *colPtr, int *rowInd, double *a, int m,  int n,  int nnz, long col_offset, int k, long *Jc,
-   double **Sval, int printSVal, int ordering);
+   double *Sval, int printSVal, int ordering);
 
 int preAlps_tournamentPivotingQR(MPI_Comm comm, int *colPtr, int *rowInd, double *a, int m,  int n,  int nnz,
-  long col_offset, int k, long *Jc, double **Sval, int printSVal, int checkFact, int printFact, int ordering);
+  long col_offset, int k, long *Jc, double *Sval, int printSVal, int checkFact, int printFact, int ordering);
 
 
 int preAlps_tournamentPivotingCUR(MPI_Comm comm, int *colPtr, int *rowInd, double *a, int m,  int n,  int nnz,
-    long col_offset, int k, long *Jr, long *Jc, double **Sval, int printSVal, int checkFact, int printFact, int ordering);
+    long col_offset, int k, long *Jr, long *Jc, double *Sval, int printSVal, int checkFact, int printFact, int ordering);
 
 #endif

@@ -72,7 +72,7 @@ int main(int argc, char **argv){
   /* Call tournamentPivoting and get Jc and the singular values (if required) */
   double t_begin, t_tp;
   t_begin=MPI_Wtime();
-  preAlps_tournamentPivoting(comm,xa,ia,a,m,n,nnz,col_offset,k,Jc,&Sval,printSVal,ordering);
+  preAlps_tournamentPivoting(comm,xa,ia,a,m,n,nnz,col_offset,k,Jc,Sval,printSVal,ordering);
   t_tp = MPI_Wtime()-t_begin;
 
   /* Print the results */

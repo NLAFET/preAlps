@@ -21,7 +21,7 @@
  */
 
 int preAlps_tournamentPivoting(MPI_Comm comm, int *xa, int *ia, double *a, int m,  int n,  int nnz, long col_offset, int k, long *Jc,
-   double **Sval, int printSVal, int ordering){
+   double *Sval, int printSVal, int ordering){
 
   /* MPI initialization */
   int rank,size;
@@ -100,10 +100,6 @@ if(ordering){
   for(long i=0;i<colPosSize ;i++)
     colPos[i]=i;
 
-long *alan_rows;
-alan_rows = malloc(sizeof(long)*m);
-    for(long i=0;i<m ;i++)
-      alan_rows[i]=i;
 
  /* 2. Local Flat Tree:
   *     Inside each processor a flat tree is performed to select a local set of k pivot columns
@@ -279,7 +275,7 @@ if(panelIndSize>2){
         double *val = (double *)Rdense->x;
         for(int i=0;i<k;i++){
           ASSERT(i*(Rdense->nrow+1)<Rdense->nzmax);
-          (*Sval)[i]=val[i*(Rdense->nrow+1)];
+          Sval[i]=val[i*(Rdense->nrow+1)];
         }
       }
 

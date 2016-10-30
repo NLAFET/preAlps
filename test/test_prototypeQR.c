@@ -60,9 +60,10 @@ int main(int argc, char **argv){
   long col_offset=0;
   preAlps_spTP_distribution(comm,&m, &n, &nnz, &xa, &ia, &a, &col_offset, checkFact);
 
-/* Alocate memory for the vectors Jc, Jr and the singular values */
+/* Alocate memory for the vector of selected indices and the singular values */
   ASSERT(k>0);
-  long *Jc;
+  long *Jc; // seleceted column indices
+
   if(rank == 0) {
     Jc  = malloc(sizeof(long)*k);
     if(printSVal) Sval  = malloc(sizeof(long)*k);
@@ -71,7 +72,7 @@ int main(int argc, char **argv){
   /* Call tournamentPivotingQR and get Jc, Jr and the singular values (if required) */
   double t_begin, t_tp;
   t_begin=MPI_Wtime();
-  preAlps_tournamentPivotingQR(comm,xa,ia,a,m,n,nnz,col_offset,k,Jc,&Sval,printSVal,checkFact,printFact,ordering);
+  preAlps_tournamentPivotingQR(comm,xa,ia,a,m,n,nnz,col_offset,k,Jc,Sval,printSVal,checkFact,printFact,ordering);
   t_tp = MPI_Wtime()-t_begin;
 
 
@@ -99,10 +100,9 @@ if(printSVal) {
        fprintf(Jcf, "%ld\n", Jc[i]+1);
     }
     fclose(Jcf);
-    free(Jc);
   }
 
-
+free(Jc);
 }
 
 free(xa);

@@ -168,6 +168,8 @@ if(rank ==0){
     MPI_Send(colPtrLoc,localNCol+1,MPI_INT,dest,tag,comm);
     MPI_Send(rowIndLoc,neb,MPI_INT,dest,tag,comm);
     MPI_Send(aLoc,neb,MPI_DOUBLE,dest,tag,comm);
+
+    free(colPtrLoc); free(rowIndLoc); free(aLoc);
   }
 
   /* Getting submatrix in processor 0 */
@@ -175,17 +177,8 @@ if(rank ==0){
   localNCol = *n / size;
   if(nbProcWithExtraSize>0) localNCol = localNCol + 1;
 
-  if(checkFact==1){
   *col_offset = localNCol;
-  } else{
-  *col_offset = 0;
-  neb = (*colPtr)[localNCol];
-  *n = localNCol;
-  *nnz= neb;
-  (*colPtr)=realloc((*colPtr),(localNCol+1)*sizeof(int));
-  (*rowInd)=realloc((*rowInd),neb*sizeof(int));
-  (*a)=realloc((*a),neb*sizeof(double));
-  }
+
 
 } else {
   /* Processor receiving local matrix from the master */

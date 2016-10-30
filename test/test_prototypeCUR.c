@@ -59,9 +59,10 @@ int main(int argc, char **argv){
   long col_offset=0;
   preAlps_spTP_distribution(comm,&m, &n, &nnz, &xa, &ia, &a, &col_offset, checkFact);
 
-/* Alocate memory for the vectors Jc, Jr and the singular values */
+/* Alocate memory for the vector of selected indices and the singular values */
   ASSERT(k>0);
-  long *Jc,*Jr;
+  long *Jc;  // seleceted column indices
+  long *Jr;  // seleceted row indices
   Jr  = malloc(sizeof(long)*k);
   if(rank == 0) {
     Jc  = malloc(sizeof(long)*k);
@@ -71,7 +72,7 @@ int main(int argc, char **argv){
   /* Call tournamentPivotingCUR and get Jc, Jr and the singular values (if required) */
   double t_begin, t_tp;
   t_begin=MPI_Wtime();
-  preAlps_tournamentPivotingCUR(comm,xa,ia,a,m,n,nnz,col_offset,k,Jr,Jc,&Sval,printSVal,checkFact,printFact,ordering);
+  preAlps_tournamentPivotingCUR(comm,xa,ia,a,m,n,nnz,col_offset,k,Jr,Jc,Sval,printSVal,checkFact,printFact,ordering);
   t_tp = MPI_Wtime()-t_begin;
 
 
