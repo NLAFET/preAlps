@@ -78,9 +78,42 @@ if(ordering){
   pivot   = calloc(pivotSize,sizeof(lapack_int));
 #endif
 
+/* Local Matrix in master processor */
+if(rank ==0){
+  if(col_offset != 0) {
+    n = col_offset;
+    nnz= xa[col_offset];
+    col_offset = 0;
 
-  /* Getting local matrix in cholmod */
+    int *colPtrLoc = NULL, *rowIndLoc = NULL;
+    double *aLoc = NULL;
+
+    colPtrLoc = malloc((n+1)*sizeof(int));
+    rowIndLoc = malloc(nnz*sizeof(int));
+    aLoc = malloc(nnz*sizeof(double));
+
+    for(int i =0;i<n+1;i++)
+      colPtrLoc[i]= xa[i];
+
+    for(int i =0;i<nnz;i++){
+        rowIndLoc[i]= ia[i];
+        aLoc[i] = a[i];
+    }
+
+/* Converting local matrix in master processor to cholmod */
+  preAlps_CSC_to_cholmod_l_sparse(m, n, nnz, colPtrLoc, rowIndLoc, aLoc, &A, cc);
+  free(colPtrLoc); free(rowIndLoc); free(aLoc);
+} else{
+    preAlps_CSC_to_cholmod_l_sparse(m, n, nnz, xa, ia, a, &A, cc);
+  }
+
+}
+
+/* Converting local matrices to cholmod */
+if( rank > 0){
   preAlps_CSC_to_cholmod_l_sparse(m, n, nnz, xa, ia, a, &A, cc);
+}
+
 
 
  /* Let's begin*/

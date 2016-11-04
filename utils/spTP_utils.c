@@ -172,7 +172,7 @@ if(rank ==0){
     free(colPtrLoc); free(rowIndLoc); free(aLoc);
   }
 
-  /* Getting submatrix in processor 0 */
+  /* Parameters of submatrix in processor 0 */
 
   localNCol = *n / size;
   if(nbProcWithExtraSize>0) localNCol = localNCol + 1;
