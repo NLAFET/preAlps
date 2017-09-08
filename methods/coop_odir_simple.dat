@@ -1,0 +1,11 @@
+################################################################################
+# Author     : Olivier Tissot                                                  #
+# Date       : 2016/08/27                                                      #
+# Description: Orthodir Coop-CG with no red, no stab                           #
+################################################################################
+
+CG algorithm                 : Coop
+Ortho algorithm              : Orthodir
+Block size reduction         : No
+R_k stabilization            : No
+Block diagonal preconditioner: No
