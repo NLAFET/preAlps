@@ -29,6 +29,8 @@
 #include <cpalamem_macro.h>
 #include <cpalamem_instrumentation.h>
 
+#include<mkl.h>
+
 /* Preconditioner */
 typedef enum {
   LEFT_PREC,

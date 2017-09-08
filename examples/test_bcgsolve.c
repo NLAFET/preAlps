@@ -1,5 +1,5 @@
 /******************************************************************************/
-/* Author     : Olivier Tissot                                                */
+/* Author     : Olivier Tissot , Simplice Donfack                             */
 /* Creation   : 2016/06/23                                                    */
 /* Description: Main file of Par(allel) B(lock) C(onjugate) G(gradient)       */
 /******************************************************************************/
@@ -16,12 +16,16 @@
 #include <mpi.h>
 /* MKL */
 #include <mkl.h>
+
 /* CPaLAMeM */
-#include <petsc_interface.h>
 #include <cpalamem_macro.h>
 #include <cpalamem_instrumentation.h>
+
+#ifdef USE_PETSC
+#include <petsc_interface.h>
 /* Petsc */
 #include <petscksp.h>
+#endif
 
 /* ParBCG */
 #include "usr_param.h"
@@ -64,6 +68,7 @@ OPEN_TIMER
   // ierr = DVectorLoadAndDistribute(rhsFilename,&rhs,&rowPos,MPI_COMM_WORLD);
   CHKERR(ierr);
 
+#ifdef USE_PETSC
   /*================ Petsc solve ================*/
   Mat A_petsc;
   Vec X, B;
@@ -116,16 +121,22 @@ TAC(step1)
   if (rank == 0)
     printf("=== Petsc ===\n\titerations: %d\n\tnorm(res): %e\n",its,rnorm);
   KSPDestroy(&ksp);
+#endif
 
   /*================ BCG solve ================*/
   BCG_t bcg_solver;
   const char* caseName = "debug";
   bcg_solver.comm = MPI_COMM_WORLD;
   BCGReadParamFromFile(&bcg_solver, param.solverFilename);
+
+#ifdef USE_PETSC
+  /*Restore the pointer*/
   double* data = NULL;
   VecGetArray(B,&data);
   rhs.nval = A.info.m;
   rhs.val = data;
+#endif
+
 TIC(step2,"BCGSolve")
   BCGSolve(&bcg_solver, &rhs, &param, caseName);
 TAC(step2)
@@ -133,9 +144,12 @@ TAC(step2)
     printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",bcg_solver.iter,bcg_solver.res);
 
   /*================ Finalize ================*/
+
+#ifdef USE_PETSC
   MatDestroy(&A_petsc);
-  DVectorFree(&rhs);
   VecDestroy(&X);
+#endif
+  DVectorFree(&rhs);
   OperatorFree();
 CLOSE_TIMER
   CPALAMEM_Finalize();

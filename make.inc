@@ -40,7 +40,7 @@ endif
 #   Include dir
 #
 
-INCLUDE_FLAGS = -I./ -I../include -I../utils -I../src/preconditioners -I../src/solvers 
+INCLUDE_FLAGS = -I./ -I../include -I../utils -I../src/preconditioners -I../src/solvers
 
 #
 #   Directives:
@@ -95,7 +95,7 @@ ADDITIONAL_FLAGS += -DSCHUR_COMPLEMENT_SOLVER=2
 # Possible values : 0 for MKL_PARDISO, 1 for PARDIDO,  2 for MUMPS
 #
 
-ADDITIONAL_FLAGS += -DSPARSE_SOLVER=0
+ADDITIONAL_FLAGS += -DSPARSE_SOLVER=2
 
 #
 # Which Sparse Direct Solver will be used
@@ -151,7 +151,7 @@ ifeq ($(USE_MKL), 1)
   MKL_INC           = -I$(MKL_ROOT)/include
   MKL_LIB           = -L$(MKL_ROOT)/lib -Wl,-rpath,${MKL_ROOT}/lib -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm -ldl
 # MKL_LIB           = -L$(MKL_ROOT)/lib/intel64 -Wl,-rpath,$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
-#  MKL_LIB            = -Wl,--no-as-needed -L$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
+# MKL_LIB            = -Wl,--no-as-needed -L$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
 
   INCLUDE_FLAGS    += $(MKL_INC)
   LD_FLAGS         += $(MKL_LIB)

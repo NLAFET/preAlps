@@ -22,7 +22,9 @@
 #include <mat_csr.h>
 #include <mat_dense.h>
 #include <kernels.h>
+#ifdef USE_PETSC
 #include <petsc_interface.h>
+#endif
 /* MKL */
 #include <mkl_pardiso.h>
 /* ParBCG */

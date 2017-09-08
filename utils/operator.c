@@ -8,7 +8,10 @@
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
+#ifdef USE_PETSC
 #include <petsc_interface.h>
+#endif
+
 #include "operator.h"
 /******************************************************************************/
 
@@ -42,10 +45,14 @@ PUSH
       ierr = LoadMatrixMarket(param->matrixFilename, &matCSR);CHKERR(ierr);
     }
     else {
-      Mat A_petsc;
-      petscMatLoad(&A_petsc,param->matrixFilename,PETSC_COMM_SELF);
-      petscCreateMatCSR(A_petsc,&matCSR);
-      MatDestroy(&A_petsc);
+      #ifdef USE_PETSC
+        Mat A_petsc;
+        petscMatLoad(&A_petsc,param->matrixFilename,PETSC_COMM_SELF);
+        petscCreateMatCSR(A_petsc,&matCSR);
+        MatDestroy(&A_petsc);
+      #else
+        CPALAMEM_Abort("Please Compile with PETSC to read other matrix file type");
+      #endif
     }
     IVector_t posB = IVectorNULL(), perm = IVectorNULL();
     ierr = metisKwayOrdering(&matCSR,
