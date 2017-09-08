@@ -1,6 +1,8 @@
 include ../make.inc
 
-SRC = preAlps_utils.c preAlps_solver.c pardiso_solver.c mkl_pardiso_solver.c mumps_solver.c
+#SRC = preAlps_utils.c preAlps_solver.c pardiso_solver.c mkl_pardiso_solver.c mumps_solver.c
+SRC = $(shell ls $(PWD)/utils/*.c)
+
 OBJ = $(SRC:.c=.o)
 
 all: $(OBJ) create_lib
