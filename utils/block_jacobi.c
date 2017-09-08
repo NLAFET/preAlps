@@ -17,7 +17,6 @@
 static MKL_INT pardiso_pt_g[64] = {0};
 static MKL_INT iparam_g[64] = {0};
 static Mat_CSR_t Adiag_g = MatCSRNULL();
-static Mat A_petsc;
 /******************************************************************************/
 
 /******************************************************************************/
@@ -62,16 +61,16 @@ PUSH
   int mtype = 2, perm = 1; // SPD matrix
   Mat_Dense_t sol = MatDenseNULL();
   // Dirty...
-  Mat_Dense_t rhsSym = MatDenseNULL();
-  MatDenseSetInfo(&rhsSym, rhs->nval, 1, rhs->nval, 1, COL_MAJOR);
-  rhsSym.val = rhs->val;
+  Mat_Dense_t rhs_s = MatDenseNULL();
+  MatDenseSetInfo(&rhs_s, rhs->nval, 1, rhs->nval, 1, COL_MAJOR);
+  rhs_s.val = rhs->val;
   MatDenseSetInfo(&sol, rhs->nval, 1, rhs->nval, 1, COL_MAJOR);
   MatDenseMalloc(&sol);
 
   // PARDISO solution in place
   iparam_g[5] = 1;
   ierr = MatCSRPARDISOSolve(&Adiag_g,
-                            &rhsSym,
+                            &rhs_s,
                             &sol,
                             pardiso_pt_g,
                             iparam_g,

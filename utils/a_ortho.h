@@ -24,7 +24,7 @@
 #include <mat_dense.h>
 #include <dvector.h>
 /* TSQR */
-//#include <tsqr.h>
+#include <tsqr.h>
 /* MKL */
 #include <mkl.h>
 /* MPI */

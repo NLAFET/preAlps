@@ -15,7 +15,7 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 #define PARBCG_DEFAULT_ITER_MAX 100000
-#define PARBCG_DEFAULT_TOL 1e-6
+#define PARBCG_DEFAULT_TOL 1e-5
 #define PARBCG_DEFAULT_NB_RHS 0
 
 /* Private function to print the help message */
@@ -133,28 +133,14 @@ PUSH
   int ierr = 0, rank, size;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
-  if (rank == 0) {
-    // Get the parameters from command line
-    ierr = _fillParamFromCline(param, argc, argv);
-    // Default nbRHS is the number of processes
-    if (param->nbRHS == 0)
-      param->nbRHS = size;
-    // TODO: handle the case where param.nbBlockCG <= param.nbBlockPart
-    if (param->nbRHS > param->nbBlockPart)
-      CPALAMEM_Abort("The number of block in A's partitioning has to be higher than the number of rhs!\n");
-  }
-  ierr = UsrParamBcast(param, MPI_COMM_WORLD, 0);
-POP
-  return ierr;
-}
-
-int UsrParamBcast(Usr_Param_t* param, MPI_Comm comm, int root) {
-PUSH
-  int ierr = 0;
-  ierr = MPI_Bcast(&(param->nbRHS), 1, MPI_INT, root, comm);checkMPIERR(ierr,"UsrParamBcast::Bcast nbRHS");
-  ierr = MPI_Bcast(&(param->nbBlockPart), 1, MPI_INT, root, comm);checkMPIERR(ierr,"UsrParamBcast::Bcast nbBlockPart");
-  ierr = MPI_Bcast(&(param->iterMax), 1, MPI_INT, root, comm);checkMPIERR(ierr,"UsrParamBcast::Bcast iterMax");
-  ierr = MPI_Bcast(&(param->tolerance), 1, MPI_DOUBLE, root, comm);checkMPIERR(ierr,"UsrParamBcast::Bcast tolerance");
+  // Get the parameters from command line
+  ierr = _fillParamFromCline(param, argc, argv);
+  // Default nbRHS is the number of processes
+  if (param->nbRHS == 0)
+    param->nbRHS = size;
+  // TODO: handle the case where param.nbBlockCG <= param.nbBlockPart
+  if (param->nbRHS > param->nbBlockPart)
+    CPALAMEM_Abort("The number of block in A's partitioning has to be higher than the number of rhs!\n");
 POP
   return ierr;
 }

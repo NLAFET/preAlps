@@ -8,6 +8,7 @@
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
+#include <petsc_interface.h>
 #include "operator.h"
 /******************************************************************************/
 
@@ -21,7 +22,7 @@ static Operator_Struct_t AStruct_g;    // Partition of global A
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
-int readMatCSRUsingKWay(Usr_Param_t* param) {
+int OperatorBuild(Usr_Param_t* param) {
 PUSH
   int rank, size, ierr = 0;
 
@@ -34,36 +35,56 @@ PUSH
   AStruct_g.dep.val    = NULL;
   //Load on first process
   Mat_CSR_t matCSR = MatCSRNULL();
+  const char* operator_type = param->matrixFilename + strlen(param->matrixFilename) - 3;
+  // MatrixMarket format
   if (rank == root) {
-    ierr = LoadMatrixMarket(param->matrixFilename, &matCSR);CHKERR(ierr);
+    if (strcmp(operator_type,"mtx") == 0) {
+      ierr = LoadMatrixMarket(param->matrixFilename, &matCSR);CHKERR(ierr);
+    }
+    else {
+      Mat A_petsc;
+      petscMatLoad(&A_petsc,param->matrixFilename,PETSC_COMM_SELF);
+      petscCreateMatCSR(A_petsc,&matCSR);
+      MatDestroy(&A_petsc);
+    }
     IVector_t posB = IVectorNULL(), perm = IVectorNULL();
-    ierr = metisKwayOrdering(&matCSR, &perm, param->nbBlockPart, &posB);CHKERR(ierr);
+    ierr = metisKwayOrdering(&matCSR,
+                             &perm,
+                             param->nbBlockPart,
+                             &posB);CHKERR(ierr);
     // Permute the matrix
-    ierr = MatCSRPermute(&matCSR, &A_g, perm.val, perm.val, PERMUTE);CHKERR(ierr);
-
+    ierr = MatCSRPermute(&matCSR,
+                         &A_g,
+                         perm.val,
+                         perm.val,
+                         PERMUTE);CHKERR(ierr);
     // Change posB into rowPos because each proc might have several block Jacobi
     int inc = param->nbBlockPart / size;
     // For the moment we assume that each mpi process has one metis block
     if (inc != 1) {
-      CPALAMEM_Abort("Each MPI process must have one (and only one) metis block (nbMetis = %d != %d = nbProcesses)",param->nbBlockPart,size);
+	     CPALAMEM_Abort("Each MPI process must have one (and only one) metis"
+        "block (nbMetis = %d != %d = nbProcesses)",param->nbBlockPart,size);
     }
     ierr = IVectorMalloc(&AStruct_g.rowPos, size+1);CHKERR(ierr);
     for (int i = 0; i < size; i++)
-      AStruct_g.rowPos.val[i] = posB.val[i*inc];
+	     AStruct_g.rowPos.val[i] = posB.val[i*inc];
     AStruct_g.rowPos.val[size] = posB.val[param->nbBlockPart];
-
     // Send submatrices as row panel layout
     for (int dest = 1; dest < size; dest++) {
-      ierr = MatCSRGetRowPanel(&A_g, &matCSR, &AStruct_g.rowPos, dest);CHKERR(ierr);
-      ierr = MatCSRSend(&matCSR, dest, MPI_COMM_WORLD);
+	      ierr = MatCSRGetRowPanel(&A_g,
+                                &matCSR,
+                                &AStruct_g.rowPos,
+                                dest);CHKERR(ierr);
+	      ierr = MatCSRSend(&matCSR, dest, MPI_COMM_WORLD);
     }
     MatCSRFree(&matCSR);
-
     // Just keep the row panel in master
     MatCSRCopy(&A_g,&matCSR);
     MatCSRFree(&A_g);
-    ierr = MatCSRGetRowPanel(&matCSR, &A_g, &AStruct_g.rowPos, 0);CHKERR(ierr);
-
+    ierr = MatCSRGetRowPanel(&matCSR,
+                             &A_g,
+                             &AStruct_g.rowPos,
+                             0);CHKERR(ierr);
     // Free memory
     IVectorFree(&posB);
     IVectorFree(&perm);
@@ -73,13 +94,18 @@ PUSH
     ierr = MatCSRRecv(&A_g,0,MPI_COMM_WORLD);
   }
   ierr = IVectorBcast(&AStruct_g.rowPos,MPI_COMM_WORLD,root);
-  ierr = MatCSRGetColBlockPos(&A_g,&AStruct_g.rowPos,&AStruct_g.colPos);CHKERR(ierr);
-  ierr = MatCSRGetCommDep(&AStruct_g.colPos,A_g.info.m,size,rank,&AStruct_g.dep);CHKERR(ierr);
+  ierr = MatCSRGetColBlockPos(&A_g,
+                              &AStruct_g.rowPos,
+                              &AStruct_g.colPos);CHKERR(ierr);
+  ierr = MatCSRGetCommDep(&AStruct_g.colPos,
+                          A_g.info.m,
+                          size,
+                          rank,
+                          &AStruct_g.dep);CHKERR(ierr);
+
   AStruct_g.comm = MPI_COMM_WORLD;
-  int block_jacobi = 1;
-  if (block_jacobi == 1) {
-    BlockJacobiCreate(&A_g,&AStruct_g);
-  }
+  BlockJacobiCreate(&A_g,&AStruct_g);
+
 POP
   return ierr;
 }

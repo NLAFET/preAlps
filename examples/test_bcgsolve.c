@@ -17,20 +17,16 @@
 /* MKL */
 #include <mkl.h>
 /* CPaLAMeM */
-
-#ifdef USE_PETSC
-//#include <petsc_interface.h>
+#include <petsc_interface.h>
+#include <cpalamem_macro.h>
+#include <cpalamem_instrumentation.h>
 /* Petsc */
 #include <petscksp.h>
-#endif
 
 /* ParBCG */
 #include "usr_param.h"
-#include "solver.h"
 #include "operator.h"
 #include "bcg.h"
-#include <cpalamem_macro.h>
-#include <cpalamem_instrumentation.h>
 /******************************************************************************/
 
 /******************************************************************************/
@@ -39,6 +35,7 @@
 int main(int argc, char** argv) {
   CPALAMEM_Init(&argc, &argv);
 OPEN_TIMER
+
   /*================ Initialize ================*/
   int rank, size, ierr;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -53,20 +50,20 @@ OPEN_TIMER
   UsrParamReadFromCline(&param, argc, argv);
 
   // Construct the operator using a CSR matrix
-  ierr = readMatCSRUsingKWay(&param);CHKERR(ierr);
+  ierr = OperatorBuild(&param);CHKERR(ierr);
   Mat_CSR_t A = MatCSRNULL();
   OperatorGetA(&A);
 
   // Read the rhs
   DVector_t rhs = DVectorNULL();
   IVector_t rowPos = IVectorNULL();
-  IVectorPrintf("rowPosMain",&rowPos);
   OperatorGetRowPosPtr(&rowPos);
-  const char* rhsFilename = "rhs.txt";
   DVectorMalloc(&rhs,A.info.m);
   DVectorRandom(&rhs,0);
+  //  const char* rhsFilename = "rhs.txt";
   // ierr = DVectorLoadAndDistribute(rhsFilename,&rhs,&rowPos,MPI_COMM_WORLD);
   CHKERR(ierr);
+
   /*================ Petsc solve ================*/
   Mat A_petsc;
   Vec X, B;
@@ -86,9 +83,14 @@ OPEN_TIMER
   petscCreateMatFromMatCSR(&A,&A_petsc);
   KSPSetOperators(ksp,A_petsc,A_petsc);
   KSPSetType(ksp,KSPCG);
-  KSPSetTolerances(ksp,1e-6,PETSC_DEFAULT,PETSC_DEFAULT,100000);
+  KSPSetTolerances(ksp,
+                   param.tolerance,
+                   PETSC_DEFAULT,
+                   PETSC_DEFAULT,
+                   param.iterMax);
   KSPSetPCSide(ksp,PC_LEFT);
   KSPCGSetType(ksp,KSP_CG_SYMMETRIC);
+  KSPSetNormType(ksp,KSP_NORM_UNPRECONDITIONED);
   KSPGetPC(ksp,&pc);
   PCSetType(pc,PCBJACOBI);
   KSPSetUp(ksp);
@@ -103,9 +105,9 @@ OPEN_TIMER
     PCSetType(subpc,PCCHOLESKY);
   }
 
-TIC
+TIC(step1,"KSPSolve")
   KSPSolve(ksp,B,X);
-TAC("KSPSolve")
+TAC(step1)
 
   int its = -1;
   double rnorm = 0e0;
@@ -118,23 +120,20 @@ TAC("KSPSolve")
   /*================ BCG solve ================*/
   BCG_t bcg_solver;
   const char* caseName = "debug";
-  bcg_solver.solver.comm = MPI_COMM_WORLD;
+  bcg_solver.comm = MPI_COMM_WORLD;
   BCGReadParamFromFile(&bcg_solver, param.solverFilename);
-  // double* data = NULL;
-  // VecGetArray(B,&data);
-  // DVector_t rhs = DVectorNULL();
-  // rhs.nval = A.info.m;
-  // rhs.val = data;
-TIC
+  double* data = NULL;
+  VecGetArray(B,&data);
+  rhs.nval = A.info.m;
+  rhs.val = data;
+TIC(step2,"BCGSolve")
   BCGSolve(&bcg_solver, &rhs, &param, caseName);
-TAC("BCGSolve")
+TAC(step2)
   if (rank == 0)
-    printf("=== BCG ===\n\titerations: %d\n\tnorm(res): %e\n",bcg_solver.iter,bcg_solver.solver.finalRes);
+    printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",bcg_solver.iter,bcg_solver.res);
 
   /*================ Finalize ================*/
-  // VecRestoreArray(B,&data);
   MatDestroy(&A_petsc);
-  // VecDestroy(&B);
   DVectorFree(&rhs);
   VecDestroy(&X);
   OperatorFree();

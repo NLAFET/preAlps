@@ -37,7 +37,6 @@ typedef struct {
 /* ParBCG */
 #include "usr_param.h"
 #include "block_jacobi.h"
-#include "solver.h"
 /******************************************************************************/
 
 /******************************************************************************/
@@ -45,7 +44,7 @@ typedef struct {
 /******************************************************************************/
 
 /* Mem management */
-int readMatCSRUsingKWay(Usr_Param_t* param); // Read the global variables A and AStruct
+int OperatorBuild(Usr_Param_t* param); // Read the global variables A and AStruct
 void OperatorFree();
 /* Utils */
 void OperatorPrint(int rank);

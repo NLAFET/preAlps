@@ -43,8 +43,7 @@ typedef struct {
 Usr_Param_t UsrParamNULL();
 /* Fill the structure from command line arguments */
 int UsrParamReadFromCline(Usr_Param_t* p, int argc, char** argv);
-/* Broadcast parameters to all process */
-int UsrParamBcast(Usr_Param_t* param, MPI_Comm comm, int root);
+
 /******************************************************************************/
 
 #endif

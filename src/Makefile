@@ -1,6 +1,6 @@
 include ../make.inc
 
-PRECONDITIONERS_SRC = preconditioners/presc.c preconditioners/presc_eigsolve.c
+PRECONDITIONERS_SRC = preconditioners/presc.c preconditioners/presc_eigsolve.c solvers/bcg.c
 SOLVERS_SRC =
 
 PRECONDITIONERS_OBJ = $(PRECONDITIONERS_SRC:.c=.o)
