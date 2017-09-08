@@ -149,6 +149,7 @@ TAC(step2)
   MatDestroy(&A_petsc);
   VecDestroy(&X);
 #endif
+
   DVectorFree(&rhs);
   OperatorFree();
 CLOSE_TIMER
