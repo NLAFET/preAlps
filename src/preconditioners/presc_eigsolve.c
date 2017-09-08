@@ -1,4 +1,12 @@
-#include <stdio.h>
+/*
+============================================================================
+Name        : presc_eigsolve.c
+Author      : Simplice Donfack
+Version     : 0.1
+Description : Solve eigenvalues problem using ARPACK
+Date        : Mai 15, 2017
+============================================================================
+*/
 #include <stdlib.h>
 #include <mpi.h>
 #include "preAlps_utils.h"

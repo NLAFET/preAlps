@@ -1,3 +1,12 @@
+/*
+============================================================================
+Name        : preAlps_utils.c
+Author      : Simplice Donfack
+Version     : 0.1
+Description : Utils for preAlps
+Date        : Mai 15, 2017
+============================================================================
+*/
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -922,7 +931,7 @@ void preAlps_abort(char *s, ... ){
   vsprintf(buff, s, arglist);
 
   va_end(arglist);
-  
+
   printf("===================\n");
   printf("%s\n", buff);
   printf("Aborting ...\n");

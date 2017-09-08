@@ -1,3 +1,12 @@
+/*
+============================================================================
+Name        : mumps_solver.c
+Author      : Simplice Donfack
+Version     : 0.1
+Description : Wrapper for mumps functions.
+Date        : July 8, 2017
+============================================================================
+*/
 #ifdef USE_SOLVER_MUMPS
 
 #include <stdio.h>

@@ -1,3 +1,12 @@
+/*
+============================================================================
+Name        : presc.c
+Author      : Simplice Donfack
+Version     : 0.1
+Description : Preconditioner based on Schur complement
+Date        : Mai 15, 2017
+============================================================================
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>

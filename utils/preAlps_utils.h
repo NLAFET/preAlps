@@ -1,3 +1,12 @@
+/*
+============================================================================
+Name        : preAlps_utils.h
+Author      : Simplice Donfack
+Version     : 0.1
+Description : Utils for preAlps
+Date        : Mai 15, 2017
+============================================================================
+*/
 #ifndef PREALPS_UTILS_H
 #define PREALPS_UTILS_H
 
