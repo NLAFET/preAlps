@@ -75,7 +75,6 @@ BEGIN_TIME
             bcg->precond_type = PREALPS_BLOCKJACOBI;
           }
           else if (strncmp(lastToken,"No",2) == 0){
-            bcg->precond_side = NO_PREC;
             bcg->precond_type = PREALPS_NOPREC;
           }
           else {
@@ -150,7 +149,7 @@ BEGIN_TIME
             "Matrix filename           : %s\n",
             bcg->param.matrixFilename);
     const char* strOpt;
-    strOpt = (bcg->precond_side == NO_PREC) ? "No" : "Yes";
+    strOpt = (bcg->precond_type == PREALPS_NOPREC) ? "No" : "Yes";
     fprintf(oFile,
             "Preconditioner            : %s\n",strOpt);
     strOpt = (bcg->ortho_alg == ORTHODIR) ? "Orthodir" : "Orthomin";
@@ -211,12 +210,13 @@ BEGIN_TIME
   ierr = BCGSplit(b, R, nCol);CHKERR(ierr);
 
   // Then we construct P_0
-  if (bcg->precond_side == NO_PREC) {
+  if (bcg->precond_type == PREALPS_NOPREC) {
     ierr = MatDenseCopy(R,P);CHKERR(ierr);
   }
   else if (bcg->precond_side == LEFT_PREC) {
     ierr = PrecondBlockOperator(bcg->precond_type, R, P);CHKERR(ierr);
   }
+
 END_TIME
 POP
   return ierr;
@@ -423,7 +423,7 @@ TAC(step6)
 
   if (bcg->ortho_alg == ORTHODIR) {
     MatDenseSetInfo(Z,M,t,m,t,COL_MAJOR);
-    if (bcg->precond_side == NO_PREC) {
+    if (bcg->precond_type == PREALPS_NOPREC) {
 TIC(step7,"Z = AP")
       ierr = MatDenseCopy(AP,Z);
     }
@@ -434,7 +434,7 @@ TIC(step7,"Z = M^-1*AP")
 TAC(step7)
   }
   else if (bcg->ortho_alg == ORTHOMIN) {
-    if (bcg->precond_side == NO_PREC) {
+    if (bcg->precond_type == PREALPS_NOPREC) {
 TIC(step7,"Z = R")
       ierr = MatDenseCopy(R,Z);
     }

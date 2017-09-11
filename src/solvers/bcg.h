@@ -71,7 +71,7 @@ typedef struct {
   const char*       name;      /* Method name */
   char*             oFileName; /* Output file name */
   Usr_Param_t       param;     /* User parameters */
-  Precond_side_t    precond_side;
+  Precond_Side_t    precond_side;
   Precond_t         precond_type;  /* Block diagonal preconditioner */
   Ortho_Alg_t       ortho_alg; /* A-orthonormalization algorithm */
   Block_Size_Red_t  bs_red;    /* Block size reduction */

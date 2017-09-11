@@ -27,8 +27,8 @@
 /* From which side the preconditioner needs to be applied: NOPREC, LEFT or RIGHT */
 typedef enum {
   LEFT_PREC,
-  NO_PREC
-} Precond_side_t;
+  SPLIT_PREC
+} Precond_Side_t;
 
 /* Preconditioner type*/
 typedef enum {
