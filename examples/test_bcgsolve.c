@@ -37,11 +37,14 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 int main(int argc, char** argv) {
+
+
   CPALAMEM_Init(&argc, &argv);
 OPEN_TIMER
 
   /*================ Initialize ================*/
   int rank, size, ierr;
+  double tBCGSolve = 0.0;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -138,10 +141,16 @@ TAC(step1)
 #endif
 
 TIC(step2,"BCGSolve")
+  tBCGSolve = MPI_Wtime();
   BCGSolve(&bcg_solver, &rhs, &param, caseName);
+  tBCGSolve = MPI_Wtime() - tBCGSolve;
+  preAlps_dstats_display(bcg_solver.comm, tBCGSolve, "BCGSolve time");
 TAC(step2)
+
+
   if (rank == 0)
     printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",bcg_solver.iter,bcg_solver.res);
+
 
   /*================ Finalize ================*/
 

@@ -70,10 +70,14 @@ BEGIN_TIME
         // Block diagonal preconditioner
         else if (strncmp(line,"Block diagonal",10) == 0) {
           _strGetLastToken(line,&lastToken," ");
-          if (strncmp(lastToken,"Yes",2) == 0)
-            bcg->prec_type = LEFT_PREC;
-          else if (strncmp(lastToken,"No",2) == 0)
-            bcg->prec_type = NO_PREC;
+          if (strncmp(lastToken,"Yes",2) == 0){
+            bcg->precond_side = LEFT_PREC;
+            bcg->precond_type = PREALPS_BLOCKJACOBI;
+          }
+          else if (strncmp(lastToken,"No",2) == 0){
+            bcg->precond_side = NO_PREC;
+            bcg->precond_type = PREALPS_NOPREC;
+          }
           else {
             fclose(iFile);
             CPALAMEM_Abort("Unknown block diagonal option: %s!",lastToken);
@@ -84,12 +88,18 @@ BEGIN_TIME
     fclose(iFile);
   }
   // Broadcast the informations got
-  ierr = MPI_Bcast(&(bcg->prec_type),
+  ierr = MPI_Bcast(&(bcg->precond_side),
                    1,
                    MPI_INT,
                    root,
                    bcg->comm);
-  checkMPIERR(ierr,"BCGReadParamFromFile::Bcast prec_type");
+  checkMPIERR(ierr,"BCGReadParamFromFile::Bcast precond_side");
+  ierr = MPI_Bcast(&(bcg->precond_type),
+                   1,
+                   MPI_INT,
+                   root,
+                   bcg->comm);
+  checkMPIERR(ierr,"BCGReadParamFromFile::Bcast precond_type");
   ierr = MPI_Bcast(&(bcg->ortho_alg),
                    1,
                    MPI_INT,
@@ -140,7 +150,7 @@ BEGIN_TIME
             "Matrix filename           : %s\n",
             bcg->param.matrixFilename);
     const char* strOpt;
-    strOpt = (bcg->prec_type == NO_PREC) ? "No" : "Yes";
+    strOpt = (bcg->precond_side == NO_PREC) ? "No" : "Yes";
     fprintf(oFile,
             "Preconditioner            : %s\n",strOpt);
     strOpt = (bcg->ortho_alg == ORTHODIR) ? "Orthodir" : "Orthomin";
@@ -201,11 +211,11 @@ BEGIN_TIME
   ierr = BCGSplit(b, R, nCol);CHKERR(ierr);
 
   // Then we construct P_0
-  if (bcg->prec_type == NO_PREC) {
+  if (bcg->precond_side == NO_PREC) {
     ierr = MatDenseCopy(R,P);CHKERR(ierr);
   }
-  else if (bcg->prec_type == LEFT_PREC) {
-    ierr = PrecondBlockOperator(R,P);CHKERR(ierr);
+  else if (bcg->precond_side == LEFT_PREC) {
+    ierr = PrecondBlockOperator(bcg->precond_type, R, P);CHKERR(ierr);
   }
 END_TIME
 POP
@@ -413,24 +423,24 @@ TAC(step6)
 
   if (bcg->ortho_alg == ORTHODIR) {
     MatDenseSetInfo(Z,M,t,m,t,COL_MAJOR);
-    if (bcg->prec_type == NO_PREC) {
+    if (bcg->precond_side == NO_PREC) {
 TIC(step7,"Z = AP")
       ierr = MatDenseCopy(AP,Z);
     }
-    else if (bcg->prec_type == LEFT_PREC) {
+    else if (bcg->precond_side == LEFT_PREC) {
 TIC(step7,"Z = M^-1*AP")
-      ierr = PrecondBlockOperator(AP,Z);
+      ierr = PrecondBlockOperator(bcg->precond_type, AP, Z);
     }
 TAC(step7)
   }
   else if (bcg->ortho_alg == ORTHOMIN) {
-    if (bcg->prec_type == NO_PREC) {
+    if (bcg->precond_side == NO_PREC) {
 TIC(step7,"Z = R")
       ierr = MatDenseCopy(R,Z);
     }
-    else if (bcg->prec_type == LEFT_PREC) {
+    else if (bcg->precond_side == LEFT_PREC) {
 TIC(step7,"Z = M^-1*R")
-      ierr = PrecondBlockOperator(R,Z);
+      ierr = PrecondBlockOperator(bcg->precond_type, R, Z);
 TAC(step7)
     }
   }

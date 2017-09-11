@@ -15,7 +15,7 @@ Date        : Mai 15, 2017
 #include <mat_csr.h>
 
 #include "preAlps_utils.h"
-#include "preconditioner.h"
+#include "precond.h"
 #include "presc.h"
 //#include "cgsolver.h"
 
@@ -34,7 +34,7 @@ int main(int argc, char** argv){
 
 
   /*Preconditioner object*/
-  preAlps_preconditioner_t precond = PREALPS_NOPREC;
+  Precond_t precond = PREALPS_NOPREC;
   Presc_t *prescA;
 
   /* Start MPI*/

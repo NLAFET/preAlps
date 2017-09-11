@@ -81,7 +81,7 @@ BEGIN_TIME
                         C->val,
                         lda);
   if (ierr > 0) {
-    eprintf("Cholesky::The matrix A is not spd!\n");
+    printf("Cholesky::The matrix A is not spd!\n");
     MPI_Abort(MPI_COMM_WORLD, ierr);
   }
 END_TIME

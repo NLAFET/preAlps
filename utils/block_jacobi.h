@@ -37,7 +37,7 @@
 
 int BlockJacobiCreate(Mat_CSR_t* A, Operator_Struct_t* AStruct);
 int BlockJacobiInitialize(DVector_t* rhs);
-int PrecondBlockOperator(Mat_Dense_t* A_in, Mat_Dense_t* B_out);
+int BlockJacobiApply(Mat_Dense_t* A_in, Mat_Dense_t* B_out);
 void BlockJacobiFree();
 
 /******************************************************************************/

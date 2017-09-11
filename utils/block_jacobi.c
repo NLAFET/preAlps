@@ -82,7 +82,7 @@ POP
   return ierr;
 }
 
-int PrecondBlockOperator(Mat_Dense_t* A_in, Mat_Dense_t* B_out)
+int BlockJacobiApply(Mat_Dense_t* A_in, Mat_Dense_t* B_out)
 {
 PUSH
 BEGIN_TIME

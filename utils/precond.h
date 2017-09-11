@@ -21,11 +21,29 @@
 #include <cpalamem_instrumentation.h>
 #include <mat_csr.h>
 #include <mat_dense.h>
+
+/* Preconditioner */
+
+/* From which side the preconditioner needs to be applied: NOPREC, LEFT or RIGHT */
+typedef enum {
+  LEFT_PREC,
+  NO_PREC
+} Precond_side_t;
+
+/* Preconditioner type*/
+typedef enum {
+  PREALPS_NOPREC,       /* No preconditioner*/
+  PREALPS_BLOCKJACOBI,  /* Block Jacobi preconditioner*/
+  PREALPS_LORASC,       /* Lorasc */
+  PREALPS_PRESC         /* Preconditioner based on the Schur-Complement */
+} Precond_t;
+
 /******************************************************************************/
 
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
+int PrecondBlockOperator(Precond_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out);
 
 /* Right preconditioner */
 // User functions

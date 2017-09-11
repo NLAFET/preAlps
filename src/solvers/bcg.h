@@ -24,6 +24,8 @@
 #include <dvector.h>
 #include <cholqr.h>
 #include <matmult.h>
+/* Preconditioner */
+#include <precond.h>
 /* ParBCG */
 #include "usr_param.h"
 #include <cpalamem_macro.h>
@@ -31,11 +33,7 @@
 
 #include<mkl.h>
 
-/* Preconditioner */
-typedef enum {
-  LEFT_PREC,
-  NO_PREC
-} Prec_t;
+
 /* A-orthonormalization algorithm */
 typedef enum {
   ORTHOMIN,
@@ -73,7 +71,8 @@ typedef struct {
   const char*       name;      /* Method name */
   char*             oFileName; /* Output file name */
   Usr_Param_t       param;     /* User parameters */
-  Prec_t            prec_type; /* Block diagonal preconditioner */
+  Precond_side_t    precond_side;
+  Precond_t         precond_type;  /* Block diagonal preconditioner */
   Ortho_Alg_t       ortho_alg; /* A-orthonormalization algorithm */
   Block_Size_Red_t  bs_red;    /* Block size reduction */
   MPI_Comm          comm;      /* MPI communicator */
