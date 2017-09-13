@@ -21,7 +21,7 @@
 #include <cpalamem_macro.h>
 #include <cpalamem_instrumentation.h>
 
-#ifdef USE_PETSC
+#ifdef PETSC
 #include <petsc_interface.h>
 /* Petsc */
 #include <petscksp.h>
@@ -44,7 +44,6 @@ OPEN_TIMER
 
   /*================ Initialize ================*/
   int rank, size, ierr;
-  double tBCGSolve = 0.0;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -71,7 +70,7 @@ OPEN_TIMER
   // ierr = DVectorLoadAndDistribute(rhsFilename,&rhs,&rowPos,MPI_COMM_WORLD);
   CHKERR(ierr);
 
-#ifdef USE_PETSC
+#ifdef PETSC
   /*================ Petsc solve ================*/
   Mat A_petsc;
   Vec X, B;
@@ -132,21 +131,43 @@ TAC(step1)
   bcg_solver.comm = MPI_COMM_WORLD;
   BCGReadParamFromFile(&bcg_solver, param.solverFilename);
 
-#ifdef USE_PETSC
+#ifdef PETSC
   /*Restore the pointer*/
   double* data = NULL;
   VecGetArray(B,&data);
   rhs.nval = A.info.m;
   rhs.val = data;
 #endif
-
-TIC(step2,"BCGSolve")
-  tBCGSolve = MPI_Wtime();
-  BCGSolve(&bcg_solver, &rhs, &param, caseName);
-  tBCGSolve = MPI_Wtime() - tBCGSolve;
-  preAlps_dstats_display(bcg_solver.comm, tBCGSolve, "BCGSolve time");
-TAC(step2)
-
+  // Get local and global sizes of operator A
+  int M, m;
+  int rci_request = 0;
+  int stop = 0;
+  double* sol = NULL;
+  ierr = OperatorGetSizes(&M,&m);CHKERR(ierr);
+  sol = (double*) malloc(m*sizeof(double));
+  // Malloc memory
+  BCGMalloc(&bcg_solver,M,m,&param,"TestECG");
+  // Initialize variables
+  ierr = BCGInitialize(&bcg_solver,data,&rci_request);CHKERR(ierr);
+  // Finish initialization
+  PrecondApply(bcg_solver.precond_type,bcg_solver.R,bcg_solver.P);
+  BlockOperator(bcg_solver.P,bcg_solver.AP);
+  // Main loop
+  while (stop != 1) {
+    ierr = BCGIterate(&bcg_solver,&rci_request);
+    if (rci_request == 0) {
+      BlockOperator(bcg_solver.P,bcg_solver.AP);
+    }
+    else if (rci_request == 1) {
+      ierr = BCGStoppingCriterion(&bcg_solver,&stop);
+      if (stop == 1) break;
+      PrecondApply(bcg_solver.precond_type,bcg_solver.R,bcg_solver.Z);
+    }
+  }
+  // Retrieve solution
+  BCGFinalize(&bcg_solver,sol);
+  // Release memory
+  BCGFree(&bcg_solver);
 
   if (rank == 0)
     printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",bcg_solver.iter,bcg_solver.res);
@@ -154,7 +175,7 @@ TAC(step2)
 
   /*================ Finalize ================*/
 
-#ifdef USE_PETSC
+#ifdef PETSC
   MatDestroy(&A_petsc);
   VecDestroy(&X);
 #endif

@@ -47,7 +47,7 @@ typedef enum {
 
 typedef struct {
     /* Array type variables */
-  DVector_t*        b;         /* Right hand side */
+  double*           b;         /* Right hand side */
   Mat_Dense_t*      X;         /* Approximated solution */
   Mat_Dense_t*      R;         /* Residual */
   Mat_Dense_t*      P;         /* Descent direction */
@@ -61,6 +61,7 @@ typedef struct {
   Mat_Dense_t*      H;         /* Descent directions needed to reduce block size */
   Mat_Dense_t*      AH;        /* A*H */
   double*           work;      /* working array */
+  int*              iwork;     /* working array */
 
   /* Single value variables */
   double            normb;     /* norm_2(b) */
@@ -68,14 +69,14 @@ typedef struct {
   int               iter;      /* Iteration */
 
   /* Options and parameters */
-  const char*       name;      /* Method name */
-  char*             oFileName; /* Output file name */
-  Usr_Param_t       param;     /* User parameters */
-  Precond_Side_t    precond_side;
-  Precond_t         precond_type;  /* Block diagonal preconditioner */
-  Ortho_Alg_t       ortho_alg; /* A-orthonormalization algorithm */
-  Block_Size_Red_t  bs_red;    /* Block size reduction */
-  MPI_Comm          comm;      /* MPI communicator */
+  const char*       name;         /* Method name */
+  char*             oFileName;    /* Output file name */
+  Usr_Param_t       param;        /* User parameters */
+  Prec_Side_t       precond_side; /* Left or Splitted */
+  Prec_Type_t       precond_type; /* Type of preconditioner */
+  Ortho_Alg_t       ortho_alg;    /* A-orthonormalization algorithm */
+  Block_Size_Red_t  bs_red;       /* Block size reduction */
+  MPI_Comm          comm;         /* MPI communicator */
 } BCG_t;
 
 
@@ -91,15 +92,12 @@ typedef struct {
 
 int BCGReadParamFromFile(BCG_t* bcg, const char* filename);
 int BCGMalloc(BCG_t* bcg, int M, int m, Usr_Param_t* param, const char* name);
-int BCGInitializeOutput(BCG_t* bcg);
-int BCGInitialize(BCG_t* bcg);
-int BCGSplit(DVector_t* x, Mat_Dense_t* XSplit, int colIndex);
-int BCGIterate(BCG_t* bcg);
-int BCGReduceSearchDirections(BCG_t* bcg);
+int BCGInitialize(BCG_t* bcg, double* rhs, int* rci_request);
+int BCGSplit(double* x, Mat_Dense_t* XSplit, int colIndex);
+int BCGIterate(BCG_t* bcg, int* rci_request);
 int BCGStoppingCriterion(BCG_t* bcg, int* stop);
 void BCGFree(BCG_t* bcg);
-int BCGFinalize(BCG_t* bcg);
-int BCGDump(BCG_t* bcg);
+int BCGFinalize(BCG_t* bcg, double* solution);
 void BCGPrint(BCG_t* bcg);
 
 int BCGSolve(BCG_t* bcg, DVector_t* rhs, Usr_Param_t* param, const char* name);

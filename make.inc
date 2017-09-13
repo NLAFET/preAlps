@@ -8,8 +8,8 @@ HOME_DIR = .
 # Environment of the project
 #
 
-BINDIR	  = bin
-LIBDIR	  = lib
+BINDIR    = bin
+LIBDIR    = lib
 INCDIR    = include
 UTILS     = utils
 SRC       = src
@@ -22,13 +22,13 @@ EXAMPLES  = examples
 
 
 CC           = mpicc
-CFLAGS	     = -Wall -funroll-loops -std=c99 -fPIC
+CFLAGS       = -Wall -funroll-loops -std=c99 -fPIC
 OPT          = -O3 -march=native -mtune=native
-LOADER       = mpif77
+LOADER       = mpif90
 LOADOPTS     = -lgfortran
 LD_FLAGS     =
 
-USE_DEBUG=1
+USE_DEBUG=0
 #possible values: -DDEBUG -DPRINT_MOD=<number>
 ifeq ($(USE_DEBUG), 1)
   CFLAGS        += -g -std=c99 -DDEBUG
@@ -56,16 +56,16 @@ ADDITIONAL_FLAGS = -DAdd_
 
 # Provide the path for cpalamem
 
-  CPALAMEM_DIR      = /Users/donfack/My/gforge/matcsr
+  CPALAMEM_DIR      = ${CPALAMEM_ROOT}
   CPALAMEM_INC      = -I$(CPALAMEM_DIR)/includes
   CPALAMEM_LIB      = -L$(CPALAMEM_DIR)/lib -lcpalamem
   INCLUDE_FLAGS    += $(CPALAMEM_INC)
   LD_FLAGS         += $(CPALAMEM_LIB)
-  ADDITIONAL_FLAGS += -DMPIACTIVATE -DMETIS -DCPALAMEM_BENCHMARK_DIS
+  ADDITIONAL_FLAGS += -DMPIACTIVATE -DMETIS -DCPALAMEM_BENCHMARK
 
 # Provide the path for METIS
 
-  METIS_DIR         = /Users/donfack/app/soft
+  METIS_DIR         = ${METIS_ROOT}
   METIS_INC         = -I$(METIS_DIR)/include
   METIS_LIB         = -L$(METIS_DIR)/lib -lmetis
   INCLUDE_FLAGS    += $(METIS_INC)
@@ -73,8 +73,8 @@ ADDITIONAL_FLAGS = -DAdd_
 
 # Provide the path for PARPACK
 
-  PARPACK_DIR       =  /Users/donfack/app/ARPACK
-  PARPACK_LIB       = -L$(PARPACK_DIR) -lparpack_MPI_osx -larpack_osx
+  PARPACK_DIR       = ${PARPACK_ROOT}
+  PARPACK_LIB       = -L$(PARPACK_DIR) -lparpack -larpack
   INCLUDE_FLAGS    +=
   LD_FLAGS         += $(PARPACK_LIB)
   ADDITIONAL_FLAGS += -DUSE_PARPACK
@@ -155,7 +155,7 @@ ifeq ($(USE_MKL), 1)
 
   INCLUDE_FLAGS    += $(MKL_INC)
   LD_FLAGS         += $(MKL_LIB)
-  ADDITIONAL_FLAGS += -DMKL
+  ADDITIONAL_FLAGS += -DMKLACTIVATE
 endif
 
 
@@ -177,6 +177,15 @@ ifeq ($(USE_SUITESPARSE), 1)
   SUITESPARSE_LIB   = -L$(SUITESPARSE_DIR)/lib -lspqr -lcholmod -lcolamd -lcamd -lsuitesparseconfig -lamd -lccolamd -lmetis
 endif
 
+USE_PETSC=1
+ifeq ($(USE_PETSC), 1)
+  #PETSC_DIR   = ${PETSC_DIR}
+  PETSC_INC   = -I$(PETSC_DIR)/include
+  PETSC_LIB   = -L$(PETSC_DIR)/lib -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc
+  INCLUDE_FLAGS    += $(PETSC_INC)
+  LD_FLAGS         += $(PETSC_LIB)
+  ADDITIONAL_FLAGS += -DPETSC
+endif
 
 #
 #   You may also want to add some extension of the library to get different versions such as _debug or _mt

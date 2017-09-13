@@ -1,11 +1,10 @@
 ################################################################################
 # Author     : Olivier Tissot                                                  #
 # Date       : 2016/09/30                                                      #
-# Description: Orthomin EK-CG with diag prec, no red, no stab                  #
+# Description: Orthomin EK-CG with diag prec, no red                           #
 ################################################################################
 
-CG algorithm                 : EK
 Ortho algorithm              : Orthomin
 Block size reduction         : No
-R_k stabilization            : No
-Block diagonal preconditioner: Yes
+Precond type                 : BJacobi
+

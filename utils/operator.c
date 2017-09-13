@@ -8,7 +8,7 @@
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
-#ifdef USE_PETSC
+#ifdef PETSC
 #include <petsc_interface.h>
 #endif
 
@@ -45,7 +45,7 @@ PUSH
       ierr = LoadMatrixMarket(param->matrixFilename, &matCSR);CHKERR(ierr);
     }
     else {
-      #ifdef USE_PETSC
+      #ifdef PETSC
         Mat A_petsc;
         petscMatLoad(&A_petsc,param->matrixFilename,PETSC_COMM_SELF);
         petscCreateMatCSR(A_petsc,&matCSR);
@@ -69,20 +69,20 @@ PUSH
     int inc = param->nbBlockPart / size;
     // For the moment we assume that each mpi process has one metis block
     if (inc != 1) {
-	     CPALAMEM_Abort("Each MPI process must have one (and only one) metis"
+       CPALAMEM_Abort("Each MPI process must have one (and only one) metis"
         "block (nbMetis = %d != %d = nbProcesses)",param->nbBlockPart,size);
     }
     ierr = IVectorMalloc(&AStruct_g.rowPos, size+1);CHKERR(ierr);
     for (int i = 0; i < size; i++)
-	     AStruct_g.rowPos.val[i] = posB.val[i*inc];
+       AStruct_g.rowPos.val[i] = posB.val[i*inc];
     AStruct_g.rowPos.val[size] = posB.val[param->nbBlockPart];
     // Send submatrices as row panel layout
     for (int dest = 1; dest < size; dest++) {
-	      ierr = MatCSRGetRowPanel(&A_g,
+        ierr = MatCSRGetRowPanel(&A_g,
                                 &matCSR,
                                 &AStruct_g.rowPos,
                                 dest);CHKERR(ierr);
-	      ierr = MatCSRSend(&matCSR, dest, MPI_COMM_WORLD);
+        ierr = MatCSRSend(&matCSR, dest, MPI_COMM_WORLD);
     }
     MatCSRFree(&matCSR);
     // Just keep the row panel in master

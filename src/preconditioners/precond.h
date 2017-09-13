@@ -1,5 +1,5 @@
 /******************************************************************************/
-/* Author     : Olivier Tissot                                                */
+/* Author     : Olivier Tissot, Simplice Donfack                              */
 /* Creation   : 2016/09/05                                                    */
 /* Description: Definition of the preconditioner                              */
 /******************************************************************************/
@@ -22,37 +22,34 @@
 #include <mat_csr.h>
 #include <mat_dense.h>
 
-/* Preconditioner */
-
-/* From which side the preconditioner needs to be applied: NOPREC, LEFT or RIGHT */
+/* From which side the preconditioner needs to be applied: LEFT or SPLITTED */
 typedef enum {
   LEFT_PREC,
   SPLIT_PREC
-} Precond_Side_t;
+} Prec_Side_t;
 
-/* Preconditioner type*/
+/* Preconditioner type */
 typedef enum {
   PREALPS_NOPREC,       /* No preconditioner*/
   PREALPS_BLOCKJACOBI,  /* Block Jacobi preconditioner*/
   PREALPS_LORASC,       /* Lorasc */
   PREALPS_PRESC         /* Preconditioner based on the Schur-Complement */
-} Precond_t;
+} Prec_Type_t;
 
 /******************************************************************************/
 
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
-int PrecondBlockOperator(Precond_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out);
-
-/* Right preconditioner */
-// User functions
-int RightPrecondCreate(); // TODO
-int RightPrecondApply();  // TODO
-int RightPrecondFree();   // TODO
-// ParBCG internals
-int RightPrecondInitialize(); // TODO
-int RightPrecondFinalize();   // TODO
+int PrecondApply(Prec_Type_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out);
+/* /\* Right preconditioner *\/ */
+/* // User functions */
+/* int RightPrecondCreate(); // TODO */
+/* int RightPrecondApply();  // TODO */
+/* int RightPrecondFree();   // TODO */
+/* // ParBCG internals */
+/* int RightPrecondInitialize(); // TODO */
+/* int RightPrecondFinalize();   // TODO */
 /* Left preconditioner */
 // User functions
 int LeftPrecondCreate(); // TODO

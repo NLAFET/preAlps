@@ -17,7 +17,7 @@
 /******************************************************************************/
 
 //int PrecondBlockOperator(precond_t prec_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out)
-int PrecondBlockOperator(Precond_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out)
+int PrecondApply(Prec_Type_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out)
 {
 
 PUSH
