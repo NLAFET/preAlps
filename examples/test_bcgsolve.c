@@ -161,7 +161,10 @@ TAC(step1)
     else if (rci_request == 1) {
       ierr = BCGStoppingCriterion(&bcg_solver,&stop);
       if (stop == 1) break;
-      PrecondApply(bcg_solver.precond_type,bcg_solver.R,bcg_solver.Z);
+      if (bcg_solver.ortho_alg == ORTHOMIN)
+        PrecondApply(bcg_solver.precond_type,bcg_solver.R,bcg_solver.Z);
+      else if (bcg_solver.ortho_alg == ORTHODIR)
+        PrecondApply(bcg_solver.precond_type,bcg_solver.AP,bcg_solver.Z);
     }
   }
   // Retrieve solution
