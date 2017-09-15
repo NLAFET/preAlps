@@ -22,7 +22,14 @@ static Mat_CSR_t Adiag_g = MatCSRNULL();
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
-int BlockJacobiCreate(Mat_CSR_t* A, Operator_Struct_t* AStruct) {
+int BlockJacobiCreate(Mat_CSR_t* A,
+                      int* rowPos,
+                      int sizeRowPos,
+                      int* colPos,
+                      int sizeColPos,
+                      int* dep,
+                      int sizeDep)
+{
 PUSH
 BEGIN_TIME
   int size, rank, ierr;
@@ -32,14 +39,20 @@ BEGIN_TIME
   ASSERT(iparam_g != NULL);
 
   int mtype = 2, perm = 1;
+  IVector_t rowPos_s = IVectorNULL();
+  IVector_t colPos_s = IVectorNULL();
+  IVector_t dep_s    = IVectorNULL();
+  IVectorCreateFromPtr(&rowPos_s,sizeRowPos,rowPos);
+  IVectorCreateFromPtr(&colPos_s,sizeColPos,colPos);
+  IVectorCreateFromPtr(&dep_s,sizeDep,dep);
   // Construct Cholesky of the diagonal block
   MatCSRPARDISOSetParameters(iparam_g);
   iparam_g[4] = 0;
   // Get the diag block
   ierr = MatCSRGetDiagBlock(A,
                             &Adiag_g,
-                            &AStruct->rowPos,
-                            &AStruct->colPos,
+                            &rowPos_s,
+                            &colPos_s,
                             SYMMETRIC);CHKERR(ierr);
   // Call Pardiso
   ierr = MatCSRPARDISOFactorization(&Adiag_g,
@@ -49,7 +62,6 @@ BEGIN_TIME
                                     &perm);
   if (ierr != 0)
     CPALAMEM_Abort("PARDISO Cholesky error: %d",ierr);
-  //  ierr = petscCreateMatFromMatCSR(A,&A_petsc);CHKERR(ierr);
 END_TIME
 POP
   return ierr;

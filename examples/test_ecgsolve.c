@@ -27,10 +27,9 @@
 #include <petscksp.h>
 #endif
 
-/* ParBCG */
-#include "usr_param.h"
+/* preAlps */
 #include "operator.h"
-#include "bcg.h"
+#include "ecg.h"
 /******************************************************************************/
 
 /******************************************************************************/
@@ -51,23 +50,36 @@ OPEN_TIMER
   // OT: I tested and it still works with OpenMP activated
   MKL_Set_Num_Threads(1);
 
-  // Read parameter on first process
-  Usr_Param_t param = UsrParamNULL();
-  UsrParamReadFromCline(&param, argc, argv);
-
   // Construct the operator using a CSR matrix
-  ierr = OperatorBuild(&param);CHKERR(ierr);
+  const char* matrixFilename = argv[1];
   Mat_CSR_t A = MatCSRNULL();
+  int M, m;
+  int* rowPos = NULL;
+  int* colPos = NULL;
+  int* dep = NULL;
+  int sizeRowPos, sizeColPos, sizeDep;
+  OperatorBuild(matrixFilename,MPI_COMM_WORLD);
   OperatorGetA(&A);
+  OperatorGetSizes(&M,&m);
+  OperatorGetRowPosPtr(&rowPos,&sizeRowPos);
+  OperatorGetColPosPtr(&colPos,&sizeColPos);
+  OperatorGetDepPtr(&dep,&sizeDep);
 
-  // Read the rhs
+  // Construct the preconditioner
+  Prec_Type_t precond_type = PREALPS_BLOCKJACOBI;
+  PrecondCreate(precond_type,
+                &A,
+                rowPos,
+                sizeRowPos,
+                colPos,
+                sizeColPos,
+                dep,
+                sizeDep);
+
+  // Construct the rhs
   DVector_t rhs = DVectorNULL();
-  IVector_t rowPos = IVectorNULL();
-  OperatorGetRowPosPtr(&rowPos);
   DVectorMalloc(&rhs,A.info.m);
   DVectorRandom(&rhs,0);
-  //  const char* rhsFilename = "rhs.txt";
-  // ierr = DVectorLoadAndDistribute(rhsFilename,&rhs,&rowPos,MPI_COMM_WORLD);
   CHKERR(ierr);
 
 #ifdef PETSC
@@ -78,6 +90,8 @@ OPEN_TIMER
   KSP *subksp;
   PC pc, subpc;
   int first,nlocal;
+  double tol = 1e-5;
+  int maxIter = 1000;
   // Set RHS
   VecCreateMPIWithArray(MPI_COMM_WORLD,1,A.info.m,A.info.M,rhs.val,&B);
   VecCreateMPI(MPI_COMM_WORLD,A.info.m,A.info.M,&X);
@@ -91,10 +105,10 @@ OPEN_TIMER
   KSPSetOperators(ksp,A_petsc,A_petsc);
   KSPSetType(ksp,KSPCG);
   KSPSetTolerances(ksp,
-                   param.tolerance,
+                   tol,
                    PETSC_DEFAULT,
                    PETSC_DEFAULT,
-                   param.iterMax);
+                   maxIter);
   KSPSetPCSide(ksp,PC_LEFT);
   KSPCGSetType(ksp,KSP_CG_SYMMETRIC);
   KSPSetNormType(ksp,KSP_NORM_UNPRECONDITIONED);
@@ -126,10 +140,16 @@ TAC(step1)
 #endif
 
   /*================ BCG solve ================*/
-  BCG_t bcg_solver;
-  const char* caseName = "debug";
-  bcg_solver.comm = MPI_COMM_WORLD;
-  BCGReadParamFromFile(&bcg_solver, param.solverFilename);
+  ECG_t ecg;
+  // Set parameters
+  ecg.comm = MPI_COMM_WORLD;  /* MPI Communicator */
+  ecg.globPbSize = M;         /* Size of the global problem */
+  ecg.locPbSize = m;          /* Size of the local problem */
+  ecg.maxIter = maxIter;      /* Maximum number of iterations */
+  ecg.enlFac = 2;             /* Enlarging factor */
+  ecg.tol = tol;              /* Tolerance of the method */
+  ecg.ortho_alg = ORTHODIR;   /* Orthogonalization algorithm */
+  ecg.bs_red = NO_BS_RED;     /* Only NO_BS_RED implemented !! */
 
 #ifdef PETSC
   /*Restore the pointer*/
@@ -139,41 +159,35 @@ TAC(step1)
   rhs.val = data;
 #endif
   // Get local and global sizes of operator A
-  int M, m;
   int rci_request = 0;
   int stop = 0;
   double* sol = NULL;
-  ierr = OperatorGetSizes(&M,&m);CHKERR(ierr);
   sol = (double*) malloc(m*sizeof(double));
-  // Malloc memory
-  BCGMalloc(&bcg_solver,M,m,&param,"TestECG");
-  // Initialize variables
-  ierr = BCGInitialize(&bcg_solver,data,&rci_request);CHKERR(ierr);
+  // Allocate memory and initialize variables
+  ierr = ECGInitialize(&ecg,data,&rci_request);CHKERR(ierr);
   // Finish initialization
-  PrecondApply(bcg_solver.precond_type,bcg_solver.R,bcg_solver.P);
-  BlockOperator(bcg_solver.P,bcg_solver.AP);
+  PrecondApply(precond_type,ecg.R,ecg.P);
+  BlockOperator(ecg.P,ecg.AP);
   // Main loop
   while (stop != 1) {
-    ierr = BCGIterate(&bcg_solver,&rci_request);
+    ierr = ECGIterate(&ecg,&rci_request);
     if (rci_request == 0) {
-      BlockOperator(bcg_solver.P,bcg_solver.AP);
+      BlockOperator(ecg.P,ecg.AP);
     }
     else if (rci_request == 1) {
-      ierr = BCGStoppingCriterion(&bcg_solver,&stop);
+      ierr = ECGStoppingCriterion(&ecg,&stop);
       if (stop == 1) break;
-      if (bcg_solver.ortho_alg == ORTHOMIN)
-        PrecondApply(bcg_solver.precond_type,bcg_solver.R,bcg_solver.Z);
-      else if (bcg_solver.ortho_alg == ORTHODIR)
-        PrecondApply(bcg_solver.precond_type,bcg_solver.AP,bcg_solver.Z);
+      if (ecg.ortho_alg == ORTHOMIN)
+        PrecondApply(precond_type,ecg.R,ecg.Z);
+      else if (ecg.ortho_alg == ORTHODIR)
+        PrecondApply(precond_type,ecg.AP,ecg.Z);
     }
   }
-  // Retrieve solution
-  BCGFinalize(&bcg_solver,sol);
-  // Release memory
-  BCGFree(&bcg_solver);
+  // Retrieve solution and free memory
+  ECGFinalize(&ecg,sol);
 
   if (rank == 0)
-    printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",bcg_solver.iter,bcg_solver.res);
+    printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
 
 
   /*================ Finalize ================*/

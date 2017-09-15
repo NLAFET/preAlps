@@ -1,6 +1,7 @@
 include ../make.inc
 
-SRC =  test_cgsolve.c test_presc.c test_bcgsolve.c
+SRC = test_ecgsolve.c test_cgsolve.c test_presc.c
+
 OBJ = $(SRC:.c=.o)
 EXE  := $(OBJ:.o=)
 

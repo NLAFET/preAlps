@@ -41,8 +41,17 @@ typedef enum {
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
-int PrecondApply(Prec_Type_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out);
-/* /\* Right preconditioner *\/ */
+int  PrecondCreate(Prec_Type_t precond_type,
+                   Mat_CSR_t* A,
+                   int* rowPos,
+                   int sizeRowPos,
+                   int* colPos,
+                   int sizeColPos,
+                   int* dep,
+                   int sizeDep);
+int  PrecondApply(Prec_Type_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out);
+void PrecondFree(Prec_Type_t precond_type);
+/* /\* Right preconditioner *\/o */
 /* // User functions */
 /* int RightPrecondCreate(); // TODO */
 /* int RightPrecondApply();  // TODO */

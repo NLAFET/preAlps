@@ -32,7 +32,13 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 
-int BlockJacobiCreate(Mat_CSR_t* A, Operator_Struct_t* AStruct);
+int BlockJacobiCreate(Mat_CSR_t* A,
+                      int* rowPos,
+                      int sizeRowPos,
+                      int* colPos,
+                      int sizeColPos,
+                      int* dep,
+                      int sizeDep);
 int BlockJacobiInitialize(DVector_t* rhs);
 int BlockJacobiApply(Mat_Dense_t* A_in, Mat_Dense_t* B_out);
 void BlockJacobiFree();

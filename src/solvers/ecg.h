@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* Author     : Olivier Tissot                                                */
 /* Creation   : 2016/06/24                                                    */
-/* Description: Block Preconditioned C(onjugate) G(radient)                   */
+/* Description: Enlarged Preconditioned C(onjugate) G(radient)                */
 /******************************************************************************/
 
 /******************************************************************************/
@@ -24,15 +24,14 @@
 #include <dvector.h>
 #include <cholqr.h>
 #include <matmult.h>
+#include <kernels.h>
 /* Preconditioner */
 #include <precond.h>
-/* ParBCG */
-#include "usr_param.h"
+/* CPaLAMeM */
 #include <cpalamem_macro.h>
 #include <cpalamem_instrumentation.h>
-
+/* MKL */
 #include<mkl.h>
-
 
 /* A-orthonormalization algorithm */
 typedef enum {
@@ -46,7 +45,7 @@ typedef enum {
 } Block_Size_Red_t;
 
 typedef struct {
-    /* Array type variables */
+  /* Array type variables */
   double*           b;         /* Right hand side */
   Mat_Dense_t*      X;         /* Approximated solution */
   Mat_Dense_t*      R;         /* Residual */
@@ -69,38 +68,31 @@ typedef struct {
   int               iter;      /* Iteration */
 
   /* Options and parameters */
-  const char*       name;         /* Method name */
-  char*             oFileName;    /* Output file name */
-  Usr_Param_t       param;        /* User parameters */
-  Prec_Side_t       precond_side; /* Left or Splitted */
-  Prec_Type_t       precond_type; /* Type of preconditioner */
+  int               globPbSize;   /* Size of the global problem */
+  int               locPbSize;    /* Size of the local problem */
+  int               maxIter;      /* Maximum number of iterations */
+  int               enlFac;       /* Enlarging factor */
+  double            tol;          /* Tolerance */
   Ortho_Alg_t       ortho_alg;    /* A-orthonormalization algorithm */
   Block_Size_Red_t  bs_red;       /* Block size reduction */
   MPI_Comm          comm;         /* MPI communicator */
-} BCG_t;
+} ECG_t;
 
-
-#include "operator.h"
-#include "parbcg_getline.h"
-#include "precond.h"
-#include "block_jacobi.h"
 /******************************************************************************/
 
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
 
-int BCGReadParamFromFile(BCG_t* bcg, const char* filename);
-int BCGMalloc(BCG_t* bcg, int M, int m, Usr_Param_t* param, const char* name);
-int BCGInitialize(BCG_t* bcg, double* rhs, int* rci_request);
-int BCGSplit(double* x, Mat_Dense_t* XSplit, int colIndex);
-int BCGIterate(BCG_t* bcg, int* rci_request);
-int BCGStoppingCriterion(BCG_t* bcg, int* stop);
-void BCGFree(BCG_t* bcg);
-int BCGFinalize(BCG_t* bcg, double* solution);
-void BCGPrint(BCG_t* bcg);
+int ECGMalloc(ECG_t* ecg);
+int ECGInitialize(ECG_t* ecg, double* rhs, int* rci_request);
+int ECGSplit(double* x, Mat_Dense_t* XSplit, int colIndex);
+int ECGIterate(ECG_t* ecg, int* rci_request);
+int ECGStoppingCriterion(ECG_t* ecg, int* stop);
+void ECGFree(ECG_t* ecg);
+int ECGFinalize(ECG_t* ecg, double* solution);
+void ECGPrint(ECG_t* ecg);
 
-int BCGSolve(BCG_t* bcg, DVector_t* rhs, Usr_Param_t* param, const char* name);
 /******************************************************************************/
 
 #endif

@@ -2,10 +2,9 @@ include ../make.inc
 
 PREC_DIR=preconditioners
 SOLVER_DIR=solvers
-PRECONDITIONERS_SRC = $(PREC_DIR)/presc.c $(PREC_DIR)/presc_eigsolve.c $(PREC_DIR)/precond.c \
- 											$(PREC_DIR)/block_jacobi.c
+PRECONDITIONERS_SRC = $(PREC_DIR)/block_jacobi.c $(PREC_DIR)/precond.c $(PREC_DIR)/presc.c $(PREC_DIR)/presc_eigsolve.c
 
-SOLVERS_SRC = $(SOLVER_DIR)/bcg.c
+SOLVERS_SRC = $(SOLVER_DIR)/ecg.c
 
 PRECONDITIONERS_OBJ = $(PRECONDITIONERS_SRC:.c=.o)
 SOLVERS_OBJ = $(SOLVERS_SRC:.c=.o)
