@@ -34,7 +34,7 @@ int main(int argc, char** argv){
 
 
   /*Preconditioner object*/
-  Precond_t precond = PREALPS_NOPREC;
+  Prec_Type_t precond = PREALPS_NOPREC;
   Presc_t *prescA;
 
   /* Start MPI*/

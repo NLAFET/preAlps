@@ -13,6 +13,7 @@ Date        : Mai 15, 2017
 #include <metis_interface.h>
 #include "preAlps_utils.h"
 #include "presc.h"
+#include "presc_eigsolve.h"
 
 #include "preAlps_solver.h"
 
@@ -27,7 +28,7 @@ Date        : Mai 15, 2017
 #endif
 
 
-//#define MAT_CUSTOM_PARTITIONING_FILE "ela12"
+#define MAT_CUSTOM_PARTITIONING_FILE "ela12"
 
 
 
@@ -581,7 +582,7 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
     * => Solve the eigenvalue problem  (I + OffDiag(A_gg)S_{loc}^{-1}) u = \lambda u
     */
 
-    Presc_eigSolve(presc, locAgg_mcounts, Sloc_sv, &Sloc, &locAgg, comm);
+    Presc_eigSolve_SSloc(presc, comm, locAgg.info.m, Sloc_sv, &Sloc, &locAgg);
 
     if(Sloc_nrows>0) preAlps_solver_finalize(Sloc_sv, Sloc_nrows, Sloc.rowPtr, Sloc.colInd);
 
@@ -723,8 +724,8 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
 
 
 
-    Presc_eigSolve_SAloc(presc, locAgg.info.m, &locAgg, &Agi, &Aii, &Aig, &Aloc
-                                           ,Aii_sv, Aloc_sv, comm);
+    Presc_eigSolve_SAloc(presc, comm, locAgg.info.m, &locAgg, &Agi, &Aii, &Aig, &Aloc
+                                           ,Aii_sv, Aloc_sv);
 
     preAlps_int_printSynchronized(1, "finalize free", comm);
     ///preAlps_solver_finalize(Aii_sv, Aii.info.m, Aii.rowPtr, Aii.colInd);
