@@ -54,37 +54,28 @@ int Presc_alloc(Presc_t **presc){
 int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
 
   int nbprocs, my_rank, root = 0, ierr = 0;
-  int mloc, n ;
+  int i, mloc, n, nbDiagRows ;
   Mat_CSR_t locA = MatCSRNULL(), AP = MatCSRNULL(), locABlockDiag = MatCSRNULL();
-
 
   IVector_t idxRowBegin   = IVectorNULL(), idxColBegin = IVectorNULL();
   IVector_t perm   = IVectorNULL();
   IVector_t colPos = IVectorNULL();
-  int i;
-
-
-
   Mat_CSR_t Sloc  = MatCSRNULL();
   int Sloc_nrows, *Sloc_rowPtr =  NULL, *Sloc_colInd=NULL;
   double *Sloc_val=NULL;
-  int nbDiagRows;
+
   int *workP, *idxworkP; //a workspace of the size of the number of procs
   int *workColPerm;
   int *locRowPerm;//permutation applied on the local matrix
   Mat_CSR_t locAgg  = MatCSRNULL();
   int locAgg_n;
-  int *locAgg_mcounts; /* a workspace of the size of the number of procs */
+  int *locAgg_mcounts; // a workspace of the size of the number of procs
 
   Mat_CSR_t Agi = MatCSRNULL(), Aii = MatCSRNULL(), Aig  = MatCSRNULL(), Aloc  = MatCSRNULL();
 
   preAlps_solver_type_t stype;
-
-  /* Solver to factorize Adiag */
-  preAlps_solver_t *ABlockDiagloc_sv;
-
-  /* Solver to factorize Adiag */
-  preAlps_solver_t *Sloc_sv, *Aloc_sv, *Aii_sv;
+  preAlps_solver_t *ABlockDiagloc_sv; //Solver to factorize Adiag
+  preAlps_solver_t *Sloc_sv, *Aloc_sv, *Aii_sv; //Solver to factorize Adiag
 
 
   /*
@@ -105,14 +96,13 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
   if ( !(idxworkP  = (int *) malloc((nbprocs+1) * sizeof(int))) ) preAlps_abort("Malloc fails for idxworkP[].");
 
 
-
   /*
    * Partition the matrix on proc 0 and distribute (TODO: later use parMETIS)
    */
 
   if(my_rank==root){
 
-    #ifdef MAT_LFAT5
+    #ifdef MAT_LFAT5 /* The smallest SPD matrix on matrix-market for debugging purpose */
       /*DEBUG: reproductible permutation */
       ierr = IVectorMalloc(&perm, A->info.m);preAlps_checkError(ierr);
       ierr = IVectorMalloc(&idxRowBegin, nbprocs+1);preAlps_checkError(ierr);
@@ -134,7 +124,7 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
       idxRowBegin.val[3]= 10; idxRowBegin.val[4]= 14;
       IVectorPrintf("***** ATT: Permutation vector for reproductibility",&perm);
       IVectorPrintf("***** ATT: Row position for reproductibility",&idxRowBegin);
-    #elif defined(MAT_CUSTOM_PARTITIONING_FILE)
+    #elif defined(MAT_CUSTOM_PARTITIONING_FILE) /* The custom already permuted matrix and the corresponding permutation vector */
 
       char permFile[250], rowPosFile[250];
       sprintf(permFile, "matrix/%s.perm.txt", MAT_CUSTOM_PARTITIONING_FILE);
@@ -160,35 +150,26 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
       //IVectorLoad(rowPosFile, &idxRowBegin, idxRowBegin.nval);
       printf("Loading ... done\n");
 
-      IVectorPrintf("***** ATT: ELA12 matrix Permutation vector for reproductibility",&perm);
-      IVectorPrintf("***** ATT: ELA12 matrix Row position for reproductibility",&idxRowBegin);
+      IVectorPrintf("***** ATT: CUSTOM matrix,  Permutation vector for reproductibility",&perm);
+      IVectorPrintf("***** ATT: CUSTOM matrix, Row position for reproductibility",&idxRowBegin);
 
       //Check the size
       int m_expected = 0;
 
       for(i=0;i<nbprocs;i++) m_expected+=(idxRowBegin.val[i+1] - idxRowBegin.val[i]);
       if(A->info.m!=m_expected){
-        printf("Error: the sum of the rows in the provided partitioning: %d is different to the matrix size:%d\n", m_expected, A->info.m);
-        preAlps_abort("Error in the provided partitioning");
+        preAlps_abort("Error: the sum of the rows in the provided partitioning: %d is different to the matrix size:%d\n", m_expected, A->info.m);
       }
 
-
     #else
+
+      /* Use metis to partition the matrix */
       ierr = metisKwayOrdering(A, &perm, nbprocs, &idxRowBegin);preAlps_checkError(ierr);
-      IVectorPrintf("Permutation vector returned by Kway",&perm);
-      IVectorPrintf("Row position",&idxRowBegin);
+      //IVectorPrintf("Permutation vector returned by Kway",&perm);
+      //IVectorPrintf("Row position",&idxRowBegin);
     #endif
 
-
-//    IVector_t colPos  = IVectorNULL();
-//    ierr = MatCSRGetColBlockPos(A,&idxRowBegin,&colPos);preAlps_checkError(ierr);
-
-//    IVectorPrintf("pos of blocks",&idxRowBegin);
-//    IVectorPrintf("colPos of blocks",&colPos);
-
-
     #ifdef MAT_CUSTOM_PARTITIONING_FILE
-
       //MatCSRCopyStruct(A, &AP);
       MatCSRCopy(A, &AP);
 
@@ -196,22 +177,8 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
       MatCSRPrintfInfo("AP info", &AP);
       //MatCSRConvertTo0BasedIndexing(&AP);
     #else
-      #if 1
-        // AP = P x A x  P^T
-	      ierr  = MatCSRPermute(A, &AP, perm.val, perm.val, PERMUTE);preAlps_checkError(ierr);
-      #else
-        //AP = P x A x  P^T
-        MatCSRCopyStruct(A, &AP);
-        int *iperm;
-
-        iperm = s_return_pinv(perm.val, perm.nval);
-        preAlps_matrix_permute (A->info.m, A->rowPtr, A->colInd, A->val, iperm, perm.val,AP.rowPtr, AP.colInd,AP.val);
-
-        free(iperm);
-      #endif
+	    ierr  = MatCSRPermute(A, &AP, perm.val, perm.val, PERMUTE);preAlps_checkError(ierr);
     #endif
-
-//    ierr  = MatCSRPermute(A, &AP, perm.val, perm.val, PERMUTE);preAlps_checkError(ierr);
 
     MatCSRPrintCoords(&AP, "Permuted matrix from Kway");
 
@@ -233,10 +200,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
   /*
    *  distribute the matrix using block row data distribution
    */
-
-
-
-
 
   /*Broadcast the Block row distribution of the global matrix*/
   MPI_Bcast(idxRowBegin.val, idxRowBegin.nval, MPI_INT, root, comm);
@@ -261,21 +224,9 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
   if ( !(workColPerm  = (int *) malloc(n * sizeof(int))) ) preAlps_abort("Malloc fails for workColPerm[].");
   if ( !(locRowPerm  = (int *) malloc(mloc * sizeof(int))) ) preAlps_abort("Malloc fails for locRowPerm[].");
 
-
-#ifdef DEBUG
-   //Mat_CSR_t Awork1 = MatCSRNULL();
-   //MatCSRBlockRowGatherv(&locA, &Awork1, idxRowBegin.val, root, comm);
-   //if(my_rank==root) MatCSRPrintCoords(&Awork1, "Assembled matrix for testing");
-   //MatCSRFree(&Awork1);
-#endif
-
-
-
   /*
    * Permute the off diag rows on each local matrix to the bottom (inplace)
    */
-
-
 
   idxColBegin = idxRowBegin; //The matrix is symmetric
 
@@ -290,18 +241,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
   /*
    * Extract the Block diagonal part of locA, locABlockDiag = Block-Diag(locA)
   */
-
-  //IVector_t rowPos = IVectorNULL();
-  //ierr = IVectorMalloc(&rowPos, 2); preAlps_checkError(ierr);
-  //rowPos.val[0] = 0; rowPos.val[1] = locA.info.m;
-
-  //MatCSRGetSubMatrix(&locA, &locABlockDiag, &rowPos, &idxColBegin,
-  //                   0, my_rank, &work);
-  //MatCSRGetSubBlock(&locA, &locABlockDiag, &rowPos, &idxColBegin,
-  //                                      0, my_rank, &work);
-
-  //MatCSRGetColPanel(&locA,  &locABlockDiag, &rowPos, &idxColBegin, my_rank);
-
 
   /* Indexation for block Columns*/
   ierr = MatCSRGetColBlockPos(&locA, &idxColBegin, &colPos);preAlps_checkError(ierr);
@@ -331,109 +270,14 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
 
 
   /*
-   * Get (2,2) block
+   * Get the (2,2) block
    */
 
-  /* Sum of the element before the selected block */
-  //sumDiag = 0;
-  //for(i=0;i<numBlock;i++) sumDiag += workP[i];
-
-  //preAlps_int_printSynchronized(sumDiag, "sumDiag", comm);
-
-  #if 0
   /* Partition the matrix into 2 x 2, and get block A_{22}*/
-  IVector_t rowPart1 = IVectorNULL();
-  IVector_t colPart1 = IVectorNULL();
-  IVector_t work1    = IVectorNULL();
-  ierr = IVectorMalloc(&rowPart1, 3);preAlps_checkError(ierr);
+  int firstBlock_nrows = nbDiagRows, firstBlock_ncols = n - locAgg_n;
 
-  rowPart1.val[0] = 0; rowPart1.val[1] = nbDiagRows; rowPart1.val[2] = locA.info.m;
+  preAlps_schurComplementGet(&locA, firstBlock_nrows, firstBlock_ncols, &locAgg);
 
-  ierr = IVectorMalloc(&colPart1, 3);preAlps_checkError(ierr);
-
-  colPart1.val[0] = 0; colPart1.val[1] = nbDiagRows; colPart1.val[2] = locA.info.n;
-
-
-  /* Indexation for block Columns*/
-  ierr = MatCSRGetColBlockPos(&locA, &colPart1, &colPos);preAlps_checkError(ierr);
-
-  //  IVectorPrintf("Colpos", &colPos);
-
-  MatCSRGetSubMatrix(&locA, &locAgg, &rowPart1, &colPos, 1, 1, &work1);
-
-  IVectorFree(&rowPart1);
-  IVectorFree(&colPart1);
-  IVectorFree(&work1);
-
-  #elif 0
-
-    IVector_t rowPart = IVectorNULL();
-    //Mat_CSR_t rowPanel = MatCSRNULL();
-    ierr = IVectorMalloc(&rowPart, 3);preAlps_checkError(ierr);
-    rowPart.val[0] = 0; rowPart.val[1] = nbDiagRows;rowPart.val[2] = mloc;
-
-    if(mloc -  nbDiagRows> 0){
-      ierr = MatCSRGetRowPanel(&locA, &rowPanel, &rowPart, 1); preAlps_checkError(ierr);
-    }
-
-    MatCSRPrintSynchronizedCoords (&rowPanel, comm, "rowPanel", "rowPanel");
-
-    if(mloc -  nbDiagRows> 0){
-      IVector_t colPart = IVectorNULL();
-      ierr = IVectorMalloc(&colPart, 3);preAlps_checkError(ierr);
-      colPart.val[0] = 0; colPart.val[1] = n - locAgg_n; colPart.val[2] = n;
-
-
-      /* Indexation for block Columns*/
-      ierr = MatCSRGetColBlockPos(&rowPanel, &colPart, &colPos);preAlps_checkError(ierr);
-
-      ierr = MatCSRGetColPanel(&rowPanel,  &locAgg, &colPart, &colPos, 1); preAlps_checkError(ierr);
-
-      MatCSRPrintfInfo("LocAgg", &locAgg);
-      MatCSRPrintf("LocAgg", &locAgg);
-
-      IVectorFree(&colPos);
-      IVectorFree(&colPart);
-    }
-
-    IVectorFree(&rowPart);
-    MatCSRFree(&rowPanel);
-  #elif 0
-    IVector_t rowPart = IVectorNULL();
-    IVector_t colPart = IVectorNULL();
-    int *works    = NULL;
-    size_t lworks  =0 ;
-    //Mat_CSR_t rowPanel = MatCSRNULL();
-    ierr = IVectorMalloc(&rowPart, 3);preAlps_checkError(ierr);
-    rowPart.val[0] = 0; rowPart.val[1] = nbDiagRows;rowPart.val[2] = mloc;
-
-    ierr = IVectorMalloc(&colPart, 3);preAlps_checkError(ierr);
-    //colPart.nval = 3;
-    colPart.val[0] = 0; colPart.val[1] = n - locAgg_n;colPart.val[2] = n;
-
-    IVectorPrintf("rowPart", &rowPart);
-    IVectorPrintf("colPart", &colPart);
-    //MatCSRPrintfInfo("A", A);
-    MatCSRPrintfInfo("Info local A", &locA);
-
-    ierr = MatCSRGetSubBlock(&locA, &locAgg, &rowPart, &colPart,
-      1, 1, &works, &lworks);
-
-    MatCSRPrintfInfo("LocAgg", &locAgg);
-    MatCSRPrintf("LocAgg", &locAgg);
-
-    free(works);
-  #else
-
-    /* TODO: possible Optimization: Get the Schur complement and put zeros in the Block diagonal directly */
-
-    /*Extract the Schur complement */
-    /* Partition the matrix into 2 x 2, and get block A_{22}*/
-    int firstBlock_nrows = nbDiagRows, firstBlock_ncols = n - locAgg_n;
-
-    preAlps_schurComplementGet(&locA, firstBlock_nrows, firstBlock_ncols, &locAgg);
-
-  #endif
 
   preAlps_intVector_printSynchronized(locAgg.rowPtr, locAgg.info.m, "locAgg.rowPtr", "", comm);
   preAlps_intVector_printSynchronized(locAgg.colInd, locAgg.info.nnz, "locAgg.colInd", "", comm);
@@ -441,8 +285,8 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
   MatCSRPrintSynchronizedCoords (&locAgg, comm, "locAgg", "locAgg extracted");
 
 
-  if(presc->eigs_kind == PRESC_EIGS_SLOC){
 
+  if(presc->eigs_kind == PRESC_EIGS_SLOC){
 
     /*
      * Compute the schur complement of the diagonal block.
@@ -455,12 +299,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
     Sloc_nrows = locABlockDiag.info.m - nbDiagRows;
 
     preAlps_int_printSynchronized(Sloc_nrows, "Sloc_nrows", comm);
-
-    //locABlockDiag_ps.mtype = -2;   /* Real symmetric matrix, pardiso requires only the upper part of the matrix */
-    //locABlockDiag_ps.mtype = 2;   /* Real symmetric positive definite matrix, pardiso requires only the upper part of the matrix */
-    //locABlockDiag_ps.mtype = 11;
-    //locABlockDiag_ps.nrhs = 1;	   /* Number of right hand sides. */
-
 
     switch(SCHUR_COMPLEMENT_SOLVER){
       case 0: stype = SOLVER_MKL_PARDISO; break;
@@ -483,8 +321,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
                                          locABlockDiag.val, locABlockDiag.rowPtr, locABlockDiag.colInd,
                                          Sloc_nrows, &Sloc_val, &Sloc_rowPtr, &Sloc_colInd);
 
-    preAlps_int_printSynchronized(1, "Synchro after partial_factorization", comm);
-
     int S_nnz = (Sloc_nrows>0) ? Sloc_rowPtr[Sloc_nrows]: 0;
 
     //preAlps_intVector_printSynchronized(Sloc_rowPtr, Sloc_nrows+1, "Sloc_rowPtr", "Sloc_rowPtr", comm);
@@ -495,7 +331,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
     MatCSRSetInfo(&Sloc, Sloc_nrows, Sloc_nrows, S_nnz,
                 Sloc_nrows,  Sloc_nrows, S_nnz, 1);
     MatCSRCreateFromPtr(&Sloc, Sloc_rowPtr, Sloc_colInd, Sloc_val);
-
 
     #ifdef DEBUG
       if(stype == SOLVER_MKL_PARDISO || stype == SOLVER_PARDISO){
@@ -518,12 +353,8 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
     }
 
     preAlps_solver_create(&Sloc_sv, stype, MPI_COMM_SELF);
-
     preAlps_solver_init(Sloc_sv);
-
     preAlps_solver_setMatrixType(Sloc_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC);
-
-
     if(Sloc_nrows>0) preAlps_solver_factorize(Sloc_sv, Sloc_nrows, Sloc.val, Sloc.rowPtr, Sloc.colInd);
 
     #ifdef DEBUG
@@ -532,14 +363,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
         preAlps_intVector_printSynchronized(perm2, Sloc_nrows, "FACT perm", "Sloc FACT perm", comm);
       }
     #endif
-
-    preAlps_int_printSynchronized(1, "Synchro after the factorization", comm);
-
-
-
-
-
-
 
     /*
      * Create OffDiag(Agg): Fill block diag of Agg with zeros in the place of Sloc (inplace)
@@ -550,8 +373,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
 
     idxworkP[0] = 0;
     for(i=0;i<nbprocs;i++) idxworkP[i+1] = idxworkP[i] + locAgg_mcounts[i];
-    preAlps_intVector_printSynchronized(locAgg_mcounts, nbprocs, "locAgg_mcounts = all Sloc_nrows", "", comm);
-    preAlps_intVector_printSynchronized(idxworkP, nbprocs+1, "idxworkP", "", comm);
 
     #ifdef BUILDING_MATRICES_DUMP
        char logFile[250];
@@ -562,7 +383,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
        MatCSRBlockRowGathervDump(&locAgg, "dump_Agg.mtx", idxworkP, root, comm);
     #endif
 
-    //preAlps_sleep(my_rank, my_rank*2);//DEBUG
     /* Remove the block column at the position my_rank (fill with zeros) */
     MatCSRBlockColRemove(&locAgg, locAgg_mcounts, my_rank);
 
@@ -592,13 +412,12 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
 
     preAlps_solver_destroy(&ABlockDiagloc_sv);
 
-
   }else{
 
     /* Extract blocks of the Matrix */
-    preAlps_int_printSynchronized(2, "Synchro before extracting AblockDiag blocks", comm);
 
     /* Partition the matrix into 2 x 2, and get block A_{22}*/
+
     IVector_t rowPart = IVectorNULL();
     IVector_t colPart = IVectorNULL();
     IVector_t work    = IVectorNULL();
@@ -609,66 +428,20 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
     ierr = IVectorMalloc(&colPart, 3);preAlps_checkError(ierr);
 
     colPart.val[0] = 0; colPart.val[1] = nbDiagRows; colPart.val[2] = locABlockDiag.info.n;
-  /*
-    IVectorPrintf("rowPart", &rowPart);
-    IVectorPrintf("colPart", &colPart);
-    MatCSRPrintfInfo("A", A);
-    MatCSRPrintfInfo("Info local A", &locA);
-  */
 
     /* Indexation for block Columns*/
     ierr = MatCSRGetColBlockPos(&locABlockDiag, &colPart, &colPos);preAlps_checkError(ierr);
 
-  //  IVectorPrintf("Colpos", &colPos);
-
     MatCSRGetSubMatrix(&locABlockDiag, &Aii, &rowPart, &colPos, 0, 0, &work);
-
-#if DEBUG
-    for(i=0;i<nbprocs;i++){
-      if(my_rank==i){
-        MatCSRPrintfInfo("Aii", &Aii);
-      }
-      MPI_Barrier(comm);
-    }
-#endif
 
     MatCSRPrintSynchronizedCoords (&Aii, comm, "Aii", "Aii extracted");
 
-    preAlps_int_printSynchronized(3, "Synchro before extracting AblockDiag blocks", comm);
-
     if(locABlockDiag.info.m>nbDiagRows) MatCSRGetSubMatrix(&locABlockDiag, &Agi, &rowPart, &colPos, 1, 0, &work);
-
-    preAlps_int_printSynchronized(4, "Synchro before extracting AblockDiag blocks", comm);
-    #if DEBUG
-        for(i=0;i<nbprocs;i++){
-          if(my_rank==i){
-            MatCSRPrintfInfo("Agi", &Agi);
-          }
-          MPI_Barrier(comm);
-        }
-    #endif
-
-
 
     MatCSRPrintSynchronizedCoords (&Agi, comm, "Agi", "Agi extracted");
 
-
-    preAlps_int_printSynchronized(5, "Synchro before extracting AblockDiag blocks", comm);
-
-
     if(locABlockDiag.info.n>nbDiagRows) MatCSRGetSubMatrix(&locABlockDiag, &Aig, &rowPart, &colPos, 0, 1, &work);
     if(locABlockDiag.info.m>nbDiagRows && locABlockDiag.info.n>nbDiagRows) MatCSRGetSubMatrix(&locABlockDiag, &Aloc, &rowPart, &colPos, 1, 1, &work);
-
-    //MatCSRPrintfInfo("LocAgg", &locAgg);
-
-    #if DEBUG
-        for(i=0;i<nbprocs;i++){
-          if(my_rank==i){
-            MatCSRPrintfInfo("Aig", &Aig);
-          }
-          MPI_Barrier(comm);
-        }
-    #endif
 
     #ifdef BUILDING_MATRICES_DUMP
        char logFile1[250];
@@ -683,8 +456,6 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
     IVectorFree(&colPart);
     IVectorFree(&work);
 
-    //preAlps_abort("dbg ");
-
     /*
      * Factorize Aii and Aloc
      */
@@ -698,19 +469,17 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
     }
 
 
-    /*Aii*/
+    /* Factorize Aii */
     preAlps_solver_create(&Aii_sv, stype, MPI_COMM_SELF);
     preAlps_solver_init(Aii_sv);
     preAlps_solver_setMatrixType(Aii_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC);
     preAlps_solver_factorize(Aii_sv, Aii.info.m, Aii.val, Aii.rowPtr, Aii.colInd);
 
-    /*Aloc*/
+    /* Factorize Aloc */
     preAlps_solver_create(&Aloc_sv, stype, MPI_COMM_SELF);
     preAlps_solver_init(Aloc_sv);
     preAlps_solver_setMatrixType(Aloc_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC);
     preAlps_solver_factorize(Aloc_sv, Aloc.info.m, Aloc.val, Aloc.rowPtr, Aloc.colInd);
-
-
 
     #ifdef BUILDING_MATRICES_DUMP
        char logFile2[250];
@@ -718,23 +487,20 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
        MatCSRSave(&Aloc, logFile2); //each proc dump its Sloc
     #endif
 
+    /*
+     * Solve the eigenvalue problem  Sloc*u = \lambda*Aloc*u
+     *
+     */
 
-    preAlps_int_printSynchronized(2, "Synchro after the factorization", comm);
+    Presc_eigSolve_SAloc(presc, comm, locAgg.info.m, &locAgg,
+                         &Agi, &Aii, &Aig, &Aloc ,Aii_sv, Aloc_sv);
 
+    if(Aii.info.m>0)  preAlps_solver_finalize(Aii_sv, Aii.info.m, Aii.rowPtr, Aii.colInd);
+    if(Aloc.info.m>0) preAlps_solver_finalize(Aloc_sv, Aloc.info.m, Aloc.rowPtr, Aloc.colInd);
 
-
-
-    Presc_eigSolve_SAloc(presc, comm, locAgg.info.m, &locAgg, &Agi, &Aii, &Aig, &Aloc
-                                           ,Aii_sv, Aloc_sv);
-
-    preAlps_int_printSynchronized(1, "finalize free", comm);
-    ///preAlps_solver_finalize(Aii_sv, Aii.info.m, Aii.rowPtr, Aii.colInd);
-    ///preAlps_solver_finalize(Aloc_sv, Aloc.info.m, Aloc.rowPtr, Aloc.colInd);
-    preAlps_int_printSynchronized(2, "finalize free", comm);
     preAlps_solver_destroy(&Aii_sv);
     preAlps_solver_destroy(&Aloc_sv);
 
-    preAlps_int_printSynchronized(3, "finalize free", comm);
     MatCSRFree(&Aii);
     MatCSRFree(&Agi);
     MatCSRFree(&Aig);
@@ -742,33 +508,23 @@ int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm){
 
   }
 
+
   /*
    * Free memory
   */
 
-  preAlps_int_printSynchronized(1, "free memory", comm);
 
-  ///if(locABlockDiag.info.m>0) preAlps_solver_finalize(ABlockDiagloc_sv, locABlockDiag.info.m, locABlockDiag.rowPtr, locABlockDiag.colInd);
-
-  //pardiso_solver_finalize(&locABlockDiag_ps, Sloc_nrows, Sloc_rowPtr, Sloc_colInd);
-  preAlps_int_printSynchronized(2, "free memory", comm);
-
-
-  preAlps_int_printSynchronized(3, "free memory", comm);
   if(my_rank==root){
     IVectorFree(&perm);
   }
 
-  preAlps_int_printSynchronized(4, "free memory", comm);
   IVectorFree(&colPos);
   IVectorFree(&idxRowBegin);
-  preAlps_int_printSynchronized(5, "free memory", comm);
 
   free(workColPerm);
   free(locAgg_mcounts);
   free(workP);
   free(idxworkP);
-  preAlps_int_printSynchronized(1, "presc_build end", comm);
 
   return 0;
 }

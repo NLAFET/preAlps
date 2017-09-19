@@ -13,17 +13,17 @@ Date        : Sept 13, 2017
 #include "preAlps_utils.h"
 
 #ifdef USE_PARPACK
-extern void pdsaupd_(MPI_Comm*, int*, char*, int*, char*, int*, double*, double*, int*, double*, int*,
+  extern void pdsaupd_(MPI_Comm*, int*, char*, int*, char*, int*, double*, double*, int*, double*, int*,
                     int*, int*, double*, double*, int*, int*);
 
-extern void pdnaupd_(MPI_Comm*, int*, char*, int*, char*, int*, double*, double*, int*, double*, int*,
+  extern void pdnaupd_(MPI_Comm*, int*, char*, int*, char*, int*, double*, double*, int*, double*, int*,
                               int*, int*, double*, double*, int*, int*);
 
-extern void pdseupd_(MPI_Comm*, int*, char*, int*, double*, double*, int*, double*, char*, int*,
+  extern void pdseupd_(MPI_Comm*, int*, char*, int*, double*, double*, int*, double*, char*, int*,
                     char*, int*, double*, double*, int*, double*, int*, int*, int*,
                     double*, double*, int*, int*);
 
-extern void pdneupd_(MPI_Comm* COMM, int *RVEC, char *HOWMNY, int *SELECT, double *DR, double *DI, double *Z, int *LDZ, double *SIGMAR, double *SIGMAI,
+  extern void pdneupd_(MPI_Comm* COMM, int *RVEC, char *HOWMNY, int *SELECT, double *DR, double *DI, double *Z, int *LDZ, double *SIGMAR, double *SIGMAI,
                     double *WORKEV, char *BMAT, int *N, char *WHICH, int *NEV, double *TOL, double *RESID, int *NCV, double *V, int *LDV,
                     int *IPARAM, int *IPNTR, double *WORKD, double *WORKL, int *LWORKL, int *INFO );
 #endif
@@ -32,9 +32,7 @@ extern void pdneupd_(MPI_Comm* COMM, int *RVEC, char *HOWMNY, int *SELECT, doubl
 int Eigsolver_create(Eigsolver_t **eigs){
 
   int ierr = 0;
-
   if ( !(*eigs  = (Eigsolver_t *) malloc(sizeof(Eigsolver_t))) ) preAlps_abort("Malloc fails for eigsolver object"); //M
-
   return ierr;
 }
 
@@ -91,16 +89,9 @@ int Eigsolver_finalize(Eigsolver_t **eigs){
 
   int ierr = 0;
   free((*eigs)->resid);
-  preAlps_int_printSynchronized(2, "eigsw free", MPI_COMM_WORLD);
   free((*eigs)->v);
-  preAlps_int_printSynchronized(3, "eigsw free", MPI_COMM_WORLD);
   free((*eigs)->workd);
-  preAlps_int_printSynchronized(4, "eigsw free", MPI_COMM_WORLD);
-
-
-
   if((*eigs)->eigvalues!=NULL) free((*eigs)->eigvalues);
-
   free(*eigs);
 
   return ierr;
@@ -130,7 +121,6 @@ int Eigsolver_setDefaultParameters(Eigsolver_t *eigs){
   eigs->issym       = 0;
   for(i=0;i<11;i++) eigs->iparam[i] = 0;
   for(i=0;i<14;i++) eigs->ipntr[i] = 0;
-
 
   eigs->info = 0;
 
@@ -216,80 +206,73 @@ int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, do
     }
     printf("[PARPACK] Found %d eigenvalues after %d Arnoldi iterations, number OP * X: %d, RCI iterations: %d, OP*X: %d, B*X: %d\n",
            iparam[4], iparam[2], iparam[8], eigs->RCI_iter, eigs->OPX_iter, eigs->BX_iter);
-
   }
 
+  /* Compute the eigenvectors when ido = 99 */
   if(*ido==99 && iparam[4]>0){
 
-     ttemp = MPI_Wtime();
+    ttemp = MPI_Wtime();
 
-     /* Compute the eigenvectors */
-     #ifdef USE_PARPACK
+    #ifdef USE_PARPACK
+      eigs->nevComputed =  iparam[4];
 
+      /* Allocate workspace for the eigenvalues */
 
-     eigs->nevComputed =  iparam[4];
+      if ( !(eigs->eigvalues  = (double *) malloc((nev +1) * sizeof(double))) ) preAlps_abort("Malloc fails for eigs->eigenvalues[].");
 
-    /* Allocate workspace for the eigenvalues */
+      int rvec = 1; // Compute the eigenvectors
+      char howMany = 'A'; // Compute all the eigenvalues
+      int *vselect; //Specify the eigenvectors to be computed
+      double *z;
+      int ldz;
 
-    if ( !(eigs->eigvalues  = (double *) malloc((nev +1) * sizeof(double))) ) preAlps_abort("Malloc fails for eigs->eigenvalues[].");
+      ldz = mloc; //counts[mynode_rank];
 
-    int rvec = 1; // Compute the eigenvectors
-    char howMany = 'A'; // Compute all the eigenvalues
-    int *vselect; //Specify the eigenvectors to be computed
-    double *z;
-    int ldz;
+      if(eigs->issym){
 
-    ldz = mloc; //counts[mynode_rank];
+        double sigma=0.0;
 
-    if(my_rank==0) printf("[pdxeupd] mloc:%d, ncv:%d, nev:%d, eigs->nev:%d\n", mloc, ncv, nev, eigs->nev);
-
-    if(eigs->issym){
-
-      double sigma=0.0;
-
-      if ( !(vselect  = (int *) malloc(ncv * sizeof(int))) ) preAlps_abort("Malloc fails for vselect[].");
-      if ( !(z  = (double *) malloc(ldz * nev * sizeof(double))) ) preAlps_abort("Malloc fails for z[].");
-      pdseupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, z, &ldz,
+        if ( !(vselect  = (int *) malloc(ncv * sizeof(int))) ) preAlps_abort("Malloc fails for vselect[].");
+        if ( !(z  = (double *) malloc(ldz * nev * sizeof(double))) ) preAlps_abort("Malloc fails for z[].");
+        pdseupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, z, &ldz,
                &sigma, &bmat, &mloc, which, &nev, &residual_tol, resid,
                &ncv, v, &ldv, iparam, ipntr, workd, workl, &lworkl, &eigs->info);
 
-    } else {
+      } else {
 
-      double sigmaR = 0.0, sigmaI=0.0;
+        double sigmaR = 0.0, sigmaI=0.0;
 
-      double *workev, *DI;
+        double *workev, *DI;
 
-      if ( !(vselect  = (int *) malloc(ncv * sizeof(int))) ) preAlps_abort("Malloc fails for vselect[].");
-      if ( !(z  = (double *) malloc(ldz * (nev+1) * sizeof(double))) ) preAlps_abort("Malloc fails for z[].");
+        if ( !(vselect  = (int *) malloc(ncv * sizeof(int))) ) preAlps_abort("Malloc fails for vselect[].");
+        if ( !(z  = (double *) malloc(ldz * (nev+1) * sizeof(double))) ) preAlps_abort("Malloc fails for z[].");
 
-      if ( !(DI  = (double *) malloc((nev+1) * sizeof(double))) ) preAlps_abort("Malloc fails for D[].");
+        if ( !(DI  = (double *) malloc((nev+1) * sizeof(double))) ) preAlps_abort("Malloc fails for D[].");
 
-      if ( !(workev  = (double *) malloc((3*ncv) * sizeof(double))) ) preAlps_abort("Malloc fails for D[].");
+        if ( !(workev  = (double *) malloc((3*ncv) * sizeof(double))) ) preAlps_abort("Malloc fails for D[].");
 
-      pdneupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, DI, z, &ldz,
+        pdneupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, DI, z, &ldz,
                &sigmaR, &sigmaI, workev, &bmat, &mloc, which, &nev, &residual_tol, resid,
                &ncv, v, &ldv, iparam, ipntr, workd, workl, &lworkl, &eigs->info);
 
 
-      free(DI);
-      free(workev);
-    }
+        free(DI);
+        free(workev);
+      }
 
-    if(my_rank==root){
-      if (eigs->info != 0) {
+      if(my_rank==root){
+        if (eigs->info != 0) {
           printf("[PARPACK] pdxeupd returned error info: %d\n", eigs->info);
           //preAlps_abort("An error occured in PARPACK ");
+        }
       }
-    }
-    free(vselect);
-    free(z);
+      free(vselect);
+      free(z);
     #else
       preAlps_abort("No other eigensolver is supported for the moment. Please Rebuild with PARPACK !");
     #endif
 
     eigs->tEigVectors += MPI_Wtime() - ttemp;
-
   }
-
   return ierr;
 }

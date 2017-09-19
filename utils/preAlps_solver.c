@@ -40,6 +40,9 @@ int preAlps_solver_create(preAlps_solver_t **solver, preAlps_solver_type_t stype
   (*solver)->type = stype;
   (*solver)->comm = comm;
 
+  
+
+
   return 0;
 }
 

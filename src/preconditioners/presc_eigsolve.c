@@ -48,21 +48,19 @@ Date        : Mai 15, 2017
 int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver_t *Sloc_sv, Mat_CSR_t *Sloc, Mat_CSR_t *AggP){
 
   int ierr;
-
   int root = 0, my_rank, nbprocs;
   double *Y, *X;
   double *dwork, *ywork;
   double dONE = 1.0, dZERO = 0.0;
   double t = 0.0, ttemp = 0.0;
-  //, tParpack=0.0, tSolve=0.0, tAggv=0.0, ttemp, tComm=0.0;
   SolverStats_t tstats;
   int ido = 0, RCI_its = 0;
   int i, iterate = 0, m;
   int *mcounts, *mdispls;
-
   double deflation_tol = 1e-2; //the deflation tolerance, all eigenvalues lower than this will be selected for deflation
-
   Eigsolver_t *eigs;
+
+
 
   /* Create the eigensolver object*/
   Eigsolver_create(&eigs);
@@ -70,7 +68,7 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
   /* Set the default parameters for the eigen solver*/
   Eigsolver_setDefaultParameters(eigs);
 
-  //eigs->issym = 0; //The problem is symmetric
+  /* Set the parameters for this specific problem */
   #if USE_GENERALIZED_SYSTEM
     eigs->bmat = 'G'; //Generalized eigenvalue problem
     eigs->issym = 1; //The problem is symmetric
@@ -78,13 +76,6 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
     eigs->bmat = 'I'; //Standard eigenvalue problem
     eigs->issym = 0; //The problem is symmetric
   #endif
-
-
-
-  //Presc_eigSolve_SSloc(eigs, mcounts, Sloc_sv, Sloc, AggP, comm);
-
-
-  preAlps_int_printSynchronized(1, "Starting eigSolve", comm);
 
   MPI_Comm_rank(comm, &my_rank);
   MPI_Comm_size(comm, &nbprocs);
@@ -95,7 +86,6 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
 
   if ( !(mcounts  = (int *) malloc(nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for mcounts[].");
   if ( !(mdispls  = (int *) malloc(nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for mdispls[].");
-
 
   //Gather the number of rows for each procs
   MPI_Allgather(&mloc, 1, MPI_INT, mcounts, 1, MPI_INT, comm);
@@ -115,8 +105,6 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
    eigs->nev = (int) m*2e-3;
    if(eigs->nev<=10) eigs->nev = 10;
   #endif
-
-
 
   Eigsolver_init(eigs, m, mloc);
 
@@ -138,11 +126,6 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
   MatCSRPrintSynchronizedCoords (AggP, comm, "AggP", "AggP");
   if(my_rank==root) printf("Agg size: %d\n", m);
 
-
-
-  preAlps_int_printSynchronized(comm, "Starting PARPACK comm", comm);
-
-  preAlps_intVector_printSynchronized(eigs->iparam, 11, "eigs->iparam", "eigs->iparam", comm);
   iterate = 1;
   while(iterate){
 
@@ -154,19 +137,6 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
     Eigsolver_iterate(eigs, comm, mloc, &X, &Y, &ido);
 
     /* Reverse communication */
-
-    #ifdef DEBUG
-      if(RCI_its==1) {
-        MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm);
-
-        if(my_rank==root) preAlps_doubleVector_printSynchronized(ywork, m, "X", "X gathered from all", MPI_COMM_SELF);
-
-        DVector_t V0 = DVectorNULL();
-        DVectorCreateFromPtr(&V0, m, ywork);
-        if(my_rank==root) DVectorSave(&V0, "X_0.txt", "X_0 first step arpack");
-      }
-    #endif
-
 
     if(ido==-1||ido==1){
       ///if(RCI_its==1) {for(i=0;i<mloc;i++) X[i] = 1e-2; printf("dbgsimp1\n");}
@@ -185,9 +155,6 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
         ierr = matrixVectorOp_SxSlocInv(comm, mloc, m, mcounts, mdispls, Sloc_sv, Sloc, AggP, X, Y, dwork, ywork, &tstats);
       }
 
-
-
-
     }else if(ido==2){
 
       /* Compute  Y = Sloc * X */
@@ -198,7 +165,6 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
       preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after Sloc*v", comm);
     }else if(ido==99){
        iterate = 0;
-
     }else{
        preAlps_abort("[PARPACK] (Unhandled case) ido is not 99, current value:%d", ido);
     } //ido
@@ -219,14 +185,11 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
     }
   }
 
-
   #ifdef EIGVALUES_PRINT
     if(my_rank == root){
       printf("[%d] eigenvalues:\n", my_rank);
       for (i = 0; i < eigs->nevComputed; i++) {
-
         printf("\t%.16e", eigs->eigvalues[i]);
-
         if (eigs->eigvalues[i] <= deflation_tol) {
           printf(" (selected)\n");
         }else{
@@ -258,20 +221,9 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
   return ierr;
 }
 
-
-
-
-
-
-
-
 /*
  * Version with ALOC
  */
-
-
-
-
 
 
  /*
@@ -298,223 +250,174 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
                           Mat_CSR_t *Aggloc, Mat_CSR_t *Agi, Mat_CSR_t *Aii, Mat_CSR_t *Aig,
                           Mat_CSR_t *Aloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Aloc_sv){
 
-   int ierr;
-
-   int root = 0, my_rank, nbprocs;
-   double *Y, *X;
-   double *dwork1, *dwork2, *ywork;
-   double dONE = 1.0, dZERO = 0.0;
-   double t = 0.0, ttemp = 0.0;
-   //, tParpack=0.0, tSolve=0.0, tAggv=0.0, ttemp, tComm=0.0;
-   SolverStats_t tstats;
-   int ido = 0, RCI_its = 0;
-   int i, iterate = 0, m;
-   int *mcounts, *mdispls;
-
-   double deflation_tol = 1e-2; //the deflation tolerance, all eigenvalues lower than this will be selected for deflation
-
-   Eigsolver_t *eigs;
+  int ierr = 0;
+  int root = 0, my_rank, nbprocs;
+  double *Y, *X;
+  double *dwork1, *dwork2, *ywork;
+  double dONE = 1.0, dZERO = 0.0;
+  double t = 0.0, ttemp = 0.0;
+  SolverStats_t tstats;
+  int i, iterate = 0, m, ido = 0, RCI_its = 0;
+  int *mcounts, *mdispls;
+  double deflation_tol = 1e-2; //the deflation tolerance, all eigenvalues lower than this will be selected for deflation
+  Eigsolver_t *eigs;
 
 
-   /* Create the eigensolver object*/
-   Eigsolver_create(&eigs);
+  /* Create the eigensolver object*/
+  Eigsolver_create(&eigs);
 
-   /* Set the default parameters for the eigen solver*/
-   Eigsolver_setDefaultParameters(eigs);
+  /* Set the default parameters for the eigen solver*/
+  Eigsolver_setDefaultParameters(eigs);
 
-
+  /* Set the parameters for this specific problem */
   eigs->bmat = 'G'; //Generalized eigenvalue problem
   eigs->issym = 1; //The problem is symmetric
 
+  MPI_Comm_rank(comm, &my_rank);
+  MPI_Comm_size(comm, &nbprocs);
 
+  SolverStats_init(&tstats);
+  t = MPI_Wtime();
 
+  if ( !(mcounts  = (int *) malloc(nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for mcounts[].");
+  if ( !(mdispls  = (int *) malloc(nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for mdispls[].");
 
-   //Presc_eigSolve_SSloc(eigs, mcounts, Sloc_sv, Sloc, AggP, comm);
+  preAlps_int_printSynchronized(mloc, "mloc in PARPACK", comm);
 
+  //Gather the number of rows for each procs
+  MPI_Allgather(&mloc, 1, MPI_INT, mcounts, 1, MPI_INT, comm);
 
-   preAlps_int_printSynchronized(1, "Starting eigSolve  SAloc", comm);
+  /* Compute the global problem size */
+  m = 0;
+  for(i=0;i<nbprocs;i++) m += mcounts[i];
 
-   MPI_Comm_rank(comm, &my_rank);
-   MPI_Comm_size(comm, &nbprocs);
+  preAlps_int_printSynchronized(mloc, "mloc in PARPACK", comm);
+  preAlps_int_printSynchronized(m, "m in PARPACK", comm);
 
-   SolverStats_init(&tstats);
-   t = MPI_Wtime();
-
-   if ( !(mcounts  = (int *) malloc(nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for mcounts[].");
-   if ( !(mdispls  = (int *) malloc(nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for mdispls[].");
-
-   preAlps_int_printSynchronized(mloc, "mloc in PARPACK", comm);
-
-   //Gather the number of rows for each procs
-   MPI_Allgather(&mloc, 1, MPI_INT, mcounts, 1, MPI_INT, comm);
-
-   /* Compute the global problem size */
-   m = 0;
-   for(i=0;i<nbprocs;i++) m += mcounts[i];
-
-   preAlps_int_printSynchronized(mloc, "mloc in PARPACK", comm);
-
-   preAlps_int_printSynchronized(m, "m in PARPACK", comm);
-
-   /* Set the number of eigenvalues to compute*/
-   #ifdef NEV
+  /* Set the number of eigenvalues to compute*/
+  #ifdef NEV
     eigs->nev = NEV;
-   #else
+  #else
     //nev = (int) m*1e-2;
     eigs->nev = (int) m*2e-3;
     if(eigs->nev<=10) eigs->nev = 10;
    #endif
 
+  Eigsolver_init(eigs, m, mloc);
 
+  #ifdef DEBUG
+    printf("mloc:%d, m:%d, Aii: (%d x %d), Aig: (%d x %d)\n", mloc, m, Aii->info.m, Aii->info.n, Aig->info.m, Aig->info.n);
+    if(my_rank==0) printf("m:%d, mloc:%d, ncv:%d, nev:%d\n", m, mloc, eigs->ncv, eigs->nev);
+    MPI_Barrier(comm); //debug only
+  #endif
 
-   Eigsolver_init(eigs, m, mloc);
+  /* Allocate workspace*/
 
-   #ifdef DEBUG
-     printf("mloc:%d, m:%d, Aii: (%d x %d), Aig: (%d x %d)\n", mloc, m, Aii->info.m, Aii->info.n, Aig->info.m, Aig->info.n);
-     if(my_rank==0) printf("m:%d, mloc:%d, ncv:%d, nev:%d\n", m, mloc, eigs->ncv, eigs->nev);
-     MPI_Barrier(comm); //debug only
-   #endif
+  if ( !(dwork1  = (double *) malloc(Aii->info.m * sizeof(double))) ) preAlps_abort("Malloc fails for dwork1[].");
+  if ( !(dwork2  = (double *) malloc(Aii->info.m * sizeof(double))) ) preAlps_abort("Malloc fails for dwork2[].");
 
+  if ( !(ywork  = (double *) malloc(m * sizeof(double))) ) preAlps_abort("Malloc fails for ywork[].");
 
+  //compute displacements
+  mdispls[0] = 0;
+  for(i=1;i<nbprocs;i++) mdispls[i] = mdispls[i-1] + mcounts[i-1];
 
+  preAlps_intVector_printSynchronized(mcounts, nbprocs, "mcounts", "mcounts", comm);
+  preAlps_intVector_printSynchronized(mdispls, nbprocs, "mdispls", "mdispls", comm);
 
-   /* Allocate workspace*/
+  MatCSRPrintSynchronizedCoords (Aggloc, comm, "Aggloc", "Aggloc");
+  if(my_rank==root) printf("Agg size: %d\n", m);
 
-   if ( !(dwork1  = (double *) malloc(Aii->info.m * sizeof(double))) ) preAlps_abort("Malloc fails for dwork1[].");
-   if ( !(dwork2  = (double *) malloc(Aii->info.m * sizeof(double))) ) preAlps_abort("Malloc fails for dwork2[].");
+  iterate = 1;
+  while(iterate){
 
-   if ( !(ywork  = (double *) malloc(m * sizeof(double))) ) preAlps_abort("Malloc fails for ywork[].");
+    RCI_its++;
 
+    preAlps_int_printSynchronized(RCI_its, "Iteration", comm);
 
+    //eigsolver_iterate(&eigs, X, Y);
+    Eigsolver_iterate(eigs, comm, mloc, &X, &Y, &ido);
 
+    /* Reverse communication */
 
-   //compute displacements
-   mdispls[0] = 0;
-   for(i=1;i<nbprocs;i++) mdispls[i] = mdispls[i-1] + mcounts[i-1];
-
-   preAlps_intVector_printSynchronized(mcounts, nbprocs, "mcounts", "mcounts", comm);
-   preAlps_intVector_printSynchronized(mdispls, nbprocs, "mdispls", "mdispls", comm);
-
-
-
-   MatCSRPrintSynchronizedCoords (Aggloc, comm, "Aggloc", "Aggloc");
-   if(my_rank==root) printf("Agg size: %d\n", m);
-
-
-
-   preAlps_int_printSynchronized(comm, "Starting PARPACK comm", comm);
-
-   preAlps_intVector_printSynchronized(eigs->iparam, 11, "eigs->iparam", "eigs->iparam", comm);
-   iterate = 1;
-   while(iterate){
-
-     RCI_its++;
-
-     preAlps_int_printSynchronized(RCI_its, "Iteration", comm);
-
-     //eigsolver_iterate(&eigs, X, Y);
-     Eigsolver_iterate(eigs, comm, mloc, &X, &Y, &ido);
-
-     /* Reverse communication */
-
-     #ifdef DEBUG
-       if(RCI_its==1) {
-         MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm);
-
-         if(my_rank==root) preAlps_doubleVector_printSynchronized(ywork, m, "X", "X gathered from all", MPI_COMM_SELF);
-
-         DVector_t V0 = DVectorNULL();
-         DVectorCreateFromPtr(&V0, m, ywork);
-         if(my_rank==root) DVectorSave(&V0, "X_0.txt", "X_0 first step arpack");
-       }
-     #endif
-
-
-     if(ido==-1||ido==1){
-       ///if(RCI_its==1) {for(i=0;i<mloc;i++) X[i] = 1e-2; printf("dbgsimp1\n");}
-
-       /* Compute the matrix vector product y = A*x
-        *
+    if(ido==-1||ido==1){
+      ///if(RCI_its==1) {for(i=0;i<mloc;i++) X[i] = 1e-2; printf("dbgsimp1\n");}
+      /*
+       * Compute the matrix vector product Y = OP*X = Inv(Aloc)*S*X
        */
 
-       ierr = matrixVectorOp_AlocInvxS(comm, mloc, m, mcounts, mdispls,
+      ierr = matrixVectorOp_AlocInvxS(comm, mloc, m, mcounts, mdispls,
                                           Aggloc, Agi, Aii, Aig, Aloc,
                                           Aii_sv, Aloc_sv, X, Y,
                                           dwork1, dwork2, ywork, &tstats);
-     }else if(ido==2){
+    }else if(ido==2){
 
-       /* Compute  Y = Aloc * X */
-       ttemp = MPI_Wtime();
-       MatCSRMatrixVector(Aloc, dONE, X, dZERO, Y);
-       tstats.tAv += MPI_Wtime() - ttemp;
+      /* Compute  Y = Aloc * X */
+      ttemp = MPI_Wtime();
+      MatCSRMatrixVector(Aloc, dONE, X, dZERO, Y);
+      tstats.tAv += MPI_Wtime() - ttemp;
 
-       preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after Aloc*v", comm);
+      preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after Aloc*v", comm);
 
+    }else if(ido==99){
+      iterate = 0;
 
-     }else if(ido==99){
-        iterate = 0;
-
-     }else{
-        preAlps_abort("[PARPACK] (Unhandled case) ido is not 99, current value:%d", ido);
-     } //ido
-
+    }else{
+      preAlps_abort("[PARPACK] (Unhandled case) ido is not 99, current value:%d", ido);
+    } //ido
      //if(RCI_its>=5) iterate = 0; //DEBUG: force break for debugging purpose
-   }
+  }
 
 
-   preAlps_int_printSynchronized(1, "eigs free", comm);
-   free(dwork1);
-   free(dwork2);
+  preAlps_int_printSynchronized(1, "eigs free", comm);
+  free(dwork1);
+  free(dwork2);
 
-   free(ywork);
+  free(ywork);
 
+  /* Select the eigenvalues to deflate */
+  if(my_rank == root){
+    for (i = 0; i < eigs->nevComputed; i++) {
+      if (eigs->eigvalues[i] <= deflation_tol) {
+        presc->eigvalues_deflation++;
+      }
+    }
+  }
 
-   /* Select the eigenvalues to deflate */
-   if(my_rank == root){
-     for (i = 0; i < eigs->nevComputed; i++) {
-       if (eigs->eigvalues[i] <= deflation_tol) {
-         presc->eigvalues_deflation++;
-       }
-     }
-   }
+  #ifdef EIGVALUES_PRINT
+    if(my_rank == root){
+      printf("[%d] eigenvalues:\n", my_rank);
+      for (i = 0; i < eigs->nevComputed; i++) {
+        printf("\t%.16e", eigs->eigvalues[i]);
+        if (eigs->eigvalues[i] <= deflation_tol) {
+          printf(" (selected)\n");
+        }else{
+          printf(" (ignored)\n");
+        }
+      }
+    }
+  #endif
 
+  if(my_rank==root) printf("Eigenvalues selected for deflation: %d/%d\n", presc->eigvalues_deflation, eigs->nev);
 
-   #ifdef EIGVALUES_PRINT
-     if(my_rank == root){
-       printf("[%d] eigenvalues:\n", my_rank);
-       for (i = 0; i < eigs->nevComputed; i++) {
+  /* Terminate the solver and free the allocated workspace*/
+  ierr = Eigsolver_finalize(&eigs);
 
-         printf("\t%.16e", eigs->eigvalues[i]);
+  tstats.tTotal = MPI_Wtime() - t;
 
-         if (eigs->eigvalues[i] <= deflation_tol) {
-           printf(" (selected)\n");
-         }else{
-           printf(" (ignored)\n");
-         }
-       }
-     }
-   #endif
+  #if EIGSOLVE_DISPLAY_STATS
+    preAlps_dstats_display(comm, tstats.tParpack, "Time Parpack");
+    //preAlps_dstats_display(comm, tstats.tAv, "Time Agg*v");
+    //preAlps_dstats_display(comm, tstats.tSolve, "Time Aii^{-1}*v");
+    preAlps_dstats_display(comm, tstats.tSv, "Time S*v");
+    preAlps_dstats_display(comm, tstats.tInvAv, "Time Inv(Agg)*v");
+    preAlps_dstats_display(comm, tstats.tComm, "Time Comm");
+    preAlps_dstats_display(comm, tstats.tTotal, "Time EigSolve");
+  #endif
 
-   if(my_rank==root) printf("Eigenvalues selected for deflation: %d/%d\n", presc->eigvalues_deflation, eigs->nev);
+  /*Free memory*/
+  free(mcounts);
+  free(mdispls);
 
-   /* Terminate the solver and free the allocated workspace*/
-   ierr = Eigsolver_finalize(&eigs);
-
-   tstats.tTotal = MPI_Wtime() - t;
-
-   #if EIGSOLVE_DISPLAY_STATS
-     preAlps_dstats_display(comm, tstats.tParpack, "Time Parpack");
-//   preAlps_dstats_display(comm, tstats.tAv, "Time Agg*v");
-//   preAlps_dstats_display(comm, tstats.tSolve, "Time Aii^{-1}*v");
-     preAlps_dstats_display(comm, tstats.tSv, "Time S*v");
-     preAlps_dstats_display(comm, tstats.tInvAv, "Time Inv(Agg)*v");
-     preAlps_dstats_display(comm, tstats.tComm, "Time Comm");
-     preAlps_dstats_display(comm, tstats.tTotal, "Time EigSolve");
-   #endif
-
-   /*Free memory*/
-   free(mcounts);
-   free(mdispls);
-
-   return ierr;
+  return ierr;
  }

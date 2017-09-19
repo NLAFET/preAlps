@@ -78,27 +78,10 @@ int matrixVectorOp_AlocInvxS(MPI_Comm comm, int mloc, int m, int *mcounts, int *
   //ttemp1 = MPI_Wtime();
   MatCSRMatrixVector(Aggloc, dONE, ywork, dMONE, X);
   //tstats->tAv += MPI_Wtime() - ttemp1;
-
   tstats->tSv += MPI_Wtime() - ttemp;
 
-  //preAlps_doubleVector_printSynchronized(dwork, mloc, "dwork", "dwork after Agg*ywork - dwork", comm);
-
-  /* Copy dwork = Su in X */
-  //for(i=0;i<mloc;i++) X[i] = dwork[i];
 
   preAlps_doubleVector_printSynchronized(X, mloc, "X", "X = SX", comm);
-
-  #ifdef DEBUG
-    if(RCI_its==1) {
-      //MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm);
-
-      DVector_t V2 = DVectorNULL();
-      DVectorCreateFromPtr(&V2, mloc, X);
-      if(my_rank==root) DVectorSave(&V2, "dump/SX_0.txt", "SX_0 first step arpack");
-    }
-  #endif
-
-
 
   /* Compute Y = inv(Aloc)*X => solve A Y = X with the previous factorized matrix*/
   ttemp = MPI_Wtime();
@@ -121,7 +104,6 @@ int matrixVectorOp_SxSlocInv(MPI_Comm comm, int mloc, int m, int *mcounts, int *
                             SolverStats_t *tstats){
   int ierr = 0;
   double ttemp;
-
   int i;
   int my_rank, nbprocs, root = 0;
   double dONE = 1.0, dZERO = 0.0;
@@ -152,20 +134,6 @@ int matrixVectorOp_SxSlocInv(MPI_Comm comm, int mloc, int m, int *mcounts, int *
 
   if(my_rank==root) preAlps_doubleVector_printSynchronized(ywork, m, "ywork", "ywork", MPI_COMM_SELF);
 
-  #ifdef DEBUG
-    /*
-    if(RCI_its==1) {
-      MPI_Barrier(comm);
-      DVector_t V1 = DVectorNULL();
-      DVectorCreateFromPtr(&V1, m, ywork);
-
-      printf("[%d] V1[0]:%e\n", my_rank, V1.val[0]);
-      MPI_Barrier(comm);
-      if(my_rank==root) DVectorSave(&V1, "Y_1.txt", "Y after Sloc^{-1}*x");
-    }
-    */
-  #endif
-
   /* Y = (I + AggP x S_{loc}^{-1})X = I*X +  AggP * S_{loc}^{-1}*X = I.X + AggP*ywork */
   //if(RCI_its==1) {for(i=0;i<m;i++) ywork[i] = 1e-2; printf("dbgsimp2\n");}
   ttemp = MPI_Wtime();
@@ -174,33 +142,7 @@ int matrixVectorOp_SxSlocInv(MPI_Comm comm, int mloc, int m, int *mcounts, int *
 
   preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after AggP*ywork", comm);
 
-  #ifdef DEBUG
-    /*
-    //if(RCI_its==1) {
-      MPI_Allgatherv(Y, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm);
-
-      if(my_rank==root) preAlps_doubleVector_printSynchronized(ywork, m, "ywork", "Y gathered from all", MPI_COMM_SELF);
-
-      DVector_t V2 = DVectorNULL();
-      DVectorCreateFromPtr(&V2, m,ywork);
-      if(my_rank==root) DVectorSave(&V2, "Y_2.txt", "Y after AggP*ywork");
-    //}
-    */
-  #endif
-
   for(i=0;i<mloc;i++) Y[i] = X[i]+Y[i];
-
-  #ifdef DEBUG
-    /*
-    //if(RCI_its==1) {
-      MPI_Allgatherv(Y, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm);
-
-      DVector_t V3 = DVectorNULL();
-      DVectorCreateFromPtr(&V3, m,ywork);
-      if(my_rank==root) DVectorSave(&V3, "Y_3.txt", "Y after AggP*ywork");
-    //}
-    */
-  #endif
 
   preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after matvec", comm);
 
@@ -253,15 +195,6 @@ int matrixVectorOp_SlocInvxS(MPI_Comm comm, int mloc, int m, int *mcounts, int *
 
   /* Overwrite X with A*X (required mode=2)*/
 
-  /* X = S*X = (Sloc+AoffDiag)*X_glob  =  Sloc*X_glob + AoffDiag*X_glob */
-  /* X_i = Sloc_i*X_i + AoffDiag_i*ywork = Sloc_i*X_i + dwork;  */
-
-  /* X = S*X_glob = (Sloc+AoffDiag)*X_glob = Sloc (I+Sloc^{-1}AoffDiag)*X_glob */
-  /* X = Sloc*Y */
-  //(Sloc+AoffDiag)*ywork =  Sloc*ywork+dwork
-
-  ///for(i=0;i<mloc;i++) X[i] = dwork[i];
-
   ttemp = MPI_Wtime();
   //MatCSRMatrixVector(Sloc, dONE, ywork, dONE, X);
   //MatCSRMatrixVector(Sloc, dONE, X, dONE, X);
@@ -269,7 +202,6 @@ int matrixVectorOp_SlocInvxS(MPI_Comm comm, int mloc, int m, int *mcounts, int *
   tstats->tAv += MPI_Wtime() - ttemp;
 
   preAlps_doubleVector_printSynchronized(X, mloc, "X", "X = AX", comm);
-
 
 
   preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after matvec", comm);
