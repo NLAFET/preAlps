@@ -71,6 +71,17 @@ ADDITIONAL_FLAGS = -DAdd_
   INCLUDE_FLAGS    += $(METIS_INC)
   LD_FLAGS         += $(METIS_LIB)
 
+
+USE_ARPACK=0
+
+ifeq ($(USE_A), 1)
+
+    # Pardiso from mkl will be used. Make sure to link with Intel MKL (as described later in this file)
+    # Important: It should be at least MKL 11.2 update 1. Check version in you mkl.h file
+    ADDITIONAL_FLAGS += -DUSE_MKL_PARDISO -DUSE_SOLVER_MKL_PARDISO
+
+endif
+
 # Provide the path for PARPACK
 
   PARPACK_DIR       = ${PARPACK_ROOT}
