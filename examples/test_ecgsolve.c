@@ -82,6 +82,8 @@ OPEN_TIMER
   DVectorRandom(&rhs,0);
   CHKERR(ierr);
 
+  double tol = 1e-5;
+  int maxIter = 1000;
 #ifdef PETSC
   /*================ Petsc solve ================*/
   Mat A_petsc;
@@ -90,8 +92,7 @@ OPEN_TIMER
   KSP *subksp;
   PC pc, subpc;
   int first,nlocal;
-  double tol = 1e-5;
-  int maxIter = 1000;
+
   // Set RHS
   VecCreateMPIWithArray(MPI_COMM_WORLD,1,A.info.m,A.info.M,rhs.val,&B);
   VecCreateMPI(MPI_COMM_WORLD,A.info.m,A.info.M,&X);
@@ -164,7 +165,7 @@ TAC(step1)
   double* sol = NULL;
   sol = (double*) malloc(m*sizeof(double));
   // Allocate memory and initialize variables
-  ierr = ECGInitialize(&ecg,data,&rci_request);CHKERR(ierr);
+  ierr = ECGInitialize(&ecg,rhs.val,&rci_request);CHKERR(ierr);
   // Finish initialization
   PrecondApply(precond_type,ecg.R,ecg.P);
   BlockOperator(ecg.P,ecg.AP);
