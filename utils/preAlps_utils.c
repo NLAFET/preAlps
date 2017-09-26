@@ -14,6 +14,7 @@ Date        : Mai 15, 2017
 #include <stdarg.h>
 #include <mat_csr.h>
 #include <ivector.h>
+#include <mkl.h>
 
 #include "preAlps_utils.h"
 
