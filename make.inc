@@ -15,16 +15,14 @@ UTILS     = utils
 SRC       = src
 EXAMPLES  = examples
 
-
 #
 #   Compilers
 #
 
-
-CC           = mpicc
+CC           = mpiicc
 CFLAGS       = -Wall -funroll-loops -std=c99 -fPIC
 OPT          = -O3 -march=native -mtune=native
-LOADER       = mpif90
+LOADER       = mpiicc
 LOADOPTS     = -lgfortran
 LD_FLAGS     =
 
@@ -34,7 +32,6 @@ ifeq ($(USE_DEBUG), 1)
   CFLAGS        += -g -std=c99 -DDEBUG
   OPT           +=
 endif
-
 
 #
 #   Include dir
@@ -57,23 +54,24 @@ ADDITIONAL_FLAGS = -DAdd_
 # Provide the path for cpalamem
 
   CPALAMEM_DIR      = ${CPALAMEM_ROOT}
-  CPALAMEM_INC      = -I$(CPALAMEM_DIR)/includes
-  CPALAMEM_LIB      = -L$(CPALAMEM_DIR)/lib -lcpalamem
+  CPALAMEM_INC      = -I${CPALAMEM_ROOT}/include
+  CPALAMEM_LIB      = -L${CPALAMEM_ROOT}/lib -lcpalamem_core
   INCLUDE_FLAGS    += $(CPALAMEM_INC)
   LD_FLAGS         += $(CPALAMEM_LIB)
-  ADDITIONAL_FLAGS += -DMPIACTIVATE -DMETIS -DCPALAMEM_BENCHMARK
+  ADDITIONAL_FLAGS += -DMPIACTIVATE -DCPALAMEM_BENCHMARK
 
 # Provide the path for METIS
 
   METIS_DIR         = ${METIS_ROOT}
   METIS_INC         = -I$(METIS_DIR)/include
-  METIS_LIB         = -L$(METIS_DIR)/lib -lmetis
-  INCLUDE_FLAGS    += $(METIS_INC)
+  METIS_LIB         = -L$(METIS_DIR)/lib -lmetis -L${CPALAMEM_ROOT}/lib -lcpalamem_metis
+  INCLUDE_FLAGS    += $(METIS_INC) -DMETISACTIVATE
   LD_FLAGS         += $(METIS_LIB)
 
 
 # Provide the path for PARPACK
 USE_PARPACK=0
+
 ifeq ($(USE_PARPACK), 1)
   PARPACK_DIR       = ${PARPACK_ROOT}
   PARPACK_LIB       = -L$(PARPACK_DIR) -lparpack -larpack
@@ -82,15 +80,11 @@ ifeq ($(USE_PARPACK), 1)
   ADDITIONAL_FLAGS += -DUSE_PARPACK
 endif
 
-
-
-
 #
 # Which Sparse Direct Solver will be used to compute the schur complement
 # You will have to set the path to the solver library below.
 # Possible values : 0 for MKL_PARDISO, 1 for PARDIDO,  2 for MUMPS
 #
-
 
 ADDITIONAL_FLAGS += -DSCHUR_COMPLEMENT_SOLVER=2
 
@@ -120,7 +114,6 @@ ifeq ($(USE_SOLVER_MKL_PARDISO), 1)
   ADDITIONAL_FLAGS += -DUSE_MKL_PARDISO -DUSE_SOLVER_MKL_PARDISO
 
 endif
-
 
 USE_SOLVER_PARDISO=0
 
@@ -152,12 +145,12 @@ endif
 USE_MKL=1
 
 ifeq ($(USE_MKL), 1)
-  MKL_ROOT          = /opt/intel/mkl
+  MKL_ROOT          = ${MKLROOT}
   MKL_INC           = -I$(MKL_ROOT)/include
-  MKL_LIB           = -L$(MKL_ROOT)/lib -Wl,-rpath,${MKL_ROOT}/lib -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm -ldl
+# MKL_LIB           = -L$(MKL_ROOT)/lib -Wl,-rpath,${MKL_ROOT}/lib -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm -ldl
 # MKL_LIB           = -L$(MKL_ROOT)/lib/intel64 -Wl,-rpath,$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
 # MKL_LIB            = -Wl,--no-as-needed -L$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
-
+  MKL_LIB           = -L${MKL_ROOT}/lib -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -liomp5 -L${CPALAMEM_ROOT}/lib -lcpalamem_mkl
   INCLUDE_FLAGS    += $(MKL_INC)
   LD_FLAGS         += $(MKL_LIB)
   ADDITIONAL_FLAGS += -DMKLACTIVATE
@@ -183,13 +176,14 @@ ifeq ($(USE_SUITESPARSE), 1)
 endif
 
 USE_PETSC=1
+
 ifeq ($(USE_PETSC), 1)
   #PETSC_DIR   = ${PETSC_DIR}
   PETSC_INC   = -I$(PETSC_DIR)/include
-  PETSC_LIB   = -L$(PETSC_DIR)/lib -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc
+  PETSC_LIB   = -L$(PETSC_DIR)/lib -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc -L${CPALAMEM_ROOT}/lib -lcpalamem_petsc
   INCLUDE_FLAGS    += $(PETSC_INC)
   LD_FLAGS         += $(PETSC_LIB)
-  ADDITIONAL_FLAGS += -DPETSC
+  ADDITIONAL_FLAGS += -DPETSC -DPETSCACTIVATE
 endif
 
 #
@@ -198,13 +192,11 @@ endif
 
 PLAT        = release
 
-
 #=====================================================================
 # (You won't probably need to change anything from here until the end)
 #=====================================================================
 
 CFLAGS             +=  $(ADDITIONAL_FLAGS) $(LIB_DIRECTIVES)
-
 
 #
 #   The archiver and the flag(s) to use when building archive (library)
