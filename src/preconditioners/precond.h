@@ -8,8 +8,8 @@
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
-#ifndef PRECONDITIONER_H
-#define PRECONDITIONER_H
+#ifndef PRECOND_H
+#define PRECOND_H
 
 /* STD */
 #include <stdio.h>
@@ -22,19 +22,7 @@
 #include <mat_csr.h>
 #include <mat_dense.h>
 
-/* From which side the preconditioner needs to be applied: LEFT or SPLITTED */
-typedef enum {
-  LEFT_PREC,
-  SPLIT_PREC
-} Prec_Side_t;
-
-/* Preconditioner type */
-typedef enum {
-  PREALPS_NOPREC,       /* No preconditioner*/
-  PREALPS_BLOCKJACOBI,  /* Block Jacobi preconditioner*/
-  PREALPS_LORASC,       /* Lorasc */
-  PREALPS_PRESC         /* Preconditioner based on the Schur-Complement */
-} Prec_Type_t;
+#include <preAlps_preconditioner_struct.h>
 
 /******************************************************************************/
 
