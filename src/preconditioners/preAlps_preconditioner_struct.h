@@ -1,6 +1,6 @@
 /*
 ============================================================================
-Name        : prec_struct.c
+Name        : preAlps_preconditioner_struct.h
 Author      : Simplice Donfack
 Version     : 0.1
 Description : A generic preconditioner structure that can be used externally to build
