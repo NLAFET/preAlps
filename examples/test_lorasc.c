@@ -27,8 +27,8 @@ int main(int argc, char** argv){
   MPI_Comm comm;
   int nbprocs, my_rank;
   char matrix_filename[150]="", rhs_filename[150]="";
-  Mat_CSR_t A = MatCSRNULL();
-  Mat_CSR_t locAP = MatCSRNULL();
+  CPLM_Mat_CSR_t A = CPLM_MatCSRNULL();
+  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int i, ierr   = 0;
 
   double *x = NULL, *b = NULL;
@@ -97,19 +97,19 @@ int main(int argc, char** argv){
 
     printf("Reading matrix ...\n");
 
-    LoadMatrixMarket(matrix_filename, &A);
-    MatCSRPrintInfo(&A);
-    //MatCSRPrintf2D("Loaded matrix", &A);
+    CPLM_LoadMatrixMarket(matrix_filename, &A);
+    CPLM_MatCSRPrintInfo(&A);
+    //CPLM_MatCSRPrintf2D("Loaded matrix", &A);
 
-    MatCSRPrintCoords(&A, "Loaded matrix");
+    CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
 
 
     if(strlen(rhs_filename)==0){
       /*Generate a random rhs*/
       //preAlps_abort("Random rhs not yet implemented"); /* TODO */
-      DVector_t rhs = DVectorNULL();
-      DVectorMalloc(&rhs, A.info.m);
-      DVectorRandom(&rhs, 11);
+      CPLM_DVector_t rhs = CPLM_DVectorNULL();
+      CPLM_DVectorMalloc(&rhs, A.info.m);
+      CPLM_DVectorRandom(&rhs, 11);
       b = rhs.val;
       b_size = rhs.nval;
     }else{
@@ -136,18 +136,18 @@ int main(int argc, char** argv){
     if ( !(R  = (double *) malloc(A.info.m * sizeof(double))) ) preAlps_abort("Malloc fails for R[].");
     if ( !(C  = (double *) malloc(A.info.n * sizeof(double))) ) preAlps_abort("Malloc fails for C[].");
 
-    MatCSRSymRACScaling(&A, R, C);
+    CPLM_MatCSRSymRACScaling(&A, R, C);
 
     free(R);
     free(C);
 
     #ifdef BUILDING_MATRICES_DUMP
       printf("Dumping the matrix ...\n");
-      MatCSRSave(&A, "dump_AScaled.mtx");
+      CPLM_MatCSRSave(&A, "dump_AScaled.mtx");
       printf("Dumping the matrix ... done\n");
     #endif
 
-    MatCSRPrintCoords(&A, "Scaled matrix");
+    CPLM_MatCSRPrintCoords(&A, "Scaled matrix");
 
 
   }
@@ -188,6 +188,9 @@ int main(int argc, char** argv){
   ecg.ortho_alg = ORTHOMIN;       /* Orthogonalization algorithm */
   //ECGSolve(ecg, precond, &locAP, b, x);
 
+  if (my_rank == 0)
+    printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
+
 
   if(precond_type==PREALPS_LORASC){
     /* Destroy Lorasc preconditioner */
@@ -199,10 +202,10 @@ int main(int argc, char** argv){
 
   if(b) free(b);
 
-  MatCSRFree(&locAP);
+  CPLM_MatCSRFree(&locAP);
 
   if(my_rank==0){
-    MatCSRFree(&A);
+    CPLM_MatCSRFree(&A);
   }
 
 

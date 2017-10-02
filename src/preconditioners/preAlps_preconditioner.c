@@ -27,7 +27,7 @@ int preAlps_PreconditionerCreate(PreAlps_preconditioner_t **precond, Prec_Type_t
 }
 
 /*Apply the preconditioner to a matrix A_in*/
-int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, Mat_Dense_t* A_in, Mat_Dense_t* B_out){
+int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out){
 
   int ierr = 0;
 

@@ -30,10 +30,10 @@ Date        : Mai 15, 2017
  * Split n in P parts.
  * Returns the number of element, and the data offset for the specified index.
  */
-void s_nsplit(int n, int P, int index, int *n_i, int *offset_i);
+void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i);
 
 /* pinv = p', or p = pinv' */
-int *s_return_pinv (int const *p, int n);
+int *preAlps_pinv (int const *p, int n);
 
 /*Sort the row index of a CSR matrix*/
 void preAlps_matrix_colIndex_sort(int m, int *xa, int *asub, double *a);
@@ -43,6 +43,25 @@ void preAlps_matrix_colIndex_sort(int m, int *xa, int *asub, double *a);
  * if pinv or q is NULL it is considered as the identity
  */
 void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, int *q,int *xa1, int *asub1,double *a1);
+
+
+
+/*
+ * We consider one binary tree A and two array part_in and part_out.
+ * part_in stores the nodes of A as follows: first all the children at the last level n,
+ * then all the children at the level n-1 from left to right, and so on,
+ * while part_out stores the nodes of A in depth first search, so each parent node follows all its children.
+ * The array part_in is compatible with the array sizes returned by ParMETIS_V3_NodeND.
+ * part_out[i] = j means node i in part_in correspond to node j in part_in.
+*/
+void preAlps_NodeNDPostOrder(int npart, int *part_in, int *part_out);
+
+
+/*
+ * Number the nodes at level targetLevel and decrease the value of pos.
+*/
+void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos);
+
 
 
 /*
@@ -56,7 +75,7 @@ void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, in
  *    The vector to print
  */
 
-void IVectorPrintSynchronized (IVector_t *v, MPI_Comm comm, char *varname, char *s);
+void CPLM_IVectorPrintSynchronized (CPLM_IVector_t *v, MPI_Comm comm, char *varname, char *s);
 
 
 /*
@@ -70,7 +89,7 @@ void IVectorPrintSynchronized (IVector_t *v, MPI_Comm comm, char *varname, char 
  *    The vector to print
  */
 
-void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char *s);
+void CPLM_DVectorPrintSynchronized (CPLM_DVector_t *v, MPI_Comm comm, char *varname, char *s);
 
 
 
@@ -83,7 +102,7 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
 
 
 /*
- * Move in MatCSR.h
+ * Move in CPLM_MatCSR.h
  */
 
  /*
@@ -99,7 +118,7 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
   *     input: the number of the block to remove
   */
 
- int MatCSRBlockColRemove(Mat_CSR_t *A, int *colCount, int numBlock);
+ int CPLM_MatCSRBlockColRemove(CPLM_Mat_CSR_t *A, int *colCount, int numBlock);
 
 
   /*
@@ -111,13 +130,13 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
    * idxRowBegin:
    *     input: the global row indices of the distribution
    */
- int MatCSRBlockRowGatherv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm);
+ int CPLM_MatCSRBlockRowGatherv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm);
 
  /*
   * Gatherv a local matrix from each process and dump into a file
   *
   */
- int MatCSRBlockRowGathervDump(Mat_CSR_t *locA, char *filename, int *idxRowBegin, int root, MPI_Comm comm);
+ int CPLM_MatCSRBlockRowGathervDump(CPLM_Mat_CSR_t *locA, char *filename, int *idxRowBegin, int root, MPI_Comm comm);
 
 
  /*
@@ -132,24 +151,40 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
   * idxRowBegin:
   *     input: the global row indices of the distribution
   */
-int MatCSRBlockRowScatterv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm);
+int CPLM_MatCSRBlockRowScatterv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm);
 
 /*Create a matrix from a dense vector of type double, the matrix is stored in column major format*/
-int MatCSRConvertFromDenseColumnMajorDVectorPtr(Mat_CSR_t *m_out, double *v_in, int M, int N);
+int CPLM_MatCSRConvertFromDenseColumnMajorDVectorPtr(CPLM_Mat_CSR_t *m_out, double *v_in, int M, int N);
 
 /*Create a matrix from a dense vector of type double*/
-int MatCSRConvertFromDenseDVectorPtr(Mat_CSR_t *m_out, double *v_in, int M, int N);
+int CPLM_MatCSRConvertFromDenseDVectorPtr(CPLM_Mat_CSR_t *m_out, double *v_in, int M, int N);
 
 /*
  * Matrix vector product, y := alpha*A*x + beta*y
  */
-int MatCSRMatrixVector(Mat_CSR_t *A, double alpha, double *x, double beta, double *y);
+int CPLM_MatCSRMatrixVector(CPLM_Mat_CSR_t *A, double alpha, double *x, double beta, double *y);
+
+/*
+ * Perform an ordering of a matrix using parMetis
+ *
+ */
+
+int CPLM_MatCSROrderingND(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int *order, int *sizes);
+
+/*
+ * Partition a matrix using parMetis
+ * part_loc:
+ *     output: part_loc[i]=k means rows i belongs to subdomain k
+ */
+
+int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int nparts, int *part_loc);
+
 
 /* Print a CSR matrix as coordinate triplet (i,j, val)*/
-void MatCSRPrintCoords(Mat_CSR_t *A, char *s);
+void CPLM_MatCSRPrintCoords(CPLM_Mat_CSR_t *A, char *s);
 
 /* Only one process print its matrix, forces synchronisation between all the procs in the communicator*/
-void MatCSRPrintSingleCoords(Mat_CSR_t *A, MPI_Comm comm, int root, char *varname, char *s);
+void CPLM_MatCSRPrintSingleCoords(CPLM_Mat_CSR_t *A, MPI_Comm comm, int root, char *varname, char *s);
 
 /*
  * Each processor print the matrix it has as coordinate triplet (i,j, val)
@@ -158,7 +193,7 @@ void MatCSRPrintSingleCoords(Mat_CSR_t *A, MPI_Comm comm, int root, char *varnam
  *    The matrix to print
  */
 
-void MatCSRPrintSynchronizedCoords (Mat_CSR_t *A, MPI_Comm comm, char *varname, char *s);
+void CPLM_MatCSRPrintSynchronizedCoords (CPLM_Mat_CSR_t *A, MPI_Comm comm, char *varname, char *s);
 
 
 
@@ -173,7 +208,7 @@ void MatCSRPrintSynchronizedCoords (Mat_CSR_t *A, MPI_Comm comm, char *varname, 
  *     output: a vector with the same size as the number of columns of the matrix
  */
 
-int MatCSRSymRACScaling(Mat_CSR_t *A, double *R, double *C);
+int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C);
 
 
 
@@ -286,7 +321,7 @@ void preAlps_intVector_printSynchronized(int *v, int vlen, char *varname, char *
  *     output: a preallocated vector of the size of the number of columns of A
  *            to return the global permutation vector
 */
-int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *nbDiagRows, int *colPerm, MPI_Comm comm);
+int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, int *nbDiagRows, int *colPerm, MPI_Comm comm);
 
 
 /*
@@ -307,7 +342,7 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
  *    output: the number of column of the schur complement after the partitioning
  *
 */
-int preAlps_permuteSchurComplementToBottom(Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, int *colPerm, int *schur_ncols, MPI_Comm comm);
+int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, int *colPerm, int *schur_ncols, MPI_Comm comm);
 
 
 /*
@@ -328,7 +363,7 @@ int preAlps_permVectorCheck(int *perm, int n);
  *     output: the schur complement matrix
 */
 
-int preAlps_schurComplementGet(Mat_CSR_t *A, int firstBlock_nrows, int firstBlock_ncols, Mat_CSR_t *Agg);
+int preAlps_schurComplementGet(CPLM_Mat_CSR_t *A, int firstBlock_nrows, int firstBlock_ncols, CPLM_Mat_CSR_t *Agg);
 
 /*Force the current process to sleep few seconds for debugging purpose*/
 void preAlps_sleep(int my_rank, int nbseconds);

@@ -17,7 +17,7 @@
 /******************************************************************************/
 
 int PrecondCreate(Prec_Type_t precond_type,
-                  Mat_CSR_t* A,
+                  CPLM_Mat_CSR_t* A,
                   int* rowPos,
                   int sizeRowPos,
                   int* colPos,
@@ -26,8 +26,8 @@ int PrecondCreate(Prec_Type_t precond_type,
                   int sizeDep)
 {
 
-PUSH
-BEGIN_TIME
+CPLM_PUSH
+CPLM_BEGIN_TIME
   int ierr = 0;
 
   if(precond_type==PREALPS_BLOCKJACOBI){
@@ -37,32 +37,32 @@ BEGIN_TIME
                              colPos,
                              sizeColPos,
                              dep,
-                             sizeDep); CHKERR(ierr);
+                             sizeDep); CPLM_CHKERR(ierr);
   }
   else
     CPALAMEM_Abort("Unknown preconditioner: %d", precond_type);
 
-END_TIME
-POP
+CPLM_END_TIME
+CPLM_POP
   return ierr;
 
 }
 
-int PrecondApply(Prec_Type_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out)
+int PrecondApply(Prec_Type_t precond_type, CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out)
 {
 
-PUSH
-BEGIN_TIME
+CPLM_PUSH
+CPLM_BEGIN_TIME
   int ierr = 0;
 
   if(precond_type==PREALPS_BLOCKJACOBI){
-    ierr = BlockJacobiApply(A_in, B_out); CHKERR(ierr);
+    ierr = BlockJacobiApply(A_in, B_out); CPLM_CHKERR(ierr);
   }
   else
     CPALAMEM_Abort("Unknown preconditioner: %d", precond_type);
 
-END_TIME
-POP
+CPLM_END_TIME
+CPLM_POP
   return ierr;
 
 }
@@ -70,15 +70,15 @@ POP
 void PrecondFree(Prec_Type_t precond_type)
 {
 
-PUSH
-BEGIN_TIME
+CPLM_PUSH
+CPLM_BEGIN_TIME
   if(precond_type==PREALPS_BLOCKJACOBI){
     BlockJacobiFree();
   }
   else
     CPALAMEM_Abort("Unknown preconditioner: %d", precond_type);
-END_TIME
-POP
+CPLM_END_TIME
+CPLM_POP
 }
 
 /******************************************************************************/

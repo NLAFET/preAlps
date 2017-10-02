@@ -37,7 +37,7 @@ int Lorasc_alloc(Lorasc_t **lorasc);
  *     output: the local permuted matrix on each proc after the preconditioner is built
  *
 */
-int Lorasc_build(Lorasc_t *lorasc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm);
+int Lorasc_build(Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, MPI_Comm comm);
 
 
 /*Destroy the preconditioner*/

@@ -134,10 +134,13 @@ int Eigsolver_setDefaultParameters(Eigsolver_t *eigs){
 int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, double **Y, int *ido){
 
   int ierr=0;
+  
+#ifdef USE_PARPACK
   int root = 0, my_rank, nbprocs;
   double ttemp;
 
   /* Retrieve parameters */
+
   char bmat        = eigs->bmat;
   char *which      = eigs->which;
   int nev          = eigs->nev;
@@ -274,5 +277,9 @@ int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, do
 
     eigs->tEigVectors += MPI_Wtime() - ttemp;
   }
+#else
+    preAlps_abort("No other eigensolver is supported at the moment. Please Rebuild with PARPACK !");
+#endif
+
   return ierr;
 }
