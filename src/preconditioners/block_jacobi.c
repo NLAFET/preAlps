@@ -16,111 +16,109 @@
 /******************************************************************************/
 static MKL_INT pardiso_pt_g[64] = {0};
 static MKL_INT iparam_g[64] = {0};
-static Mat_CSR_t Adiag_g = MatCSRNULL();
+static CPLM_Mat_CSR_t Adiag_g = CPLM_MatCSRNULL();
 /******************************************************************************/
 
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
-int BlockJacobiCreate(Mat_CSR_t* A,
-                      int* rowPos,
-                      int sizeRowPos,
-                      int* colPos,
-                      int sizeColPos,
-                      int* dep,
-                      int sizeDep)
+int preAlps_BlockJacobiCreate(CPLM_Mat_CSR_t* A,
+                              int* rowPos,
+                              int sizeRowPos,
+                              int* colPos,
+                              int sizeColPos,
+                              int* dep,
+                              int sizeDep)
 {
-PUSH
-BEGIN_TIME
+CPLM_PUSH
   int size, rank, ierr;
   MPI_Comm_size(MPI_COMM_WORLD,&size);
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  ASSERT(pardiso_pt_g != NULL);
-  ASSERT(iparam_g != NULL);
+  CPLM_ASSERT(pardiso_pt_g != NULL);
+  CPLM_ASSERT(iparam_g != NULL);
 
   int mtype = 2, perm = 1;
-  IVector_t rowPos_s = IVectorNULL();
-  IVector_t colPos_s = IVectorNULL();
-  IVector_t dep_s    = IVectorNULL();
-  IVectorCreateFromPtr(&rowPos_s,sizeRowPos,rowPos);
-  IVectorCreateFromPtr(&colPos_s,sizeColPos,colPos);
-  IVectorCreateFromPtr(&dep_s,sizeDep,dep);
+  CPLM_IVector_t rowPos_s = CPLM_IVectorNULL();
+  CPLM_IVector_t colPos_s = CPLM_IVectorNULL();
+  CPLM_IVector_t dep_s    = CPLM_IVectorNULL();
+  CPLM_IVectorCreateFromPtr(&rowPos_s,sizeRowPos,rowPos);
+  CPLM_IVectorCreateFromPtr(&colPos_s,sizeColPos,colPos);
+  CPLM_IVectorCreateFromPtr(&dep_s,sizeDep,dep);
   // Construct Cholesky of the diagonal block
-  MatCSRPARDISOSetParameters(iparam_g);
+  CPLM_MatCSRPARDISOSetParameters(iparam_g);
   iparam_g[4] = 0;
   // Get the diag block
-  ierr = MatCSRGetDiagBlock(A,
+  ierr = CPLM_MatCSRGetDiagBlock(A,
                             &Adiag_g,
                             &rowPos_s,
                             &colPos_s,
-                            SYMMETRIC);CHKERR(ierr);
+                            SYMMETRIC);CPLM_CHKERR(ierr);
   // Call Pardiso
-  ierr = MatCSRPARDISOFactorization(&Adiag_g,
+  ierr = CPLM_MatCSRPARDISOFactorization(&Adiag_g,
                                     pardiso_pt_g,
                                     iparam_g,
                                     mtype,
                                     &perm);
   if (ierr != 0)
-    CPALAMEM_Abort("PARDISO Cholesky error: %d",ierr);
-END_TIME
-POP
+    CPLM_Abort("PARDISO Cholesky error: %d",ierr);
+CPLM_POP
   return ierr;
 }
 
-int BlockJacobiInitialize(DVector_t* rhs) {
-PUSH
+int preAlps_BlockJacobiInitialize(CPLM_DVector_t* rhs)
+{
+CPLM_PUSH
   int ierr;
   int mtype = 2, perm = 1; // SPD matrix
-  Mat_Dense_t sol = MatDenseNULL();
+  CPLM_Mat_Dense_t sol = CPLM_MatDenseNULL();
   // Dirty...
-  Mat_Dense_t rhs_s = MatDenseNULL();
-  MatDenseSetInfo(&rhs_s, rhs->nval, 1, rhs->nval, 1, COL_MAJOR);
+  CPLM_Mat_Dense_t rhs_s = CPLM_MatDenseNULL();
+  CPLM_MatDenseSetInfo(&rhs_s, rhs->nval, 1, rhs->nval, 1, COL_MAJOR);
   rhs_s.val = rhs->val;
-  MatDenseSetInfo(&sol, rhs->nval, 1, rhs->nval, 1, COL_MAJOR);
-  MatDenseMalloc(&sol);
+  CPLM_MatDenseSetInfo(&sol, rhs->nval, 1, rhs->nval, 1, COL_MAJOR);
+  CPLM_MatDenseMalloc(&sol);
 
   // PARDISO solution in place
   iparam_g[5] = 1;
-  ierr = MatCSRPARDISOSolve(&Adiag_g,
-                            &rhs_s,
-                            &sol,
-                            pardiso_pt_g,
-                            iparam_g,
-                            mtype,
-                            &perm);
+  ierr = CPLM_MatCSRPARDISOSolve(&Adiag_g,
+                                 &rhs_s,
+                                 &sol,
+                                 pardiso_pt_g,
+                                 iparam_g,
+                                 mtype,
+                                 &perm);
   iparam_g[5] = 0;
-  MatDenseFree(&sol);
-POP
+  CPLM_MatDenseFree(&sol);
+CPLM_POP
   return ierr;
 }
 
-int BlockJacobiApply(Mat_Dense_t* A_in, Mat_Dense_t* B_out)
+int preAlps_BlockJacobiApply(CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out)
 {
-PUSH
-BEGIN_TIME
+CPLM_PUSH
   int ierr = 0, mtype = 2, perm = 1;
-  ASSERT(A_in->val != NULL);
-  ASSERT(B_out->val != NULL);
-  ierr = MatCSRPARDISOSolve(&Adiag_g,
-                            A_in,
-                            B_out,
-                            pardiso_pt_g,
-                            iparam_g,
-                            mtype,
-                            &perm);
-END_TIME
-POP
+  CPLM_ASSERT(A_in->val != NULL);
+  CPLM_ASSERT(B_out->val != NULL);
+  ierr = CPLM_MatCSRPARDISOSolve(&Adiag_g,
+                                 A_in,
+                                 B_out,
+                                 pardiso_pt_g,
+                                 iparam_g,
+                                 mtype,
+                                 &perm);
+CPLM_POP
   return ierr;
 
 }
 
 
-void BlockJacobiFree() {
-PUSH
+void preAlps_BlockJacobiFree()
+{
+CPLM_PUSH
   MKL_INT mtype = 2; // SPD matrix
-  MatCSRPARDISOFree(&Adiag_g,pardiso_pt_g,iparam_g,mtype);
-  MatCSRFree(&Adiag_g);
-POP
+  CPLM_MatCSRPARDISOFree(&Adiag_g,pardiso_pt_g,iparam_g,mtype);
+  CPLM_MatCSRFree(&Adiag_g);
+CPLM_POP
 }
 
 /******************************************************************************/

@@ -14,7 +14,10 @@ Date        : Mai 15, 2017
 #include <stdarg.h>
 #include <mat_csr.h>
 #include <ivector.h>
-#include <mkl.h>
+
+#ifdef USE_PARMETIS
+  #include <parmetis.h>
+#endif
 
 #include "preAlps_utils.h"
 
@@ -24,11 +27,12 @@ Date        : Mai 15, 2017
 
 /* tmp functions*/
 
+
 /*
  * Split n in P parts.
  * Returns the number of element, and the data offset for the specified index.
  */
-void s_nsplit(int n, int P, int index, int *n_i, int *offset_i)
+void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i)
 {
 
   int r;
@@ -49,13 +53,14 @@ void s_nsplit(int n, int P, int index, int *n_i, int *offset_i)
 }
 
 /* pinv = p', or p = pinv' */
-int *s_return_pinv (int const *p, int n)
+int *preAlps_pinv (int const *p, int n)
 {
     int k, *pinv ;
     pinv = (int *) malloc (n *sizeof (int)) ;  /* allocate memory for the results */
     for (k = 0 ; k < n ; k++) pinv [p [k]] = k ;/* invert the permutation */
     return (pinv) ;        /* return result */
 }
+
 
 
 /*Sort the row index of a CSR matrix*/
@@ -113,6 +118,56 @@ void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, in
 }
 
 
+/*
+ * We consider one binary tree A and two array part_in and part_out.
+ * part_in stores the nodes of A as follows: first all the children at the last level n,
+ * then all the children at the level n-1 from left to right, and so on,
+ * while part_out stores the nodes of A in depth first search, so each parent node follows all its children.
+ * The array part_in is compatible with the array sizes returned by ParMETIS_V3_NodeND.
+ * part_out[i] = j means node i in part_in correspond to node j in part_in.
+*/
+void preAlps_NodeNDPostOrder(int npart, int *part_in, int *part_out){
+
+  int pos = npart-1;
+  int twoPowerLevel = npart+1;
+  int level = twoPowerLevel;
+  while(level>1){
+
+    preAlps_NodeNDPostOrder_targetLevel(level, twoPowerLevel, npart-1, part_in, part_out, &pos);
+    level = (int) level/2;
+  }
+
+}
+
+/*
+ * Number the nodes at level targetLevel and decrease the value of pos.
+*/
+void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos){
+
+
+
+    if(twoPowerLevel == targetLevel){
+
+      /*We have reached the target level, number the node and decrease the value of pos */
+      //printf("part[%d] = %d\n", part_root, (*pos-1));
+      part_out[part_root] = part_in[(*pos)--];
+
+    }else if(twoPowerLevel>targetLevel){
+
+      if(twoPowerLevel>2){
+
+        twoPowerLevel = (int) twoPowerLevel/2;
+        /*right*/
+        preAlps_NodeNDPostOrder_targetLevel(targetLevel, twoPowerLevel , part_root - 1, part_in, part_out, pos);
+
+        /*left*/
+        preAlps_NodeNDPostOrder_targetLevel(targetLevel, twoPowerLevel, part_root - twoPowerLevel, part_in, part_out, pos);
+      }
+
+    }
+}
+
+
 
 /*
  * Move in Ivector.c
@@ -125,13 +180,13 @@ void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, in
  *    The vector to print
  */
 
-void IVectorPrintSynchronized (IVector_t *v, MPI_Comm comm, char *varname, char *s){
+void CPLM_IVectorPrintSynchronized (CPLM_IVector_t *v, MPI_Comm comm, char *varname, char *s){
 #ifdef DEBUG
   int i,j,mark=0;
 
   int TAG_PRINT = 4;
 
-  IVector_t vbuffer = IVectorNULL();
+  CPLM_IVector_t vbuffer = CPLM_IVectorNULL();
   int my_rank, comm_size;
 
   MPI_Comm_rank(comm, &my_rank);
@@ -161,7 +216,7 @@ void IVectorPrintSynchronized (IVector_t *v, MPI_Comm comm, char *varname, char 
 
       /*Receive a Vector*/
 
-      IVectorRecv(&vbuffer, i, TAG_PRINT, comm);
+      CPLM_IVectorRecv(&vbuffer, i, TAG_PRINT, comm);
       mark = 0;
       printf("[%d] %s\n", i, s);
       for(j=0;j<vbuffer.nval;j++) {
@@ -182,10 +237,10 @@ void IVectorPrintSynchronized (IVector_t *v, MPI_Comm comm, char *varname, char 
     }
     printf("\n");
 
-    IVectorFree(&vbuffer);
+    CPLM_IVectorFree(&vbuffer);
   }
   else{
-    IVectorSend(v, 0, TAG_PRINT, comm);
+    CPLM_IVectorSend(v, 0, TAG_PRINT, comm);
   }
 
   MPI_Barrier(comm);
@@ -205,13 +260,13 @@ void IVectorPrintSynchronized (IVector_t *v, MPI_Comm comm, char *varname, char 
  *    The vector to print
  */
 
-void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char *s){
+void CPLM_DVectorPrintSynchronized (CPLM_DVector_t *v, MPI_Comm comm, char *varname, char *s){
 #ifdef DEBUG
   int i,j,mark = 0;
 
   int TAG_PRINT = 4;
 
-  DVector_t vbuffer = DVectorNULL();
+  CPLM_DVector_t vbuffer = CPLM_DVectorNULL();
   int my_rank, comm_size;
 
   MPI_Comm_rank(comm, &my_rank);
@@ -238,7 +293,7 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
     for(i = 1; i < comm_size; i++) {
 
       /*Receive a Vector*/
-      DVectorRecv(&vbuffer, i, TAG_PRINT, comm);
+      CPLM_DVectorRecv(&vbuffer, i, TAG_PRINT, comm);
 
       printf("[%d] %s\n", i, s);
       mark = 0;
@@ -259,10 +314,10 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
     }
     printf("\n");
 
-    DVectorFree(&vbuffer);
+    CPLM_DVectorFree(&vbuffer);
   }
   else{
-    DVectorSend(v, 0, TAG_PRINT, comm);
+    CPLM_DVectorSend(v, 0, TAG_PRINT, comm);
   }
 
   MPI_Barrier(comm);
@@ -272,10 +327,10 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
 
 
 /*
- * Move in MatCSR.c
+ * Move in CPLM_MatCSR.c
  */
 
-//#define MATCSR_UNKNOWN -1
+//#define CPLM_MatCSR_UNKNOWN -1
 
 /*
  * Split the matrix in block column and remove the selected block column number,
@@ -290,7 +345,7 @@ void DVectorPrintSynchronized (DVector_t *v, MPI_Comm comm, char *varname, char 
  *     input: the number of the block to remove
  */
 
-int MatCSRBlockColRemove(Mat_CSR_t *A, int *colCount, int numBlock){
+int CPLM_MatCSRBlockColRemove(CPLM_Mat_CSR_t *A, int *colCount, int numBlock){
 
   int i,j, m, lpos = 0, count = 0;
   int *mwork;
@@ -345,7 +400,7 @@ int MatCSRBlockColRemove(Mat_CSR_t *A, int *colCount, int numBlock){
   * idxRowBegin:
   *     input: the global row indices of the distribution
   */
-int MatCSRBlockRowGatherv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv,  int *idxRowBegin, int root, MPI_Comm comm){
+int CPLM_MatCSRBlockRowGatherv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv,  int *idxRowBegin, int root, MPI_Comm comm){
 
   int nbprocs, my_rank;
 
@@ -469,7 +524,7 @@ int MatCSRBlockRowGatherv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv,  int *idxRowBegin,
 
   /* Set the matrix infos */
   if(my_rank==root){
-    MatCSRSetInfo(Arecv, m, n, nz, m,  n, nz, 1);
+    CPLM_MatCSRSetInfo(Arecv, m, n, nz, m,  n, nz, 1);
   }
 
   if(my_rank==root){
@@ -487,17 +542,17 @@ int MatCSRBlockRowGatherv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv,  int *idxRowBegin,
  * Gatherv a local matrix from each process and dump into a file
  *
  */
-int MatCSRBlockRowGathervDump(Mat_CSR_t *locA, char *filename, int *idxRowBegin, int root, MPI_Comm comm){
+int CPLM_MatCSRBlockRowGathervDump(CPLM_Mat_CSR_t *locA, char *filename, int *idxRowBegin, int root, MPI_Comm comm){
   int nbprocs, my_rank;
   MPI_Comm_size(comm, &nbprocs);
   MPI_Comm_rank(comm, &my_rank);
 
-  Mat_CSR_t Awork = MatCSRNULL();
-  MatCSRBlockRowGatherv(locA, &Awork, idxRowBegin, root, comm);
+  CPLM_Mat_CSR_t Awork = CPLM_MatCSRNULL();
+  CPLM_MatCSRBlockRowGatherv(locA, &Awork, idxRowBegin, root, comm);
   printf("Dumping the matrix ...\n");
-  if(my_rank==root) MatCSRSave(&Awork, filename);
+  if(my_rank==root) CPLM_MatCSRSave(&Awork, filename);
   printf("Dumping the matrix ... done\n");
-  MatCSRFree(&Awork);
+  CPLM_MatCSRFree(&Awork);
 
   return 0;
 }
@@ -514,7 +569,7 @@ int MatCSRBlockRowGathervDump(Mat_CSR_t *locA, char *filename, int *idxRowBegin,
   * idxRowBegin:
   *     input: the global row indices of the distribution
   */
-int MatCSRBlockRowScatterv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm){
+int CPLM_MatCSRBlockRowScatterv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm){
 
    int nbprocs, my_rank;
 
@@ -541,12 +596,12 @@ int MatCSRBlockRowScatterv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin,
    /* Determine my local number of rows*/
    mloc = idxRowBegin[my_rank+1]-idxRowBegin[my_rank];
 
-   preAlps_int_printSynchronized(mloc, "mloc in MatCSRBlockRowScatterv", comm);
+   preAlps_int_printSynchronized(mloc, "mloc in CPLM_MatCSRBlockRowScatterv", comm);
 
    /* Broadcast the global number of rows. Only the root processos has it*/
    if(my_rank == root) n = Asend->info.n;
    MPI_Bcast(&n, 1, MPI_INT, root, comm);
-   preAlps_int_printSynchronized(n, "n in MatCSRBlockRowScatterv", comm);
+   preAlps_int_printSynchronized(n, "n in CPLM_MatCSRBlockRowScatterv", comm);
 
    /* Compute the new number of columns per process*/
 
@@ -623,7 +678,7 @@ int MatCSRBlockRowScatterv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin,
    MPI_Scatterv(Asend->val, nzcounts, nzoffsets, MPI_DOUBLE, Arecv->val, nzloc, MPI_DOUBLE, root, comm);
 
    /* Set the matrix infos */
-   MatCSRSetInfo(Arecv, mloc, n, nzloc, mloc,  n, nzloc, 1);
+   CPLM_MatCSRSetInfo(Arecv, mloc, n, nzloc, mloc,  n, nzloc, 1);
 
    if(my_rank==root){
      free(nxacounts);
@@ -637,7 +692,7 @@ int MatCSRBlockRowScatterv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin,
 
 
  /*Create a matrix from a dense vector of type double, the matrix is stored in column major format*/
- int MatCSRConvertFromDenseColumnMajorDVectorPtr(Mat_CSR_t *m_out, double *v_in, int M, int N){
+ int CPLM_MatCSRConvertFromDenseColumnMajorDVectorPtr(CPLM_Mat_CSR_t *m_out, double *v_in, int M, int N){
 
   int ierr = 0;
   int nnz=0;
@@ -647,9 +702,9 @@ int MatCSRBlockRowScatterv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin,
   }
 
   /* Set the matrix infos */
-  MatCSRSetInfo(m_out, M, N, nnz, M,  N, nnz, 1);
+  CPLM_MatCSRSetInfo(m_out, M, N, nnz, M,  N, nnz, 1);
 
-  MatCSRMalloc(m_out);
+  CPLM_MatCSRMalloc(m_out);
 
   int count=0;
   m_out->rowPtr[0]=0;
@@ -668,22 +723,22 @@ int MatCSRBlockRowScatterv(Mat_CSR_t *Asend, Mat_CSR_t *Arecv, int *idxRowBegin,
 }
 
 /*Create a matrix from a dense vector of type double*/
-int MatCSRConvertFromDenseDVectorPtr(Mat_CSR_t *m_out, double *v_in, int M, int N){
+int CPLM_MatCSRConvertFromDenseDVectorPtr(CPLM_Mat_CSR_t *m_out, double *v_in, int M, int N){
 
   int ierr;
-  DVector_t Work1 = DVectorNULL();
-  DVectorCreateFromPtr(&Work1, M*N, v_in);
-  ierr = MatCSRConvertFromDenseDVector(m_out, &Work1, M, N);
+  CPLM_DVector_t Work1 = CPLM_DVectorNULL();
+  CPLM_DVectorCreateFromPtr(&Work1, M*N, v_in);
+  ierr = CPLM_MatCSRConvertFromDenseDVector(m_out, &Work1, M, N);
 
   return ierr;
- }
+}
 
 
 
  /*
   * Matrix vector product, y := alpha*A*x + beta*y
   */
- int MatCSRMatrixVector(Mat_CSR_t *A, double alpha, double *x, double beta, double *y){
+int CPLM_MatCSRMatrixVector(CPLM_Mat_CSR_t *A, double alpha, double *x, double beta, double *y){
 
 
     #ifdef USE_MKL
@@ -706,15 +761,104 @@ int MatCSRConvertFromDenseDVectorPtr(Mat_CSR_t *m_out, double *v_in, int M, int 
     #endif
 
     return 0;
-  }
+}
 
+/*
+ * Perform an ordering of a matrix using parMetis
+ *
+ */
+
+int CPLM_MatCSROrderingND(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int *order, int *sizes){
+
+  int err = 0;
+
+#ifdef USE_PARMETIS
+
+  int options[METIS_NOPTIONS];
+
+  int numflag = 0; /*C-style numbering*/
+
+  options[0] = 0;
+  options[1] = 0;
+  options[2] = 42; /* Fixed Seed for reproducibility */
+
+
+  err = ParMETIS_V3_NodeND (vtdist, A->rowPtr, A->colInd, &numflag, options, order, sizes, &comm);
+
+
+  if(err!=METIS_OK) {printf("METIS returned error:%d\n", err); preAlps_abort("ParMetis Ordering Failed.");}
+
+
+#else
+  preAlps_abort("No other NodeND partitioning tool is supported at the moment. Please Rebuild with ParMetis !");
+#endif
+
+  return err;
+}
+
+
+/*
+ * Partition a matrix using parMetis
+ * part_loc:
+ *     output: part_loc[i]=k means rows i belongs to subdomain k
+ */
+
+int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int nparts, int *part_loc){
+
+  int err = 0;
+
+#ifdef USE_PARMETIS
+  int nbprocs;
+
+  int options[METIS_NOPTIONS];
+
+  int wgtflag = 0; /*No weights*/
+  int numflag = 0; /*C-style numbering*/
+  int ncon = 1;
+
+
+  int edgecut = 0;
+  float *tpwgts;
+  float *ubvec;
+
+  int i;
+
+
+  MPI_Comm_size(comm, &nbprocs);
+
+  if ( !(tpwgts = (float *)   malloc((nparts*ncon*sizeof(float)))) ) preAlps_abort("Malloc fails for tpwgts[].");
+  if ( !(ubvec = (float *)    malloc((ncon*sizeof(float)))) ) preAlps_abort("Malloc fails for ubvec[].");
+
+
+  options[0] = 0;
+  options[1] = 0;
+  options[2] = 42; /* Fixed Seed for reproducibility */
+
+
+  for(i=0;i<nparts*ncon;i++) tpwgts[i] = 1.0/(real_t)nparts;
+
+  for(i=0;i<ncon;i++) ubvec[i] =  1.05;
+
+  err = ParMETIS_V3_PartKway(vtdist, A->rowPtr, A->colInd, NULL, NULL,
+      &wgtflag, &numflag, &ncon, &nparts, tpwgts, ubvec, options, &edgecut,
+        part_loc, &comm);
+
+    if(err!=METIS_OK) {printf("METIS returned error:%d\n", err); preAlps_abort("ParMetis Failed.");}
+
+  free(tpwgts);
+  free(ubvec);
+#else
+  preAlps_abort("No other Kway partitioning tool is supported at the moment. Please Rebuild with ParMetis !");
+#endif
+  return err;
+}
 
 
 /*
  * Print a CSR matrix as coordinate triplet (i,j, val)
  * Work only in debug mode
  */
-void MatCSRPrintCoords(Mat_CSR_t *A, char *s){
+void CPLM_MatCSRPrintCoords(CPLM_Mat_CSR_t *A, char *s){
 #ifdef DEBUG
   int i,j, mark_i = 0, mark_j = 0;
   if(s) printf("%s\n", s);
@@ -751,14 +895,14 @@ void MatCSRPrintCoords(Mat_CSR_t *A, char *s){
 
 
 /* Only one process print its matrix, forces synchronisation between all the procs in the communicator*/
-void MatCSRPrintSingleCoords(Mat_CSR_t *A, MPI_Comm comm, int root, char *varname, char *s){
+void CPLM_MatCSRPrintSingleCoords(CPLM_Mat_CSR_t *A, MPI_Comm comm, int root, char *varname, char *s){
 #ifdef DEBUG
   int nbprocs, my_rank;
 
   MPI_Comm_rank(comm, &my_rank);
   MPI_Comm_size(comm, &nbprocs);
 
-  if(my_rank==root) MatCSRPrintCoords(A, s);
+  if(my_rank==root) CPLM_MatCSRPrintCoords(A, s);
 
   MPI_Barrier(comm);
 #endif
@@ -771,11 +915,11 @@ void MatCSRPrintSingleCoords(Mat_CSR_t *A, MPI_Comm comm, int root, char *varnam
  *    The matrix to print
  */
 
-void MatCSRPrintSynchronizedCoords (Mat_CSR_t *A, MPI_Comm comm, char *varname, char *s){
+void CPLM_MatCSRPrintSynchronizedCoords (CPLM_Mat_CSR_t *A, MPI_Comm comm, char *varname, char *s){
 #ifdef DEBUG
   int i;
 
-  Mat_CSR_t Abuffer = MatCSRNULL();
+  CPLM_Mat_CSR_t Abuffer = CPLM_MatCSRNULL();
   int my_rank, comm_size;
 
   MPI_Comm_rank(comm, &my_rank);
@@ -785,22 +929,22 @@ void MatCSRPrintSynchronizedCoords (Mat_CSR_t *A, MPI_Comm comm, char *varname, 
 
     printf("[%d] %s\n", 0, s);
 
-    MatCSRPrintCoords(A, NULL);
+    CPLM_MatCSRPrintCoords(A, NULL);
 
     for(i = 1; i < comm_size; i++) {
 
       /*Receive a matrix*/
-      MatCSRRecv(&Abuffer, i, comm);
+      CPLM_MatCSRRecv(&Abuffer, i, comm);
 
       printf("[%d] %s\n", i, s);
-      MatCSRPrintCoords(&Abuffer, NULL);
+      CPLM_MatCSRPrintCoords(&Abuffer, NULL);
     }
     printf("\n");
 
-    MatCSRFree(&Abuffer);
+    CPLM_MatCSRFree(&Abuffer);
   }
   else{
-    MatCSRSend(A, 0, comm);
+    CPLM_MatCSRSend(A, 0, comm);
   }
 
   MPI_Barrier(comm);
@@ -820,7 +964,7 @@ void MatCSRPrintSynchronizedCoords (Mat_CSR_t *A, MPI_Comm comm, char *varname, 
  *     output: a vector with the same size as the number of columns of the matrix
  */
 
-int MatCSRSymRACScaling(Mat_CSR_t *A, double *R, double *C){
+int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
   double   *Aval;
   int i, j, irow;
   double rcmin, rcmax;
@@ -957,9 +1101,9 @@ void preAlps_checkError_srcLine(int err, int line, char *src){
  */
 void preAlps_doubleVector_load(char *filename, double **v, int *vlen){
 
-  DVector_t Work1 = DVectorNULL();
+  CPLM_DVector_t Work1 = CPLM_DVectorNULL();
 
-  DVectorLoad (filename, &Work1, 0);
+  CPLM_DVectorLoad (filename, &Work1, 0);
 
   *v = Work1.val;
   *vlen = Work1.nval;
@@ -980,9 +1124,9 @@ void preAlps_doubleVector_load(char *filename, double **v, int *vlen){
  */
 void preAlps_doubleVector_printSynchronized(double *v, int vlen, char *varname, char *s, MPI_Comm comm){
 
-  DVector_t Work1 = DVectorNULL();
-  if(v) DVectorCreateFromPtr(&Work1, vlen, v);
-  DVectorPrintSynchronized (&Work1, comm, varname, s);
+  CPLM_DVector_t Work1 = CPLM_DVectorNULL();
+  if(v) CPLM_DVectorCreateFromPtr(&Work1, vlen, v);
+  CPLM_DVectorPrintSynchronized (&Work1, comm, varname, s);
 }
 
 /* Display statistiques min, max and avg of a double*/
@@ -1060,9 +1204,9 @@ void preAlps_int_printSynchronized(int a, char *s, MPI_Comm comm){
  *   The string to display before the variable
  */
 void preAlps_intVector_printSynchronized(int *v, int vlen, char *varname, char *s, MPI_Comm comm){
-  IVector_t Work1 = IVectorNULL();
-  if(v) IVectorCreateFromPtr(&Work1, vlen, v);
-  IVectorPrintSynchronized (&Work1, comm, varname, s);
+  CPLM_IVector_t Work1 = CPLM_IVectorNULL();
+  if(v) CPLM_IVectorCreateFromPtr(&Work1, vlen, v);
+  CPLM_IVectorPrintSynchronized (&Work1, comm, varname, s);
 }
 
 
@@ -1078,11 +1222,11 @@ void preAlps_intVector_printSynchronized(int *v, int vlen, char *varname, char *
  *     output: a preallocated vector of the size of the number of columns of A
  *            to return the global permutation vector
 */
-int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *nbDiagRows, int *colPerm, MPI_Comm comm){
+int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, int *nbDiagRows, int *colPerm, MPI_Comm comm){
   int i,j, pos = 0, ierr   = 0, nbOffDiagRows = 0, my_rank, nbprocs;
   int *mark;
   int *locRowPerm;
-  Mat_CSR_t locAP = MatCSRNULL();
+  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int *recvcounts;
 
   MPI_Comm_rank(comm, &my_rank);
@@ -1102,7 +1246,7 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
   if ( !(mark  = (int *) malloc(mloc*sizeof(int))) ) preAlps_abort("Malloc fails for mark[].");
   if ( !(locRowPerm  = (int *) malloc(mloc*sizeof(int))) ) preAlps_abort("Malloc fails for locRowPerm[].");
 
-  //ierr = IVectorMalloc(&locRowPerm, locA->info.m); preAlps_checkError(ierr);
+  //ierr = CPLM_IVectorMalloc(&locRowPerm, locA->info.m); preAlps_checkError(ierr);
 
   //Compute the number of rows offDiag
 
@@ -1121,8 +1265,8 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
 
 
 
-  //IVectorCreateFromPtr(&itmp, locA->info.m, mark);
-  //IVectorPrintSynchronized (&itmp, comm, "mark", "mark in permuteOffDiag");
+  //CPLM_IVectorCreateFromPtr(&itmp, locA->info.m, mark);
+  //CPLM_IVectorPrintSynchronized (&itmp, comm, "mark", "mark in permuteOffDiag");
 
   preAlps_intVector_printSynchronized(mark, mloc, "mark", "mark in permuteOffDiag", comm);
 
@@ -1162,10 +1306,10 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
       preAlps_permVectorCheck(locRowPerm, mloc);
   #endif
 
-  //MatCSRPrintSynchronizedCoords (locA, comm, "locA", "locA");
+  //CPLM_MatCSRPrintSynchronizedCoords (locA, comm, "locA", "locA");
 
   /* Gather the global column permutation from all procs */
-  //ierr = IVectorMalloc(&colPerm, locA->info.n); preAlps_checkError(ierr);
+  //ierr = CPLM_IVectorMalloc(&colPerm, locA->info.n); preAlps_checkError(ierr);
 
   if ( !(recvcounts  = (int *) malloc(nbprocs*sizeof(int))) ) preAlps_abort("Malloc fails for recvcounts[].");
 
@@ -1179,9 +1323,9 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
                    MPI_INT, comm);
   preAlps_checkError(ierr);
 
-  //IVectorPrintf("colPerm in permuteOffDiag after gatherv",&colPerm);
+  //CPLM_IVectorPrintf("colPerm in permuteOffDiag after gatherv",&colPerm);
 
-  //IVectorPrintSynchronized (colPerm, comm, "colPerm", "colPerm in permuteOffDiag");
+  //CPLM_IVectorPrintSynchronized (colPerm, comm, "colPerm", "colPerm in permuteOffDiag");
   preAlps_intVector_printSynchronized(colPerm, n, "colPerm", "colPerm in permuteOffDiag", comm);
 
   //Update global indexes of colPerm
@@ -1192,7 +1336,7 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
   }
 
 
-  //IVectorPrintSynchronized (colPerm, comm, "colPerm", "global colPerm in permuteOffDiag");
+  //CPLM_IVectorPrintSynchronized (colPerm, comm, "colPerm", "global colPerm in permuteOffDiag");
   if(my_rank==0) preAlps_intVector_printSynchronized(colPerm, n, "colPerm", "global colPerm in permuteOffDiag", MPI_COMM_SELF);
 
 
@@ -1204,20 +1348,20 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
   #if 1
     /* AP = P x A x  P^T */
 
-    ierr  = MatCSRPermute(locA, &locAP, locRowPerm, colPerm, PERMUTE); preAlps_checkError(ierr);
-    MatCSRPrintSynchronizedCoords (&locAP, comm, "locAP", "locAP after permuteOffDiag");
+    ierr  = CPLM_MatCSRPermute(locA, &locAP, locRowPerm, colPerm, PERMUTE); preAlps_checkError(ierr);
+    CPLM_MatCSRPrintSynchronizedCoords (&locAP, comm, "locAP", "locAP after permuteOffDiag");
 
     /* Replace the matrix with the permuted one*/
-    MatCSRCopy(&locAP, locA);
+    CPLM_MatCSRCopy(&locAP, locA);
 
-    //MatCSRFree(&locA);
+    //CPLM_MatCSRFree(&locA);
     //locA = &locAP;
-    MatCSRFree(&locAP);
+    CPLM_MatCSRFree(&locAP);
   #else
-    printf("Disable MatcsrPermute !\n");
+    printf("Disable CPLM_MatCSRPermute !\n");
   #endif
 
-  MatCSRPrintSynchronizedCoords (locA, comm, "locA", "1. locA  after permuteOffDiag");
+  CPLM_MatCSRPrintSynchronizedCoords (locA, comm, "locA", "1. locA  after permuteOffDiag");
 
   free(locRowPerm);
   free(mark);
@@ -1243,13 +1387,13 @@ int preAlps_permuteOffDiagRowsToBottom(Mat_CSR_t *locA, int *idxColBegin, int *n
  *    output: the number of column of the schur complement after the partitioning
  *
 */
-int preAlps_permuteSchurComplementToBottom(Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, int *colPerm, int *schur_ncols, MPI_Comm comm){
+int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, int *colPerm, int *schur_ncols, MPI_Comm comm){
 
   int nbprocs, my_rank;
   int *workP; //a workspace of the size of the number of procs
   int i, j, ierr = 0, sum = 0, count = 0;
 
-  Mat_CSR_t locAP = MatCSRNULL();
+  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int *locRowPerm;//permutation applied on the local matrix
 
   int mloc, n, r;
@@ -1293,14 +1437,14 @@ int preAlps_permuteSchurComplementToBottom(Mat_CSR_t *locA, int nbDiagRows, int 
 
   //permute the matrix to form the schur complement
   for(i=0;i<mloc;i++) locRowPerm[i] = i; //no change in the rows
-  ierr  = MatCSRPermute(locA, &locAP, locRowPerm, colPerm, PERMUTE); preAlps_checkError(ierr);
+  ierr  = CPLM_MatCSRPermute(locA, &locAP, locRowPerm, colPerm, PERMUTE); preAlps_checkError(ierr);
 
-  MatCSRPrintSynchronizedCoords (&locAP, comm, "locAP", "locAP after permuteSchurToBottom");
+  CPLM_MatCSRPrintSynchronizedCoords (&locAP, comm, "locAP", "locAP after permuteSchurToBottom");
 
   /*Copy and free the workspace matrice*/
-  MatCSRCopy(&locAP, locA);
+  CPLM_MatCSRCopy(&locAP, locA);
 
-  MatCSRFree(&locAP);
+  CPLM_MatCSRFree(&locAP);
 
   free(workP);
 
@@ -1337,7 +1481,7 @@ int preAlps_permVectorCheck(int *perm, int n){
  *     output: the schur complement matrix
 */
 
-int preAlps_schurComplementGet(Mat_CSR_t *A, int firstBlock_nrows, int firstBlock_ncols, Mat_CSR_t *Agg){
+int preAlps_schurComplementGet(CPLM_Mat_CSR_t *A, int firstBlock_nrows, int firstBlock_ncols, CPLM_Mat_CSR_t *Agg){
 
   /*Count the element */
   int i, j, count, schur_nrows, schur_ncols, ierr = 0;
@@ -1355,10 +1499,10 @@ int preAlps_schurComplementGet(Mat_CSR_t *A, int firstBlock_nrows, int firstBloc
 
   //preAlps_int_printSynchronized(count, "nnz in Agg", comm);
 
-  MatCSRSetInfo(Agg, schur_nrows, schur_ncols, count,
+  CPLM_MatCSRSetInfo(Agg, schur_nrows, schur_ncols, count,
                 schur_nrows, schur_ncols, count, 1);
 
-  ierr = MatCSRMalloc(Agg); preAlps_checkError(ierr);
+  ierr = CPLM_MatCSRMalloc(Agg); preAlps_checkError(ierr);
 
   //Fill the matrix
   Agg->rowPtr[0] = 0; count = 0;

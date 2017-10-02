@@ -13,13 +13,13 @@
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
-int ECGInitialize(ECG_t* ecg, double* rhs, int* rci_request) {
+int preAlps_ECGInitialize(ECG_t* ecg, double* rhs, int* rci_request) {
 CPLM_PUSH
   int rank, ierr = 0;
   int nCol = 0;
 
   // Allocate Memory
-  ECGMalloc(ecg);
+  preAlps_ECGMalloc(ecg);
 
   // Simplify notations
   CPLM_Mat_Dense_t* P        = ecg->P;
@@ -47,7 +47,7 @@ CPLM_PUSH
 
   // First we construct R_0 by splitting b
   nCol = rank % (ecg->enlFac);
-  ierr = ECGSplit(rhs, R, nCol);CHKERR(ierr);
+  ierr = preAlps_ECGSplit(rhs, R, nCol);
 
   // No block size reduction for the moment
   ecg->bs_red = NO_BS_RED;
@@ -58,7 +58,7 @@ CPLM_POP
   return ierr;
 }
 
-int ECGMalloc(ECG_t* ecg) {
+int preAlps_ECGMalloc(ECG_t* ecg) {
 CPLM_PUSH
   int ierr = 0;
   // Malloc the pointers
@@ -75,17 +75,17 @@ CPLM_PUSH
                              .n = ecg->enlFac,
                              .lda = ecg->locPbSize,
                              .nval = ecg->locPbSize*(ecg->enlFac),
-                             .stor_type = CPLM_COL_MAJOR };
-  ierr = CPLM_MatDenseCreateZero(ecg->X,info);CHKERR(ierr);
-  ierr = CPLM_MatDenseCreateZero(ecg->R,info);CHKERR(ierr);
-  ierr = CPLM_MatDenseCreate(ecg->P,info);CHKERR(ierr);
-  ierr = CPLM_MatDenseCreate(ecg->AP,info);CHKERR(ierr);
-  ierr = CPLM_MatDenseCreateZero(ecg->Z,info);CHKERR(ierr);
+                             .stor_type = COL_MAJOR };
+  ierr = CPLM_MatDenseCreateZero(ecg->X,info);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseCreateZero(ecg->R,info);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseCreate(ecg->P,info);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseCreate(ecg->AP,info);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseCreateZero(ecg->Z,info);CPLM_CHKERR(ierr);
   if (ecg->ortho_alg == ORTHODIR) {
     ecg->P_prev  = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
     ecg->AP_prev = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
-    ierr = CPLM_MatDenseCreateZero(ecg->P_prev,info);CHKERR(ierr);
-    ierr = CPLM_MatDenseCreateZero(ecg->AP_prev,info);CHKERR(ierr);
+    ierr = CPLM_MatDenseCreateZero(ecg->P_prev,info);CPLM_CHKERR(ierr);
+    ierr = CPLM_MatDenseCreateZero(ecg->AP_prev,info);CPLM_CHKERR(ierr);
   }
   // H has nbBlockCG-1 columns maximum
   if (ecg->bs_red == ALPHA_RANK) {
@@ -93,8 +93,8 @@ CPLM_PUSH
     info.n--;
     ecg->H = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
     ecg->AH = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
-    ierr = CPLM_MatDenseCreateZero(ecg->H,info);CHKERR(ierr);
-    ierr = CPLM_MatDenseCreateZero(ecg->AH,info);CHKERR(ierr);
+    ierr = CPLM_MatDenseCreateZero(ecg->H,info);CPLM_CHKERR(ierr);
+    ierr = CPLM_MatDenseCreateZero(ecg->AH,info);CPLM_CHKERR(ierr);
   }
   CPLM_Info_Dense_t info_step = { .M    = ecg->enlFac,
                                   .N    = ecg->enlFac,
@@ -102,12 +102,12 @@ CPLM_PUSH
                                   .n    = ecg->enlFac,
                                   .lda  = ecg->enlFac,
                                   .nval = (ecg->enlFac)*(ecg->enlFac),
-                                  .stor_type = CPLM_COL_MAJOR};
-  ierr = CPLM_MatDenseCreate(ecg->alpha,info_step);CHKERR(ierr);
-  ierr = CPLM_MatDenseCreate(ecg->beta,info_step);CHKERR(ierr);
+                                  .stor_type = COL_MAJOR};
+  ierr = CPLM_MatDenseCreate(ecg->alpha,info_step);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseCreate(ecg->beta,info_step);CPLM_CHKERR(ierr);
   if (ecg->ortho_alg == ORTHODIR) {
     ecg->gamma  = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
-    ierr = CPLM_MatDenseCreate(ecg->gamma,info_step);CHKERR(ierr);
+    ierr = CPLM_MatDenseCreate(ecg->gamma,info_step);CPLM_CHKERR(ierr);
   }
   // Malloc the working arrays
   ecg->work = (double*) malloc(ecg->P->info.nval*sizeof(double));
@@ -116,13 +116,13 @@ CPLM_POP
   return ierr;
 }
 
-int ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex) {
+int preAlps_ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex) {
 CPLM_PUSH
   CPLM_ASSERT(XSplit->val != NULL);
   CPLM_ASSERT(x != NULL);
   int ierr = 0;
   int loop_index_1, loop_index_2;
-  if (XSplit->info.stor_type == CPLM_ROW_MAJOR) {
+  if (XSplit->info.stor_type == ROW_MAJOR) {
     loop_index_1 = XSplit->info.n;
     loop_index_2 = 1;
   }
@@ -138,7 +138,7 @@ CPLM_POP
   return ierr;
 }
 
-int ECGStoppingCriterion(ECG_t* ecg, int* stop) {
+int preAlps_ECGStoppingCriterion(ECG_t* ecg, int* stop) {
 CPLM_PUSH
 int ierr = 0;
   // Simplify notations
@@ -150,17 +150,17 @@ int ierr = 0;
   double* work        = ecg->work;
   int iterMax         = ecg->maxIter;
 
-  CPLM_DVector_t r = DVectorNULL();
+  CPLM_DVector_t r = CPLM_DVectorNULL();
   r.nval = R->info.m;
   r.val  = work;
 
   CPLM_ASSERT(stop != NULL);
 
   // Sum the columns of the block residual
-  ierr = CPLM_MatDenseKernelSumColumns(R, &r);CHKERR(ierr);
+  ierr = CPLM_MatDenseKernelSumColumns(R, &r);CPLM_CHKERR(ierr);
   // Sum over the line of the reduced residual
   *ptrRes = 0.0;
-  ierr = CPLM_DVector2NormSquared(&r, ptrRes);CHKERR(ierr);
+  ierr = CPLM_DVector2NormSquared(&r, ptrRes);CPLM_CHKERR(ierr);
   // Sum over all processes
   MPI_Allreduce(MPI_IN_PLACE,ptrRes,1,MPI_DOUBLE,MPI_SUM,comm);
 
@@ -175,7 +175,7 @@ CPLM_POP
   return ierr;
 }
 
-int ECGIterate(ECG_t* ecg, int* rci_request) {
+int preAlps_ECGIterate(ECG_t* ecg, int* rci_request) {
 CPLM_PUSH
   int ierr = -1;
   /* int nrhs = ecg->param.nbRHS; */
@@ -198,39 +198,21 @@ CPLM_PUSH
   /* int t = P->info.n; */
 
   if (*rci_request == 0) {
-    // We have A*P here !!
-    TIC(step1,"ACholQR")
     ierr = CPLM_MatDenseACholQR(P,AP,beta,comm);
-    TAC(step1)
-    TIC(step2,"alpha = P^t*R")
     ierr = CPLM_MatDenseMatDotProd(P,R,alpha,comm);
-    TAC(step2)
-    TIC(step3,"X = X + P*alpha")
     ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.0,1.0);
-    TAC(step3)
-    TIC(step4,"R = R - AP*alpha")
     ierr = CPLM_MatDenseKernelMatMult(AP,'N',alpha,'N',R,-1.0,1.0);
-    TAC(step4)
     // Iteration finished
     ecg->iter++;
     // Now we need the preconditioner
     *rci_request = 1;
   }
   else if (*rci_request == 1) {
-    // We have the preconditioner here !!!
-    TIC(step5,"beta = (AP)^t*Z")
     ierr = CPLM_MatDenseMatDotProd(AP,Z,beta,comm);
-    TAC(step5)
-    TIC(step6,"Z = Z - P*beta")
     ierr = CPLM_MatDenseKernelMatMult(P,'N',beta,'N',Z,-1.0,1.0);
-    TAC(step6)
     if (ecg->ortho_alg == ORTHODIR) {
-      TIC(step7,"gamma = (AP_prev)^t*Z")
       ierr = CPLM_MatDenseMatDotProd(AP_prev,Z,gamma,comm);
-      TAC(step7)
-      TIC(step8,"Z = Z - P_prev*gamma")
       ierr = CPLM_MatDenseKernelMatMult(P_prev,'N',gamma,'N',Z,-1.0,1.0);
-      TAC(step8)
     }
     // Swapping time
     CPLM_MatDenseSwap(P,Z);
@@ -248,7 +230,7 @@ CPLM_POP
   return ierr;
 }
 
-int ECGFinalize(ECG_t* ecg, double* solution) {
+int preAlps_ECGFinalize(ECG_t* ecg, double* solution) {
 CPLM_PUSH
   int ierr = 0;
   // Simplify notations
@@ -257,13 +239,13 @@ CPLM_PUSH
   sol.nval = X->info.m;
   sol.val  = solution;
   // Get the solution
-  ierr = CPLM_MatDenseKernelSumColumns(X, &sol);CHKERR(ierr);
-  ECGFree(ecg);
+  ierr = CPLM_MatDenseKernelSumColumns(X, &sol);CPLM_CHKERR(ierr);
+  preAlps_ECGFree(ecg);
 CPLM_POP
   return ierr;
 }
 
-void ECGPrint(ECG_t* ecg) {
+void preAlps_ECGPrint(ECG_t* ecg) {
 CPLM_PUSH
   int rank;
   MPI_Comm_rank(ecg->comm,&rank);
@@ -290,7 +272,7 @@ CPLM_PUSH
 CPLM_POP
 }
 
-void ECGFree(ECG_t* ecg) {
+void preAlps_ECGFree(ECG_t* ecg) {
 CPLM_PUSH
   CPLM_MatDenseFree(ecg->X);
   if (ecg->X != NULL)

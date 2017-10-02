@@ -84,14 +84,14 @@ typedef struct {
 /*                                    CODE                                    */
 /******************************************************************************/
 
-int ECGMalloc(ECG_t* ecg);
-int ECGInitialize(ECG_t* ecg, double* rhs, int* rci_request);
-int ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex);
-int ECGIterate(ECG_t* ecg, int* rci_request);
-int ECGStoppingCriterion(ECG_t* ecg, int* stop);
-void ECGFree(ECG_t* ecg);
-int ECGFinalize(ECG_t* ecg, double* solution);
-void ECGPrint(ECG_t* ecg);
+int preAlps_ECGMalloc(ECG_t* ecg);
+int preAlps_ECGInitialize(ECG_t* ecg, double* rhs, int* rci_request);
+int preAlps_ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex);
+int preAlps_ECGIterate(ECG_t* ecg, int* rci_request);
+int preAlps_ECGStoppingCriterion(ECG_t* ecg, int* stop);
+void preAlps_ECGFree(ECG_t* ecg);
+int preAlps_ECGFinalize(ECG_t* ecg, double* solution);
+void preAlps_ECGPrint(ECG_t* ecg);
 
 /******************************************************************************/
 

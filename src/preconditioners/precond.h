@@ -30,14 +30,14 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 int  PrecondCreate(Prec_Type_t precond_type,
-                   Mat_CSR_t* A,
+                   CPLM_Mat_CSR_t* A,
                    int* rowPos,
                    int sizeRowPos,
                    int* colPos,
                    int sizeColPos,
                    int* dep,
                    int sizeDep);
-int  PrecondApply(Prec_Type_t precond_type, Mat_Dense_t* A_in, Mat_Dense_t* B_out);
+int  PrecondApply(Prec_Type_t precond_type, CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out);
 void PrecondFree(Prec_Type_t precond_type);
 /* /\* Right preconditioner *\/o */
 /* // User functions */

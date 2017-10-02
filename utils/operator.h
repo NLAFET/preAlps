@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <string.h>
 /* MPI */
 #include <mpi.h>
 /* CPaLAMeM */
@@ -25,6 +26,7 @@
 #include <mat_load_mm.h>
 #include <metis_interface.h>
 #include <matmult.h>
+#include <ivector.h>
 /******************************************************************************/
 
 /******************************************************************************/

@@ -11,10 +11,12 @@ Date        : Mai 15, 2017
 #include <stdlib.h>
 #include <string.h>
 #include <mpi.h>
+#include <cpalamem_instrumentation.h>
 #include <mat_load_mm.h>
 #include <mat_csr.h>
 
 #include "preAlps_utils.h"
+#include "preAlps_preconditioner_struct.h"
 
 #include "presc.h"
 
@@ -24,8 +26,8 @@ int main(int argc, char** argv){
   MPI_Comm comm;
   int nbprocs, my_rank;
   char matrix_filename[150]="";
-  Mat_CSR_t A = MatCSRNULL();
-  Mat_CSR_t locAP = MatCSRNULL();
+  CPLM_Mat_CSR_t A = CPLM_MatCSRNULL();
+  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int i, ierr   = 0;
 
 
@@ -84,11 +86,11 @@ int main(int argc, char** argv){
 
     printf("Reading matrix ...\n");
 
-    LoadMatrixMarket(matrix_filename, &A);
-    MatCSRPrintInfo(&A);
-    //MatCSRPrintf2D("Loaded matrix", &A);
+    CPLM_LoadMatrixMarket(matrix_filename, &A);
+    CPLM_MatCSRPrintInfo(&A);
+    //CPLM_MatCSRPrintf2D("Loaded matrix", &A);
 
-    MatCSRPrintCoords(&A, "Loaded matrix");
+    CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
 
     /*Scale the matrix*/
     double *R, *C;
@@ -96,18 +98,18 @@ int main(int argc, char** argv){
     if ( !(R  = (double *) malloc(A.info.m * sizeof(double))) ) preAlps_abort("Malloc fails for R[].");
     if ( !(C  = (double *) malloc(A.info.n * sizeof(double))) ) preAlps_abort("Malloc fails for C[].");
 
-    MatCSRSymRACScaling(&A, R, C);
+    CPLM_MatCSRSymRACScaling(&A, R, C);
 
     free(R);
     free(C);
 
     #ifdef BUILDING_MATRICES_DUMP
       printf("Dumping the matrix ...\n");
-      MatCSRSave(&A, "dump_AScaled.mtx");
+      CPLM_MatCSRSave(&A, "dump_AScaled.mtx");
       printf("Dumping the matrix ... done\n");
     #endif
 
-    MatCSRPrintCoords(&A, "Scaled matrix");
+    CPLM_MatCSRPrintCoords(&A, "Scaled matrix");
 
 
   }
@@ -126,10 +128,10 @@ int main(int argc, char** argv){
   ierr =  Presc_destroy(&prescA); preAlps_checkError(ierr);
 
   if(my_rank==0){
-    MatCSRFree(&A);
+    CPLM_MatCSRFree(&A);
   }
 
-  MatCSRFree(&locAP);
+  CPLM_MatCSRFree(&locAP);
 
   MPI_Finalize();
   return EXIT_SUCCESS;

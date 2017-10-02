@@ -46,7 +46,7 @@ int Presc_alloc(Presc_t **presc);
  *     output: the local permuted matrix on each proc after the preconditioner is built
  *
 */
-int Presc_build(Presc_t *presc, Mat_CSR_t *A, Mat_CSR_t *locAP, MPI_Comm comm);
+int Presc_build(Presc_t *presc, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, MPI_Comm comm);
 
 /*Destroy the preconditioner*/
 int Presc_destroy(Presc_t **presc);

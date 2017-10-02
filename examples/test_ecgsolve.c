@@ -29,6 +29,7 @@
 
 /* preAlps */
 #include "operator.h"
+#include "block_jacobi.h"
 #include "ecg.h"
 /******************************************************************************/
 
@@ -38,7 +39,6 @@
 int main(int argc, char** argv) {
 
   MPI_Init(&argc, &argv);
-OPEN_TIMER
 
   /*================ Initialize ================*/
   int rank, size, ierr;
@@ -51,7 +51,7 @@ OPEN_TIMER
 
   /*======== Construct the operator using a CSR matrix ========*/
   const char* matrixFilename = argv[1];
-  CPLM_Mat_CSR_t A = MatCSRNULL();
+  CPLM_Mat_CSR_t A = CPLM_MatCSRNULL();
   int M, m;
   int* rowPos = NULL;
   int* colPos = NULL;
@@ -71,15 +71,13 @@ OPEN_TIMER
   preAlps_OperatorGetDepPtr(&dep,&sizeDep);
 
   /*======== Construct the preconditioner ========*/
-  Prec_Type_t precond_type = PREALPS_BLOCKJACOBI;
-  PrecondCreate(precond_type,
-                &A,
-                rowPos,
-                sizeRowPos,
-                colPos,
-                sizeColPos,
-                dep,
-                sizeDep);
+  preAlps_BlockJacobiCreate(&A,
+                            rowPos,
+                            sizeRowPos,
+                            colPos,
+                            sizeColPos,
+                            dep,
+                            sizeDep);
 
   /*============= Construct a random rhs =============*/
   double* rhs = (double*) malloc(A.info.m*sizeof(double));
@@ -169,27 +167,27 @@ TAC(step1)
   double* sol = NULL;
   sol = (double*) malloc(m*sizeof(double));
   // Allocate memory and initialize variables
-  ierr = ECGInitialize(&ecg,rhs,&rci_request);CHKERR(ierr);
+  preAlps_ECGInitialize(&ecg,rhs,&rci_request);
   // Finish initialization
-  PrecondApply(precond_type,ecg.R,ecg.P);
+  preAlps_BlockJacobiApply(ecg.R,ecg.P);
   preAlps_BlockOperator(ecg.P,ecg.AP);
   // Main loop
   while (stop != 1) {
-    ierr = ECGIterate(&ecg,&rci_request);
+    ierr = preAlps_ECGIterate(&ecg,&rci_request);
     if (rci_request == 0) {
       preAlps_BlockOperator(ecg.P,ecg.AP);
     }
     else if (rci_request == 1) {
-      ierr = ECGStoppingCriterion(&ecg,&stop);
+      ierr = preAlps_ECGStoppingCriterion(&ecg,&stop);
       if (stop == 1) break;
       if (ecg.ortho_alg == ORTHOMIN)
-        PrecondApply(precond_type,ecg.R,ecg.Z);
+        preAlps_BlockJacobiApply(ecg.R,ecg.Z);
       else if (ecg.ortho_alg == ORTHODIR)
-        PrecondApply(precond_type,ecg.AP,ecg.Z);
+        preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
     }
   }
   // Retrieve solution and free memory
-  ECGFinalize(&ecg,sol);
+  preAlps_ECGFinalize(&ecg,sol);
 
   if (rank == 0)
     printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
@@ -202,14 +200,10 @@ TAC(step1)
   VecDestroy(&X);
 #endif
   // Free arrays
-    if (rowPos != NULL) free(rowPos);
-    if (colPos != NULL) free(colPos);
-    if (dep != NULL) free(dep);
-    if (rhs != NULL) free(rhs);
+  if (rhs != NULL) free(rhs);
   if (sol != NULL) free(sol);
   preAlps_OperatorFree();
-CLOSE_TIMER
-  CPALAMEM_Finalize();
+  MPI_Finalize();
   return ierr;
 }
 /******************************************************************************/

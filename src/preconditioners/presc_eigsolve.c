@@ -45,7 +45,7 @@ Date        : Mai 15, 2017
  * AggP
  *    input: the matrix AggP
 */
-int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver_t *Sloc_sv, Mat_CSR_t *Sloc, Mat_CSR_t *AggP){
+int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver_t *Sloc_sv, CPLM_Mat_CSR_t *Sloc, CPLM_Mat_CSR_t *AggP){
 
   int ierr;
   int root = 0, my_rank, nbprocs;
@@ -123,7 +123,7 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
   preAlps_intVector_printSynchronized(mdispls, nbprocs, "mdispls", "mdispls", comm);
 
 
-  MatCSRPrintSynchronizedCoords (AggP, comm, "AggP", "AggP");
+  CPLM_MatCSRPrintSynchronizedCoords (AggP, comm, "AggP", "AggP");
   if(my_rank==root) printf("Agg size: %d\n", m);
 
   iterate = 1;
@@ -159,7 +159,7 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
 
       /* Compute  Y = Sloc * X */
       ttemp = MPI_Wtime();
-      MatCSRMatrixVector(Sloc, dONE, X, dZERO, Y);
+      CPLM_MatCSRMatrixVector(Sloc, dONE, X, dZERO, Y);
       tstats.tAv += MPI_Wtime() - ttemp;
 
       preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after Sloc*v", comm);
@@ -247,8 +247,8 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
  */
 
  int Presc_eigSolve_SAloc(Presc_t *presc, MPI_Comm comm, int mloc,
-                          Mat_CSR_t *Aggloc, Mat_CSR_t *Agi, Mat_CSR_t *Aii, Mat_CSR_t *Aig,
-                          Mat_CSR_t *Aloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Aloc_sv){
+                          CPLM_Mat_CSR_t *Aggloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
+                          CPLM_Mat_CSR_t *Aloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Aloc_sv){
 
   int ierr = 0;
   int root = 0, my_rank, nbprocs;
@@ -325,7 +325,7 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
   preAlps_intVector_printSynchronized(mcounts, nbprocs, "mcounts", "mcounts", comm);
   preAlps_intVector_printSynchronized(mdispls, nbprocs, "mdispls", "mdispls", comm);
 
-  MatCSRPrintSynchronizedCoords (Aggloc, comm, "Aggloc", "Aggloc");
+  CPLM_MatCSRPrintSynchronizedCoords (Aggloc, comm, "Aggloc", "Aggloc");
   if(my_rank==root) printf("Agg size: %d\n", m);
 
   iterate = 1;
@@ -354,7 +354,7 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
 
       /* Compute  Y = Aloc * X */
       ttemp = MPI_Wtime();
-      MatCSRMatrixVector(Aloc, dONE, X, dZERO, Y);
+      CPLM_MatCSRMatrixVector(Aloc, dONE, X, dZERO, Y);
       tstats.tAv += MPI_Wtime() - ttemp;
 
       preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after Aloc*v", comm);
