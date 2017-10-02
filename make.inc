@@ -19,7 +19,7 @@ EXAMPLES  = examples
 #   Compilers
 #
 
-CC           = mpiicc
+CC           = mpicc
 CFLAGS       = -Wall -funroll-loops -std=c99 -fPIC
 OPT          = -O3 -march=native -mtune=native
 LOADER       = mpiicc
@@ -53,9 +53,9 @@ ADDITIONAL_FLAGS = -DAdd_
 
 # Provide the path for cpalamem
 
-  CPALAMEM_DIR      = ${CPALAMEM_ROOT}
-  CPALAMEM_INC      = -I${CPALAMEM_ROOT}/include
-  CPALAMEM_LIB      = -L${CPALAMEM_ROOT}/lib -lcpalamem_core
+  CPALAMEM_DIR      = /Users/otissot/Documents/Projets/CPALAMEM_LIGHT
+  CPALAMEM_INC      = -I${CPALAMEM_DIR}/include
+  CPALAMEM_LIB      = -L${CPALAMEM_DIR}/lib -lcpalamem_core
   INCLUDE_FLAGS    += $(CPALAMEM_INC)
   LD_FLAGS         += $(CPALAMEM_LIB)
   ADDITIONAL_FLAGS += -DMPIACTIVATE -DCPALAMEM_BENCHMARK
