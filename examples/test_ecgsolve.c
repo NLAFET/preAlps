@@ -37,8 +37,7 @@
 /******************************************************************************/
 int main(int argc, char** argv) {
 
-
-  CPALAMEM_Init(&argc, &argv);
+  MPI_Init(&argc, &argv);
 OPEN_TIMER
 
   /*================ Initialize ================*/
@@ -50,22 +49,28 @@ OPEN_TIMER
   // OT: I tested and it still works with OpenMP activated
   MKL_Set_Num_Threads(1);
 
-  // Construct the operator using a CSR matrix
+  /*======== Construct the operator using a CSR matrix ========*/
   const char* matrixFilename = argv[1];
-  Mat_CSR_t A = MatCSRNULL();
+  CPLM_Mat_CSR_t A = MatCSRNULL();
   int M, m;
   int* rowPos = NULL;
   int* colPos = NULL;
   int* dep = NULL;
   int sizeRowPos, sizeColPos, sizeDep;
-  OperatorBuild(matrixFilename,MPI_COMM_WORLD);
-  OperatorGetA(&A);
-  OperatorGetSizes(&M,&m);
-  OperatorGetRowPosPtr(&rowPos,&sizeRowPos);
-  OperatorGetColPosPtr(&colPos,&sizeColPos);
-  OperatorGetDepPtr(&dep,&sizeDep);
+  // Read and partition the matrix
+  preAlps_OperatorBuild(matrixFilename,MPI_COMM_WORLD);
+  // Get the CSR structure of A
+  preAlps_OperatorGetA(&A);
+  // Get the sizes of A
+  preAlps_OperatorGetSizes(&M,&m);
+  // Get row partitioning of A
+  preAlps_OperatorGetRowPosPtr(&rowPos,&sizeRowPos);
+  // Get col partitioning induced by this row partitioning
+  preAlps_OperatorGetColPosPtr(&colPos,&sizeColPos);
+  // Get neighbours (dependencies)
+  preAlps_OperatorGetDepPtr(&dep,&sizeDep);
 
-  // Construct the preconditioner
+  /*======== Construct the preconditioner ========*/
   Prec_Type_t precond_type = PREALPS_BLOCKJACOBI;
   PrecondCreate(precond_type,
                 &A,
@@ -76,12 +81,14 @@ OPEN_TIMER
                 dep,
                 sizeDep);
 
-  // Construct the rhs
-  DVector_t rhs = DVectorNULL();
-  DVectorMalloc(&rhs,A.info.m);
-  DVectorRandom(&rhs,0);
-  CHKERR(ierr);
+  /*============= Construct a random rhs =============*/
+  double* rhs = (double*) malloc(A.info.m*sizeof(double));
+  // Set the seed of the random generator
+  srand(0);
+  for (int i = 0; i < A.info.m; ++i)
+    rhs[i] = ((double) rand() / (double) RAND_MAX);
 
+  // Set global parameters for both PETSc and ECG
   double tol = 1e-5;
   int maxIter = 1000;
 #ifdef PETSC
@@ -94,7 +101,7 @@ OPEN_TIMER
   int first,nlocal;
 
   // Set RHS
-  VecCreateMPIWithArray(MPI_COMM_WORLD,1,A.info.m,A.info.M,rhs.val,&B);
+  VecCreateMPIWithArray(MPI_COMM_WORLD,1,A.info.m,A.info.M,rhs,&B);
   VecCreateMPI(MPI_COMM_WORLD,A.info.m,A.info.M,&X);
   VecAssemblyBegin(X);
   VecAssemblyBegin(X);
@@ -140,7 +147,7 @@ TAC(step1)
   KSPDestroy(&ksp);
 #endif
 
-  /*================ BCG solve ================*/
+  /*================ ECG solve ================*/
   ECG_t ecg;
   // Set parameters
   ecg.comm = MPI_COMM_WORLD;  /* MPI Communicator */
@@ -154,10 +161,7 @@ TAC(step1)
 
 #ifdef PETSC
   /*Restore the pointer*/
-  double* data = NULL;
-  VecGetArray(B,&data);
-  rhs.nval = A.info.m;
-  rhs.val = data;
+  VecGetArray(B,rhs);
 #endif
   // Get local and global sizes of operator A
   int rci_request = 0;
@@ -165,15 +169,15 @@ TAC(step1)
   double* sol = NULL;
   sol = (double*) malloc(m*sizeof(double));
   // Allocate memory and initialize variables
-  ierr = ECGInitialize(&ecg,rhs.val,&rci_request);CHKERR(ierr);
+  ierr = ECGInitialize(&ecg,rhs,&rci_request);CHKERR(ierr);
   // Finish initialization
   PrecondApply(precond_type,ecg.R,ecg.P);
-  BlockOperator(ecg.P,ecg.AP);
+  preAlps_BlockOperator(ecg.P,ecg.AP);
   // Main loop
   while (stop != 1) {
     ierr = ECGIterate(&ecg,&rci_request);
     if (rci_request == 0) {
-      BlockOperator(ecg.P,ecg.AP);
+      preAlps_BlockOperator(ecg.P,ecg.AP);
     }
     else if (rci_request == 1) {
       ierr = ECGStoppingCriterion(&ecg,&stop);
@@ -197,9 +201,13 @@ TAC(step1)
   MatDestroy(&A_petsc);
   VecDestroy(&X);
 #endif
-
-  DVectorFree(&rhs);
-  OperatorFree();
+  // Free arrays
+    if (rowPos != NULL) free(rowPos);
+    if (colPos != NULL) free(colPos);
+    if (dep != NULL) free(dep);
+    if (rhs != NULL) free(rhs);
+  if (sol != NULL) free(sol);
+  preAlps_OperatorFree();
 CLOSE_TIMER
   CPALAMEM_Finalize();
   return ierr;
