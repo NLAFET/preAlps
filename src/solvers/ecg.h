@@ -37,30 +37,30 @@
 typedef enum {
   ORTHOMIN,
   ORTHODIR
-} Ortho_Alg_t;
+} ECG_Ortho_Alg_t;
 /* Block size reduction */
 typedef enum {
   ALPHA_RANK,
   NO_BS_RED
-} Block_Size_Red_t;
+} ECG_Block_Size_Red_t;
 
 typedef struct {
   /* Array type variables */
-  double*           b;         /* Right hand side */
-  Mat_Dense_t*      X;         /* Approximated solution */
-  Mat_Dense_t*      R;         /* Residual */
-  Mat_Dense_t*      P;         /* Descent direction */
-  Mat_Dense_t*      AP;        /* A*P */
-  Mat_Dense_t*      P_prev;    /* Previous descent direction */
-  Mat_Dense_t*      AP_prev;   /* A*P_prev */
-  Mat_Dense_t*      alpha;     /* Descent step */
-  Mat_Dense_t*      beta;      /* Step to construt search directions */
-  Mat_Dense_t*      gamma;     /* Step to construct odir search directions */
-  Mat_Dense_t*      Z;         /* Extra memory */
-  Mat_Dense_t*      H;         /* Descent directions needed to reduce block size */
-  Mat_Dense_t*      AH;        /* A*H */
-  double*           work;      /* working array */
-  int*              iwork;     /* working array */
+  double*                b;         /* Right hand side */
+  CPLM_Mat_Dense_t*      X;         /* Approximated solution */
+  CPLM_Mat_Dense_t*      R;         /* Residual */
+  CPLM_Mat_Dense_t*      P;         /* Descent direction */
+  CPLM_Mat_Dense_t*      AP;        /* A*P */
+  CPLM_Mat_Dense_t*      P_prev;    /* Previous descent direction */
+  CPLM_Mat_Dense_t*      AP_prev;   /* A*P_prev */
+  CPLM_Mat_Dense_t*      alpha;     /* Descent step */
+  CPLM_Mat_Dense_t*      beta;      /* Step to construt search directions */
+  CPLM_Mat_Dense_t*      gamma;     /* Step to construct odir search directions */
+  CPLM_Mat_Dense_t*      Z;         /* Extra memory */
+  CPLM_Mat_Dense_t*      H;         /* Descent directions needed to reduce block size */
+  CPLM_Mat_Dense_t*      AH;        /* A*H */
+  double*           work;           /* working array */
+  int*              iwork;          /* working array */
 
   /* Single value variables */
   double            normb;     /* norm_2(b) */
@@ -68,14 +68,14 @@ typedef struct {
   int               iter;      /* Iteration */
 
   /* Options and parameters */
-  int               globPbSize;   /* Size of the global problem */
-  int               locPbSize;    /* Size of the local problem */
-  int               maxIter;      /* Maximum number of iterations */
-  int               enlFac;       /* Enlarging factor */
-  double            tol;          /* Tolerance */
-  Ortho_Alg_t       ortho_alg;    /* A-orthonormalization algorithm */
-  Block_Size_Red_t  bs_red;       /* Block size reduction */
-  MPI_Comm          comm;         /* MPI communicator */
+  int                  globPbSize;   /* Size of the global problem */
+  int                  locPbSize;    /* Size of the local problem */
+  int                  maxIter;      /* Maximum number of iterations */
+  int                  enlFac;       /* Enlarging factor */
+  double               tol;          /* Tolerance */
+  ECG_Ortho_Alg_t      ortho_alg;    /* A-orthonormalization algorithm */
+  ECG_Block_Size_Red_t bs_red;       /* Block size reduction */
+  MPI_Comm             comm;         /* MPI communicator */
 } ECG_t;
 
 /******************************************************************************/
@@ -86,7 +86,7 @@ typedef struct {
 
 int ECGMalloc(ECG_t* ecg);
 int ECGInitialize(ECG_t* ecg, double* rhs, int* rci_request);
-int ECGSplit(double* x, Mat_Dense_t* XSplit, int colIndex);
+int ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex);
 int ECGIterate(ECG_t* ecg, int* rci_request);
 int ECGStoppingCriterion(ECG_t* ecg, int* stop);
 void ECGFree(ECG_t* ecg);

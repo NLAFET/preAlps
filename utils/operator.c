@@ -18,19 +18,20 @@
 /******************************************************************************/
 /*                              GLOBAL VARIABLES                              */
 /******************************************************************************/
-static Mat_CSR_t A_g = MatCSRNULL();
-static IVector_t rowPos_g = DVectorNULL();
-static IVector_t colPos_g = DVectorNULL();
-static IVector_t rowPtr_g = DVectorNULL();
-static IVector_t dep_g    = DVectorNULL();
+static CPLM_Mat_CSR_t A_g = MatCSRNULL();
+static CPLM_IVector_t rowPos_g = DVectorNULL();
+static CPLM_IVector_t colPos_g = DVectorNULL();
+static CPLM_IVector_t rowPtr_g = DVectorNULL();
+static CPLM_IVector_t dep_g    = DVectorNULL();
 static MPI_Comm comm_g;
 /******************************************************************************/
 
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
-int OperatorBuild(const char* matrixFilename, MPI_Comm comm) {
-PUSH
+
+int preAlps_OperatorBuild(const char* matrixFilename, MPI_Comm comm) {
+CPLM_PUSH
   int rank, size, ierr = 0;
 
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -42,12 +43,12 @@ PUSH
   comm_g = comm;
 
   //Load on first process
-  Mat_CSR_t matCSR = MatCSRNULL();
+  CPLM_Mat_CSR_t matCSR = CPLM_MatCSRNULL();
   const char* operator_type = matrixFilename + strlen(matrixFilename) - 3;
   // MatrixMarket format
   if (rank == root) {
     if (strcmp(operator_type,"mtx") == 0) {
-      ierr = LoadMatrixMarket(matrixFilename, &matCSR);CHKERR(ierr);
+      ierr = CPLM_LoadMatrixMarket(matrixFilename, &matCSR);CPLM_CHKERR(ierr);
     }
     else {
       #ifdef PETSC
@@ -56,150 +57,150 @@ PUSH
         petscCreateMatCSR(A_petsc,&matCSR);
         MatDestroy(&A_petsc);
       #else
-        CPALAMEM_Abort("Please Compile with PETSC to read other matrix file type");
+        CPLM_Abort("Please Compile with PETSC to read other matrix file type");
       #endif
     }
-    IVector_t posB = IVectorNULL(), perm = IVectorNULL();
-    ierr = metisKwayOrdering(&matCSR,
-                             &perm,
-                             nbBlockPart,
-                             &posB);CHKERR(ierr);
+    CPLM_IVector_t posB = CPLM_IVectorNULL(), perm = CPLM_IVectorNULL();
+    ierr = CPLM_metisKwayOrdering(&matCSR,
+                                  &perm,
+                                  nbBlockPart,
+                                  &posB);CPLM_CHKERR(ierr);
     // Permute the matrix
-    ierr = MatCSRPermute(&matCSR,
-                         &A_g,
-                         perm.val,
-                         perm.val,
-                         PERMUTE);CHKERR(ierr);
+    ierr = CPLM_MatCSRPermute(&matCSR,
+                              &A_g,
+                              perm.val,
+                              perm.val,
+                              PERMUTE);CPLM_CHKERR(ierr);
     // Change posB into rowPos because each proc might have several block Jacobi
     int inc = nbBlockPart / size;
     // For the moment we assume that each mpi process has one metis block
     if (inc != 1) {
-       CPALAMEM_Abort("Each MPI process must have one (and only one) metis"
+       CPLM_Abort("Each MPI process must have one (and only one) metis"
         "block (nbMetis = %d != %d = nbProcesses)",nbBlockPart,size);
     }
-    ierr = IVectorMalloc(&rowPos_g, size+1);CHKERR(ierr);
+    ierr = CPLM_IVectorMalloc(&rowPos_g, size+1);CPLM_CHKERR(ierr);
     for (int i = 0; i < size; i++)
        rowPos_g.val[i] = posB.val[i*inc];
     rowPos_g.val[size] = posB.val[nbBlockPart];
     // Send submatrices as row panel layout
     for (int dest = 1; dest < size; dest++) {
-        ierr = MatCSRGetRowPanel(&A_g,
-                                &matCSR,
-                                &rowPos_g,
-                                dest);CHKERR(ierr);
-        ierr = MatCSRSend(&matCSR, dest, MPI_COMM_WORLD);
+        ierr = CPLM_MatCSRGetRowPanel(&A_g,
+                                      &matCSR,
+                                      &rowPos_g,
+                                      dest);CPLM_CHKERR(ierr);
+        ierr = CPLM_MatCSRSend(&matCSR, dest, MPI_COMM_WORLD);
     }
-    MatCSRFree(&matCSR);
+    CPLM_MatCSRFree(&matCSR);
     // Just keep the row panel in master
-    MatCSRCopy(&A_g,&matCSR);
-    MatCSRFree(&A_g);
-    ierr = MatCSRGetRowPanel(&matCSR,
-                             &A_g,
-                             &rowPos_g,
-                             0);CHKERR(ierr);
+    CPLM_MatCSRCopy(&A_g,&matCSR);
+    CPLM_MatCSRFree(&A_g);
+    ierr = CPLM_MatCSRGetRowPanel(&matCSR,
+                                  &A_g,
+                                  &rowPos_g,
+                                  0);CPLM_CHKERR(ierr);
     // Free memory
-    IVectorFree(&posB);
-    IVectorFree(&perm);
-    MatCSRFree(&matCSR);
+    CPLM_IVectorFree(&posB);
+    CPLM_IVectorFree(&perm);
+    CPLM_MatCSRFree(&matCSR);
   }
   else { //other MPI processes received their own submatrix
-    ierr = MatCSRRecv(&A_g,0,MPI_COMM_WORLD);
+    ierr = CPLM_MatCSRRecv(&A_g,0,MPI_COMM_WORLD);
   }
-  ierr = IVectorBcast(&rowPos_g,MPI_COMM_WORLD,root);
-  ierr = MatCSRGetColBlockPos(&A_g,
-                              &rowPos_g,
-                              &colPos_g);CHKERR(ierr);
-  ierr = MatCSRGetCommDep(&colPos_g,
-                          A_g.info.m,
-                          size,
-                          rank,
-                          &dep_g);CHKERR(ierr);
+  ierr = CPLM_IVectorBcast(&rowPos_g,MPI_COMM_WORLD,root);
+  ierr = CPLM_MatCSRGetColBlockPos(&A_g,
+                                   &rowPos_g,
+                                   &colPos_g);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatCSRGetCommDep(&colPos_g,
+                               A_g.info.m,
+                               size,
+                               rank,
+                               &dep_g);CPLM_CHKERR(ierr);
 
-POP
+CPLM_POP
   return ierr;
 }
 
-void OperatorPrint(int rank) {
-PUSH
+void preAlps_OperatorPrint(int rank) {
+CPLM_PUSH
   if (rank == 0) {
-    IVectorPrintf("rowPos",&rowPos_g);
-    IVectorPrintf("colPos",&colPos_g);
-    IVectorPrintf("rowPtr",&rowPtr_g);
-    IVectorPrintf("dep"   ,&dep_g);
-    MatCSRPrintInfo(&A_g);
-    // MatCSRPrintf2D(&A_g,"A_g");
+    CPLM_IVectorPrintf("rowPos",&rowPos_g);
+    CPLM_IVectorPrintf("colPos",&colPos_g);
+    CPLM_IVectorPrintf("rowPtr",&rowPtr_g);
+    CPLM_IVectorPrintf("dep"   ,&dep_g);
+    CPLM_MatCSRPrintInfo(&A_g);
+    // CPLM_MatCSRPrintf2D(&A_g,"A_g");
   }
-POP
+CPLM_POP
 }
 
-void OperatorFree() {
-PUSH
-  IVectorFree(&rowPos_g);
-  IVectorFree(&colPos_g);
-  IVectorFree(&rowPtr_g);
-  IVectorFree(&dep_g);
-  MatCSRFree(&A_g);
-POP
+void preAlps_OperatorFree() {
+CPLM_PUSH
+  CPLM_IVectorFree(&rowPos_g);
+  CPLM_IVectorFree(&colPos_g);
+  CPLM_IVectorFree(&rowPtr_g);
+  CPLM_IVectorFree(&dep_g);
+  CPLM_MatCSRFree(&A_g);
+CPLM_POP
 }
 
-int BlockOperator(Mat_Dense_t* X, Mat_Dense_t* AX) {
+int preAlps_BlockOperator(CPLM_Mat_Dense_t* X, CPLM_Mat_Dense_t* AX) {
 PUSH
   int size;
   MPI_Comm_size(comm_g,&size);
   int algMatMult = 2;
-  int ierr = MatCSRMatMult(&A_g,
-                           X,
-                           &dep_g,
-                           dep_g.nval,
-                           AX,
-                           &rowPos_g,
-                           &colPos_g,
-                           &rowPtr_g,
-                           comm_g,
-                           algMatMult);
-POP
+  int ierr = CPLM_MatCSRMatMult(&A_g,
+                                X,
+                                &dep_g,
+                                dep_g.nval,
+                                AX,
+                                &rowPos_g,
+                                &colPos_g,
+                                &rowPtr_g,
+                                comm_g,
+                                algMatMult);
+CPLM_POP
   return ierr;
 }
 
-int OperatorGetA(Mat_CSR_t* A) {
-PUSH
-  ASSERT(A != NULL);
+int preAlps_OperatorGetA(CPLM_Mat_CSR_t* A) {
+CPLM_PUSH
+  CPLM_ASSERT(A != NULL);
   *A = A_g;
-POP
+CPLM_POP
   return 0;
 }
 
-int OperatorGetSizes(int* M, int* m) {
-PUSH
-  ASSERT(M != NULL);
-  ASSERT(m != NULL);
+int preAlps_OperatorGetSizes(int* M, int* m) {
+CPLM_PUSH
+  CPLM_ASSERT(M != NULL);
+  CPLM_ASSERT(m != NULL);
   *M = A_g.info.M;
   *m = A_g.info.m;
-POP
+CPLM_POP
   return 0;
 }
 
-int OperatorGetRowPosPtr(int** rowPos, int* sizeRowPos) {
-PUSH
+int preAlps_OperatorGetRowPosPtr(int** rowPos, int* sizeRowPos) {
+CPLM_PUSH
   *sizeRowPos = rowPos_g.nval;
   *rowPos = rowPos_g.val;
-POP
+CPLM_POP
   return (rowPos == NULL);
 }
 
-int OperatorGetColPosPtr(int** colPos, int* sizeColPos) {
-PUSH
+int preAlps_OperatorGetColPosPtr(int** colPos, int* sizeColPos) {
+CPLM_PUSH
   *sizeColPos = colPos_g.nval;
   *colPos = colPos_g.val;
-POP
+CPLM_POP
   return (colPos == NULL);
 }
 
-int OperatorGetDepPtr(int** dep, int* sizeDep) {
-PUSH
+int preAlps_OperatorGetDepPtr(int** dep, int* sizeDep) {
+CPLM_PUSH
   *sizeDep = dep_g.nval;
   *dep = dep_g.val;
-POP
+CPLM_POP
   return (dep == NULL);
 }
 

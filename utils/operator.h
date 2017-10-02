@@ -31,20 +31,59 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 
-/* Mem management */
-int OperatorBuild(const char* matrixFilename, MPI_Comm comm); // Read the global variables A and AStruct
-void OperatorFree();
-/* Utils */
-void OperatorPrint(int rank);
-int  OperatorGetSizes(int* M, int* m);
-int  BlockOperator(Mat_Dense_t* X, Mat_Dense_t* AX);
-/* With Block diagonal preconditioner */
-/* int  BlockOperatorJacPrec(Mat_Dense_t* X, Mat_Dense_t* AX); */
-int  Operator(DVector_t* x, DVector_t* ax); // TODO
-int  OperatorGetA(Mat_CSR_t* A);
-int  OperatorGetRowPosPtr(int** rowPos, int* sizeRowPos);
-int  OperatorGetColPosPtr(int** colPos, int* sizeColPos);
-int  OperatorGetDepPtr(int** dep, int* sizeDep);
+/*
+ * Read a sparse matrix from file (mtx or petsc binary) then partition it
+ * using METIS K-Way algorithm into the number of processor in the communicator
+ * comm and distribute it among those processors.
+ * input: matrixFilename: MatrixMarket or PETSc binary file
+ *        comm          : MPI communicator
+ */
+int  preAlps_OperatorBuild(const char* matrixFilename, MPI_Comm comm);
+
+/*
+ * Release memory allocated during preAlp_OperatorBuild.
+ */
+void preAlps_OperatorFree();
+
+/*
+ * Print informations about the operator.
+ */
+void preAlps_OperatorPrint(int rank);
+
+/*
+ * Apply the operator to a group of vector X and put the result into AX.
+ * input : X : CPLM_Mat_Dense_t
+ * output: AX: CPLM_Mat_Dense_t
+ */
+int  preAlps_OperatorGetSizes(int* M, int* m);
+
+/*
+ * Return the local part of the operator as a row panel CSR matrix.
+ */
+int  preAlps_BlockOperator(CPLM_Mat_Dense_t* X, CPLM_Mat_Dense_t* AX);
+
+/*
+ * Return the global size and local size of the operator A.
+ */
+int  preAlps_OperatorGetA(CPLM_Mat_CSR_t* A);
+
+/*
+ * Return a vector containing the global row index corresponding to the beginning
+ * of each row panel.
+ */
+int  preAlps_OperatorGetRowPosPtr(int** rowPos, int* sizeRowPos);
+
+/*
+ * Return a vector containing the global col index corresponding to the beginning
+ * of each local column block (column block i corresponds to values at the interface
+ * between processor i and my_rank)
+ */
+int  preAlps_OperatorGetColPosPtr(int** colPos, int* sizeColPos);
+
+/*
+ * Return a vector containing the indexes of the neighbor processors.
+ */
+int  preAlps_OperatorGetDepPtr(int** dep, int* sizeDep);
 /******************************************************************************/
 
 #endif
