@@ -55,7 +55,7 @@ ADDITIONAL_FLAGS = -DAdd_
 
 # Provide the path for cpalamem
 
-  CPALAMEM_DIR      = /Users/otissot/Documents/Projets/CPALAMEM_LIGHT
+  CPALAMEM_DIR      = ${CPALAMEM_ROOT}
   CPALAMEM_INC      = -I${CPALAMEM_DIR}/include
   CPALAMEM_LIB      = -L${CPALAMEM_DIR}/lib -lcpalamem_core
   INCLUDE_FLAGS    += $(CPALAMEM_INC)
@@ -71,7 +71,7 @@ ADDITIONAL_FLAGS = -DAdd_
   LD_FLAGS         += $(METIS_LIB)
 
 # Provide the path for ParMetis
-USE_PARMETIS=0
+USE_PARMETIS=1
 ifeq ($(USE_PARMETIS), 1)
   PARMETIS_DIR      = ${PARMETIS_ROOT}
   PARMETIS_INC      = -I$(PARMETIS_DIR)/include
