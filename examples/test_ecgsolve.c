@@ -21,6 +21,7 @@
 #include <cpalamem_macro.h>
 #include <cpalamem_instrumentation.h>
 
+
 #ifdef PETSC
 #include <petsc_interface.h>
 /* Petsc */
@@ -37,11 +38,15 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 int main(int argc, char** argv) {
-
+#ifdef PETSC
+  CPLM_Init(&argc, &argv);
+#else
   MPI_Init(&argc, &argv);
+#endif
 
+  CPLM_OPEN_TIMER
   /*================ Initialize ================*/
-  int rank, size, ierr;
+  int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -105,7 +110,7 @@ int main(int argc, char** argv) {
   VecAssemblyBegin(B);
   // Set solver
   KSPCreate(MPI_COMM_WORLD,&ksp);
-  petscCreateMatFromMatCSR(&A,&A_petsc);
+  CPLM_petscCreateMatFromMatCSR(&A,&A_petsc);
   KSPSetOperators(ksp,A_petsc,A_petsc);
   KSPSetType(ksp,KSPCG);
   KSPSetTolerances(ksp,
@@ -128,11 +133,12 @@ int main(int argc, char** argv) {
   for (int i=0; i<nlocal; i++) {
     KSPGetPC(subksp[i],&subpc);
     PCSetType(subpc,PCCHOLESKY);
+    PCFactorSetMatSolverPackage(subpc,MATSOLVERMKL_PARDISO);
   }
 
-TIC(step1,"KSPSolve")
+CPLM_TIC(step1,"KSPSolve")
   KSPSolve(ksp,B,X);
-TAC(step1)
+CPLM_TAC(step1)
 
   int its = -1;
   double rnorm = 0e0;
@@ -157,13 +163,14 @@ TAC(step1)
 
 #ifdef PETSC
   /*Restore the pointer*/
-  VecGetArray(B,rhs);
+  VecGetArray(B,&rhs);
 #endif
   // Get local and global sizes of operator A
   int rci_request = 0;
   int stop = 0;
   double* sol = NULL;
   sol = (double*) malloc(m*sizeof(double));
+CPLM_TIC(step2,"ECGSolve")
   // Allocate memory and initialize variables
   preAlps_ECGInitialize(&ecg,rhs,&rci_request);
   // Finish initialization
@@ -171,12 +178,12 @@ TAC(step1)
   preAlps_BlockOperator(ecg.P,ecg.AP);
   // Main loop
   while (stop != 1) {
-    ierr = preAlps_ECGIterate(&ecg,&rci_request);
+    preAlps_ECGIterate(&ecg,&rci_request);
     if (rci_request == 0) {
       preAlps_BlockOperator(ecg.P,ecg.AP);
     }
     else if (rci_request == 1) {
-      ierr = preAlps_ECGStoppingCriterion(&ecg,&stop);
+      preAlps_ECGStoppingCriterion(&ecg,&stop);
       if (stop == 1) break;
       if (ecg.ortho_alg == ORTHOMIN)
         preAlps_BlockJacobiApply(ecg.R,ecg.Z);
@@ -186,6 +193,7 @@ TAC(step1)
   }
   // Retrieve solution and free memory
   preAlps_ECGFinalize(&ecg,sol);
+CPLM_TAC(step2)
 
   if (rank == 0)
     printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
@@ -201,7 +209,13 @@ TAC(step1)
   if (rhs != NULL) free(rhs);
   if (sol != NULL) free(sol);
   preAlps_OperatorFree();
+CPLM_CLOSE_TIMER
+
+#ifdef PETSC
+  CPLM_Finalize();
+#else
   MPI_Finalize();
-  return ierr;
+#endif
+  return 0;
 }
 /******************************************************************************/
