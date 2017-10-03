@@ -38,7 +38,7 @@ int Lorasc_alloc(Lorasc_t **lorasc){
 */
 int Lorasc_build(Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, MPI_Comm comm){
 
-  
+  return 0;  
 }
 
 /*Destroy the preconditioner*/

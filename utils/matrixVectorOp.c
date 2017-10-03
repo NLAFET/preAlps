@@ -8,6 +8,7 @@ an iterative methods or eigensolver
 Date        : Sept 15, 2017
 ============================================================================
 */
+#include "preAlps_utils.h"
 #include "solverStats.h"
 #include "matrixVectorOp.h"
 

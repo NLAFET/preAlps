@@ -2,7 +2,7 @@
 #   Locate the root directory of this library
 #
 
-HOME_DIR = .
+HOME_DIR = ${PWD}
 
 #
 # Environment of the project
@@ -20,7 +20,7 @@ EXAMPLES  = examples
 #   Compilers
 #
 
-CC           = mpicc
+CC           = mpicc 
 CFLAGS       = -Wall -funroll-loops -std=c99 -fPIC
 OPT          = -O3 -march=native -mtune=native
 LOADER       = mpicc
@@ -55,12 +55,13 @@ ADDITIONAL_FLAGS = -DAdd_
 
 # Provide the path for cpalamem
 
-  CPALAMEM_DIR      = ${CPALAMEM_ROOT}
+  CPALAMEM_DIR      = ${HOME_DIR}/utils/cpalamem
   CPALAMEM_INC      = -I${CPALAMEM_DIR}/include
   CPALAMEM_LIB      = -L${CPALAMEM_DIR}/lib -lcpalamem_core
   INCLUDE_FLAGS    += $(CPALAMEM_INC)
   LD_FLAGS         += $(CPALAMEM_LIB)
   ADDITIONAL_FLAGS += -DMPIACTIVATE -DMETISACTIVATE -DCPALAMEM_BENCHMARK
+  CPALAMEM_TAR      = CPALAMEM_2017-10-03-15_18_54.tar.gz
 
 # Provide the path for METIS
 
@@ -162,11 +163,11 @@ USE_MKL=1
 
 ifeq ($(USE_MKL), 1)
   MKL_DIR          = ${MKL_ROOT}
-  MKL_INC           = -I$(MKL_DIR)/include
-  MKL_LIB           = -L$(MKL_DIR)/lib -Wl,-rpath,${MKL_ROOT}/lib -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread -lm -ldl -lcpalamem_mkl
+  MKL_INC           = $(MKL_DIR)/include
+  MKL_LIB           = -L$(MKL_DIR)/lib -Wl,-rpath,${MKL_ROOT}/lib -lmkl_core -lmkl_sequential -lmkl_intel_lp64 -lpthread -ldl -lcpalamem_mkl
 # MKL_LIB           = -L$(MKL_DIR)/lib/intel64 -Wl,-rpath,$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
 # MKL_LIB           = -Wl,--no-as-needed -L$(MKL_DIR)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
-  INCLUDE_FLAGS    += $(MKL_INC)
+  INCLUDE_FLAGS    += -I$(MKL_INC)
   LD_FLAGS         += $(MKL_LIB)
   ADDITIONAL_FLAGS += -DMKLACTIVATE -DUSE_MKL
 endif
@@ -193,9 +194,9 @@ endif
 USE_PETSC=0
 ifeq ($(USE_PETSC), 1)
   #PETSC_DIR   = ${PETSC_DIR}
-  PETSC_INC   = -I$(PETSC_DIR)/include
+  PETSC_INC   = $(PETSC_DIR)/include
   PETSC_LIB   = -L$(PETSC_DIR)/lib -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc -lcpalamem_petsc
-  INCLUDE_FLAGS    += $(PETSC_INC)
+  INCLUDE_FLAGS    += -I$(PETSC_INC)
   LD_FLAGS         += $(PETSC_LIB)
   ADDITIONAL_FLAGS += -DPETSC
 endif

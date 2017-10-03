@@ -8,6 +8,7 @@ Date        : Mai 15, 2017
 ============================================================================
 */
 #include <mpi.h>
+#include <mkl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

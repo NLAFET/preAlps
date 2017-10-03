@@ -15,7 +15,7 @@ OBJ  = $(PRECONDITIONERS_OBJ) $(SOLVERS_OBJ)
 all: $(OBJ) create_lib
 
 %.o: %.c
-	$(CC) -o $@ -c $^ $(INCLUDE_FLAGS) $(CFLAGS) $(OPT)
+	$(CC) $(CFLAGS) -o $@ -c $^ $(INCLUDE_FLAGS) $(OPT)
 
 create_lib:
 	$(ARCH) $(ARCHFLAGS) ../$(LIBDIR)/lib$(LIBNAME).a $(OBJ)

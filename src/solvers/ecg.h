@@ -17,7 +17,10 @@
 #include <time.h>
 /* MPI */
 #include <mpi.h>
+/* MKL */
+#include<mkl.h>
 /* CPaLAMeM */
+#include <cpalamem_macro.h>
 #include <mat_csr.h>
 #include <mat_dense.h>
 #include <ivector.h>
@@ -25,13 +28,7 @@
 #include <cholqr.h>
 #include <matmult.h>
 #include <kernels.h>
-/* Preconditioner */
-#include <precond.h>
-/* CPaLAMeM */
-#include <cpalamem_macro.h>
 #include <cpalamem_instrumentation.h>
-/* MKL */
-#include<mkl.h>
 
 /* A-orthonormalization algorithm */
 typedef enum {

@@ -7,6 +7,7 @@ Description : A generic preconditioner class that can be used by the solver
 Date        : Sept 27, 2017
 ============================================================================
 */
+#include <stdio.h>
 #include <stdlib.h>
 #include "preAlps_preconditioner.h"
 #include "preAlps_utils.h"
