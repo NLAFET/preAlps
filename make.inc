@@ -71,7 +71,7 @@ ADDITIONAL_FLAGS = -DAdd_
   LD_FLAGS         += $(METIS_LIB)
 
 # Provide the path for ParMetis
-USE_PARMETIS=1
+USE_PARMETIS=0
 ifeq ($(USE_PARMETIS), 1)
   PARMETIS_DIR      = ${PARMETIS_ROOT}
   PARMETIS_INC      = -I$(PARMETIS_DIR)/include
@@ -194,7 +194,7 @@ USE_PETSC=0
 ifeq ($(USE_PETSC), 1)
   #PETSC_DIR   = ${PETSC_DIR}
   PETSC_INC   = -I$(PETSC_DIR)/include
-  PETSC_LIB   = -L$(PETSC_DIR)/lib -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc
+  PETSC_LIB   = -L$(PETSC_DIR)/lib -L${PETSC_DIR}/${PETSC_ARCH}/lib -lpetsc -lcpalamem_petsc
   INCLUDE_FLAGS    += $(PETSC_INC)
   LD_FLAGS         += $(PETSC_LIB)
   ADDITIONAL_FLAGS += -DPETSC
