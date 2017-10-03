@@ -26,9 +26,7 @@ int preAlps_BlockJacobiCreate(CPLM_Mat_CSR_t* A,
                               int* rowPos,
                               int sizeRowPos,
                               int* colPos,
-                              int sizeColPos,
-                              int* dep,
-                              int sizeDep)
+                              int sizeColPos)
 {
 CPLM_PUSH
   int size, rank, ierr;
@@ -40,10 +38,8 @@ CPLM_PUSH
   int mtype = 2, perm = 1;
   CPLM_IVector_t rowPos_s = CPLM_IVectorNULL();
   CPLM_IVector_t colPos_s = CPLM_IVectorNULL();
-  CPLM_IVector_t dep_s    = CPLM_IVectorNULL();
   CPLM_IVectorCreateFromPtr(&rowPos_s,sizeRowPos,rowPos);
   CPLM_IVectorCreateFromPtr(&colPos_s,sizeColPos,colPos);
-  CPLM_IVectorCreateFromPtr(&dep_s,sizeDep,dep);
   // Construct Cholesky of the diagonal block
   CPLM_MatCSRPARDISOSetParameters(iparam_g);
   iparam_g[4] = 0;

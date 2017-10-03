@@ -75,9 +75,7 @@ int main(int argc, char** argv) {
                             rowPos,
                             sizeRowPos,
                             colPos,
-                            sizeColPos,
-                            dep,
-                            sizeDep);
+                            sizeColPos);
 
   /*============= Construct a random rhs =============*/
   double* rhs = (double*) malloc(A.info.m*sizeof(double));

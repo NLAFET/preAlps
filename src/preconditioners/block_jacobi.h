@@ -33,15 +33,34 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 
+/*
+ * Factorize the diagonal block associated to the local row panel owned locally
+ * input: A         : a CSR matrix CPLM_Mat_CSR_t
+ *        rowPos    : the vector returned by preAlps_OperatorGetRowPosPtr
+ *        sizeRowPos: the size of rowPos
+ *        colPos    : the vector returned by preAlps_OperatorGetColPosPtr
+ *        sizeColPos: the size of colPos
+ */
 int preAlps_BlockJacobiCreate(CPLM_Mat_CSR_t* A,
                               int* rowPos,
                               int sizeRowPos,
                               int* colPos,
-                              int sizeColPos,
-                              int* dep,
-                              int sizeDep);
+                              int sizeColPos);
+
+/*
+ * Solve Mx = rhs and put the result into rhs.
+ * Internal usage only.
+ */
 int preAlps_BlockJacobiInitialize(CPLM_DVector_t* rhs);
+
+/*
+ * Solve M B_out = A_in with M a block Jacobi preconditioner.
+ */
 int preAlps_BlockJacobiApply(CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out);
+
+/*
+ * Free the memory allocated during the construction of the preconditioner.
+ */
 void preAlps_BlockJacobiFree();
 
 /******************************************************************************/
