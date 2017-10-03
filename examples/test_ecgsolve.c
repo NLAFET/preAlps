@@ -42,6 +42,7 @@ int main(int argc, char** argv) {
   CPLM_Init(&argc, &argv);
 #else
   MPI_Init(&argc, &argv);
+  CPLM_SetEnv();
 #endif
 
   CPLM_OPEN_TIMER
@@ -214,6 +215,7 @@ CPLM_CLOSE_TIMER
 #ifdef PETSC
   CPLM_Finalize();
 #else
+  CPLM_printTimer(NULL);
   MPI_Finalize();
 #endif
   return 0;
