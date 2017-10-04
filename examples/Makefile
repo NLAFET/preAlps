@@ -1,6 +1,6 @@
 include ../make.inc
 
-SRC = test_ecgsolve.c #test_lorasc.c test_cgsolve.c test_presc.c
+SRC = test_ecgsolve.c #test_lorasc.c test_presc.c #test_cgsolve.c test_presc.c
 
 OBJ = $(SRC:.c=.o)
 EXE = $(OBJ:.o=)
@@ -14,7 +14,4 @@ $(EXE):	$(OBJ)
 	$(LOADER) -o ../$(BINDIR)/$@ $@.o -L../$(LIBDIR) -l$(LIBNAME) $(LD_FLAGS) $(LOADOPTS) $(OPT)
 
 clean:
-	for file in $(EXE); do \
-		rm -f ../$(BINDIR)/$$file; \
-	done
-	-${RM} $(OBJ)
+	-${RM} $(OBJ) $(addprefix ../$(BINDIR)/,$(EXE))
