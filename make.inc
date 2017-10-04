@@ -87,13 +87,13 @@ SPARSE_SOLVER_CHOICE = 2
 
 # Provide the path for cpalamem
 
-  CPALAMEM_DIR         = ${CPALAMEM_ROOT}
+  CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
   CPALAMEM_INC         = ${CPALAMEM_DIR}/include
   CPALAMEM_LIB         = ${CPALAMEM_DIR}/lib
   INCLUDE_FLAGS       += $(addprefix -I,$(CPALAMEM_INC))
   LD_FLAGS            += -L$(CPALAMEM_LIB) -lcpalamem_core
   ADDITIONAL_FLAGS    += -DMPIACTIVATE -DMETISACTIVATE -DCPALAMEM_BENCHMARK
-  CPALAMEM_TAR         = CPALAMEM_2017-10-03-15_18_54.tar.gz
+  CPALAMEM_TAR        := $(shell ls -t $(HOME_DIR)/utils/CPALAMEM_*.tar.gz | head -1)
 
 # Provide the path for METIS
 
@@ -106,7 +106,7 @@ SPARSE_SOLVER_CHOICE = 2
   ADDITIONAL_LD_FLAGS += -lcpalamem_metis
 # Provide the path for ParMetis
 
-USE_PARMETIS=1
+USE_PARMETIS=0
 ifeq ($(USE_PARMETIS), 1)
   PARMETIS_DIR         = ${PARMETIS_ROOT}
   PARMETIS_INC         = $(PARMETIS_DIR)/include

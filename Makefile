@@ -4,12 +4,6 @@ include make.inc
 
 all: compil_utils  compil_src compil_examples ok
 
-install_cpalamem:
-	@if [ ! -d $(CPALAMEM_DIR) ]; then mkdir -v $(CPALAMEM_DIR); tar xzvf utils/$(CPALAMEM_TAR) -C $(CPALAMEM_DIR);	cd $(CPALAMEM_DIR);./configure --cc $(CC) --with-metis --with-mkl;	make full;fi
-
-compil_cpalamem:
-	make -C $(CPALAMEM_ROOT) full
-
 compil_utils:
 	@if [ ! -d $(LIBDIR) ]; then mkdir -v $(LIBDIR);fi
 	make -C $(UTILS)
@@ -31,6 +25,28 @@ clean:
 distclean:
 	clean
 	make clean -C $(EXAMPLES)
+
+install_cpalamem:$(CPALAMEM_DIR)
+	cd $(CPALAMEM_DIR);./configure --cc $(CC) --with-metis --with-mkl
+	make compil_cpalamem
+
+$(CPALAMEM_TAR):$(CPALAMEM_DIR)/configure
+
+$(CPALAMEM_DIR)/configure:
+	@tar xzvf $(CPALAMEM_TAR) -C $(CPALAMEM_DIR)
+
+$(CPALAMEM_DIR):
+	@if [ ! -d $(CPALAMEM_DIR) ]; then mkdir -v $(CPALAMEM_DIR);fi
+	make $(CPALAMEM_TAR)
+
+compil_cpalamem:
+	make -C $(CPALAMEM_DIR) full
+
+clean_cpalamem:
+	make -C $(CPALAMEM_DIR) cleanAll
+
+remove_cpalamem:
+	@if [ -d $(CPALAMEM_DIR) ]; then rm -vr $(CPALAMEM_DIR);fi
 
 ok:
 	@echo ""
