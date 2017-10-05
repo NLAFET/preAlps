@@ -87,8 +87,8 @@ SPARSE_SOLVER_CHOICE = 0
 
 # Provide the path for cpalamem
 
-# CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
-  CPALAMEM_DIR         = ${CPALAMEM_ROOT}
+  CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
+ # CPALAMEM_DIR        = ${CPALAMEM_ROOT}
   CPALAMEM_INC         = ${CPALAMEM_DIR}/include
   CPALAMEM_LIB         = ${CPALAMEM_DIR}/lib
   INCLUDE_FLAGS       += $(addprefix -I,$(CPALAMEM_INC))
