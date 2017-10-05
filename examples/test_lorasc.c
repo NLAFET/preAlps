@@ -19,7 +19,9 @@ Date        : Mai 15, 2017
 #include "lorasc.h"
 #include "preAlps_preconditioner.h"
 #include "ecg.h"
-//#include "cgsolver.h"
+#include "operator.h"
+
+#define USE_OPERATORBUILD 1
 
 /**/
 int main(int argc, char** argv){
@@ -31,8 +33,9 @@ int main(int argc, char** argv){
   CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int i, ierr   = 0;
 
-  double *x = NULL, *b = NULL;
-  int b_size = 0;
+  double *b = NULL;//*x = NULL,
+
+  int m, mloc, offsetloc, b_size = 0;
 
 
   /* Generic preconditioner type and object */
@@ -40,7 +43,7 @@ int main(int argc, char** argv){
   PreAlps_preconditioner_t *precond = NULL;
 
   /* Lorasc preconditioner */
-  Lorasc_t *lorascA = NULL;
+  preAlps_Lorasc_t *lorascA = NULL;
 
 
   /* Start MPI*/
@@ -86,7 +89,6 @@ int main(int argc, char** argv){
   /*
    * Load the matrix on proc 0
    */
-
   if(my_rank==0){
 
     if(strlen(matrix_filename)==0){
@@ -96,40 +98,33 @@ int main(int argc, char** argv){
     printf("Matrix name: %s\n", matrix_filename);
 
     printf("Reading matrix ...\n");
+  }
+
+#if USE_OPERATORBUILD
+  /* Use Ecg built-in operator */
+
+  /* Read and partition the matrix */
+  preAlps_OperatorBuild(matrix_filename, comm);
+
+  // Get the CSR structure of A
+  preAlps_OperatorGetA(&A);
+
+  // Get the sizes of A
+  preAlps_OperatorGetSizes(&m, &mloc);
+
+
+#else
+  /* Read the matrix in the conventional way */
+
+  if(my_rank==0){
+
 
     CPLM_LoadMatrixMarket(matrix_filename, &A);
-    CPLM_MatCSRPrintInfo(&A);
-    //CPLM_MatCSRPrintf2D("Loaded matrix", &A);
 
-    CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
+    /* Get the local dimension of A*/
+    preAlps_nsplit(A.info.m, nbprocs, my_rank, &mloc, &offsetloc);
 
 
-    if(strlen(rhs_filename)==0){
-      /*Generate a random rhs*/
-      //preAlps_abort("Random rhs not yet implemented"); /* TODO */
-      CPLM_DVector_t rhs = CPLM_DVectorNULL();
-      CPLM_DVectorMalloc(&rhs, A.info.m);
-      CPLM_DVectorRandom(&rhs, 11);
-      b = rhs.val;
-      b_size = rhs.nval;
-    }else{
-
-      /* Read rhs */
-      preAlps_doubleVector_load(rhs_filename, &b, &b_size);
-
-    }
-
-    printf("Rhs size:%d\n", b_size);
-
-    //for(i=0;i<b_size;i++) printf("b[%d]: %f\n", i, b[i]);
-
-    preAlps_doubleVector_printSynchronized(b, b_size, "b", "rhs", MPI_COMM_SELF);
-
-    if(b_size!=A.info.n){
-
-      preAlps_abort("Error: The matrix and rhs size does not match. Matrix size: %d x %d, rhs size: %d", A.info.m, A.info.n, b_size);
-
-    }
     /*Scale the matrix*/
     double *R, *C;
 
@@ -148,9 +143,42 @@ int main(int argc, char** argv){
     #endif
 
     CPLM_MatCSRPrintCoords(&A, "Scaled matrix");
+  }
+#endif
+
+
+CPLM_MatCSRPrintInfo(&A);
+//CPLM_MatCSRPrintf2D("Loaded matrix", &A);
+
+CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
+
+
+/* Read the rhs*/
+  if(strlen(rhs_filename)==0){
+    /*Generate a random rhs*/
+    CPLM_DVector_t rhs = CPLM_DVectorNULL();
+    CPLM_DVectorMalloc(&rhs, mloc);
+    CPLM_DVectorRandom(&rhs, 11);
+    b = rhs.val;
+    b_size = rhs.nval;
+  }else{
+
+    /* Read rhs on proc 0 and distribute */
+    if(my_rank==0){
+      preAlps_doubleVector_load(rhs_filename, &b, &b_size);
+      printf("Rhs size:%d\n", b_size);
+      preAlps_doubleVector_printSynchronized(b, b_size, "b", "rhs", MPI_COMM_SELF);
+      if(b_size!=A.info.n){
+        preAlps_abort("Error: The matrix and rhs size does not match. Matrix size: %d x %d, rhs size: %d", A.info.m, A.info.n, b_size);
+      }
+    }
+
+    /* Distribute the rhs */
 
 
   }
+
+
 
   if(precond_type==PREALPS_NOPREC){
 
@@ -163,13 +191,13 @@ int main(int argc, char** argv){
     if(my_rank==0) printf("Preconditioner: LORASC\n");
 
     /* Memory allocation for the preconditioner */
-    ierr =  Lorasc_alloc(&lorascA); preAlps_checkError(ierr);
+    ierr =  preAlps_LorascAlloc(&lorascA); preAlps_checkError(ierr);
 
     /* Set parameters for the preconditioners */
     lorascA->deflation_tolerance = 1e-2;
 
     /* Build the preconditioner */
-    Lorasc_build(lorascA, &A, &locAP, comm);
+    preAlps_LorascBuild(lorascA, &A, &locAP, comm);
 
     /* Create a generic preconditioner object compatible with EcgSolver*/
     preAlps_PreconditionerCreate(&precond, precond_type, (void *) lorascA);
@@ -188,13 +216,46 @@ int main(int argc, char** argv){
   ecg.ortho_alg = ORTHOMIN;       /* Orthogonalization algorithm */
   //ECGSolve(ecg, precond, &locAP, b, x);
 
+
+  int rci_request = 0;
+  int stop = 0;
+  double* sol = NULL;
+  sol = (double*) malloc(m*sizeof(double));
+  // Allocate memory and initialize variables
+  preAlps_ECGInitialize(&ecg, b, &rci_request);
+  // Finish initialization
+  preAlps_PreconditionerMatApply(precond, ecg.R,ecg.P);
+  preAlps_BlockOperator(ecg.P,ecg.AP);
+  // Main loop
+  while (stop != 1) {
+    preAlps_ECGIterate(&ecg,&rci_request);
+    if (rci_request == 0) {
+      preAlps_BlockOperator(ecg.P,ecg.AP);
+    }
+    else if (rci_request == 1) {
+      preAlps_ECGStoppingCriterion(&ecg,&stop);
+      if (stop == 1) break;
+      if (ecg.ortho_alg == ORTHOMIN)
+        preAlps_PreconditionerMatApply(precond, ecg.R,ecg.Z);
+      else if (ecg.ortho_alg == ORTHODIR)
+        preAlps_PreconditionerMatApply(precond, ecg.AP,ecg.Z);
+    }
+  }
+  // Retrieve solution and free memory
+  preAlps_ECGFinalize(&ecg,sol);
+
+
   if (my_rank == 0)
     printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
 
+ free(sol);
+#if USE_OPERATORBUILD
+  preAlps_OperatorFree();
+#endif
 
   if(precond_type==PREALPS_LORASC){
     /* Destroy Lorasc preconditioner */
-    ierr =  Lorasc_destroy(&lorascA); preAlps_checkError(ierr);
+    ierr =  preAlps_LorascDestroy(&lorascA); preAlps_checkError(ierr);
   }
 
   /* Destroy the generic preconditioner object*/
