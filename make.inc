@@ -27,7 +27,7 @@ LOADER       = mpicc
 LOADOPTS     = -lgfortran
 LD_FLAGS     =
 
-USE_DEBUG=1
+USE_DEBUG=0
 #possible values: -DDEBUG -DPRINT_MOD=<number> -DDEBUG_AGG_SOLVE=1
 ifeq ($(USE_DEBUG), 1)
   CFLAGS        += -g -std=c99 -DDEBUG -DDEBUG_AGG_SOLVE=1
