@@ -251,7 +251,7 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CS
    * Solve the eigenvalue problem
    */
 
-   preAlps_Lorasc_eigSolve(lorasc, comm, mloc, &locAgg, &Agi, &Aii, &Aig, &Agg, Aii_sv, Agg_sv);
+   preAlps_LorascEigSolve(lorasc, comm, mloc, &locAgg, &Agi, &Aii, &Aig, &Agg, Aii_sv, Agg_sv);
 
 
   /* Free memory*/
