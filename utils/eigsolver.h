@@ -16,7 +16,7 @@ typedef struct{
 
   /*Input*/
   char bmat;      /*Standard or generalized problem*/
-  char which[2];  /*Larger or smaller eigenvalues*/
+  char which[3];  /*Larger or smaller eigenvalues*/
   int maxit;      /*maximum number of iterations*/
 
   int iparam[11];

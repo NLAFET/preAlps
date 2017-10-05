@@ -35,6 +35,12 @@ typedef struct
 /* Initialize mumps structure*/
 int mumps_solver_init(mumps_solver_t *solver, MPI_Comm comm);
 
+
+/* Perform the factorization of the matrix,
+*/
+int mumps_solver_factorize(mumps_solver_t *solver, int n, double *a, int *ia, int *ja);
+
+
 /* Perform the partial factorization of the matrix,
  * and compute S = A_{22} - A_{21}A_{11}^{-1}A_{12}
  * The factored part of the matrix can be use to solve the system A_{11}x= b1;
@@ -46,5 +52,8 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
 
 
 void mumps_solver_finalize(mumps_solver_t *solver, int n, int *ia, int *ja);
+
+/*Solve Ax = b using mumps */
+int mumps_solver_triangsolve(mumps_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b);
 
 #endif

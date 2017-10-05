@@ -21,11 +21,11 @@ typedef struct{
   double *eigvalues;      /* The eigenvalues computed during the build of the solver */
   int eigvalues_deflation; /*Number of eigenvalues selected for the deflation*/
 
-} Lorasc_t;
+} preAlps_Lorasc_t;
 
 
 /*Allocate workspace for the preconditioner*/
-int Lorasc_alloc(Lorasc_t **lorasc);
+int preAlps_LorascAlloc(preAlps_Lorasc_t **lorasc);
 
 /*
  * Build the preconditioner
@@ -37,10 +37,10 @@ int Lorasc_alloc(Lorasc_t **lorasc);
  *     output: the local permuted matrix on each proc after the preconditioner is built
  *
 */
-int Lorasc_build(Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, MPI_Comm comm);
+int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, MPI_Comm comm);
 
 
 /*Destroy the preconditioner*/
-int Lorasc_destroy(Lorasc_t **lorasc);
+int preAlps_LorascDestroy(preAlps_Lorasc_t **lorasc);
 
 #endif

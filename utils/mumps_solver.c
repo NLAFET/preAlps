@@ -27,6 +27,8 @@ int mumps_solver_init(mumps_solver_t *solver, MPI_Comm comm){
   solver->id.sym=0;
   solver->id.job=JOB_INIT;
 
+  solver->id.ISOL_loc = NULL;
+
   solver->irn = NULL;
   solver->jcn = NULL;
 
@@ -39,6 +41,22 @@ int mumps_solver_init(mumps_solver_t *solver, MPI_Comm comm){
 
   return 0;
 }
+
+
+/* Perform the factorization of the matrix,
+*/
+int mumps_solver_factorize(mumps_solver_t *solver, int n, double *a, int *ia, int *ja){
+
+  int ierr;
+
+  /* call the partial interface without the schur complement */
+  int S_n =0;
+  ierr = mumps_solver_partial_factorize(solver, n, a, ia, ja, S_n,
+                                              NULL, NULL, NULL);
+
+  return ierr;
+}
+
 
 /* Perform the partial factorization of the matrix,
  * and compute S = A_{22} - A_{21}A_{11}^{-1}A_{12}
@@ -131,7 +149,7 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
 
   if(S_n>0) solver->id.ICNTL(19) = 1; //Computes the schur centralized by rows on the host
 
-  /* Call the MUMPS package (analyse, factorization and solve). */
+  /* Call the MUMPS package (analyse, factorization). */
   solver->id.job=4;
   dmumps_c(&solver->id);
 
@@ -140,6 +158,12 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
     //preAlps_abort("");
   }
 
+  if (myid == 0) {
+    printf("[mumps] INFO[23]:%d\n", solver->id.info[23]);
+  }
+
+  //solver->id.LSOL_loc = solver->id.info[23];
+  //solver->id.ISOL_loc = (int*) malloc((solver->id.LSOL_loc)*sizeof(int));;
 
   if (myid == 0) {
 
@@ -205,8 +229,35 @@ void mumps_solver_finalize(mumps_solver_t *solver, int n, int *ia, int *ja){
   free(solver->irn);
   free(solver->jcn);
 
+  if(solver->id.ISOL_loc != NULL) free(solver->id.ISOL_loc);
+
   solver->id.job=JOB_END;
   dmumps_c(&solver->id);
+
+}
+
+/*Solve Ax = b using mumps */
+int mumps_solver_triangsolve(mumps_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b){
+
+
+  if(x!= NULL ){
+    printf("MUMPS triangular solve. Argument x is not used, the solution will be overwrite b, set x = NULL\n ");
+    exit(1);
+  }
+  //solver->id.ICNTL(21) = 1;//distributed solution
+  solver->id.ICNTL(21) = 0;//centralized solution
+
+  //solver->id.SOL_loc = b;
+  solver->id.rhs = b;
+
+  /* Call the MUMPS package (solve). */
+  solver->id.job=3;
+  dmumps_c(&solver->id);
+
+  if (solver->id.infog[0] < 0) {
+    printf("*** MUMPS factorization error. infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
+    //preAlps_abort("");
+  }
 
 }
 #endif

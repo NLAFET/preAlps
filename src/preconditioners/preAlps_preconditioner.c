@@ -35,14 +35,14 @@ int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, CPLM_Mat_D
   if(precond->type==PREALPS_LORASC){
 
     /* Lorasc preconditioner */
-    Lorasc_t *lorascA = NULL;
+    preAlps_Lorasc_t *lorascA = NULL;
 
-    lorascA = (Lorasc_t*) precond->data;
+    lorascA = (preAlps_Lorasc_t*) precond->data;
 
     printf("Lorasc tolerance: %e\n", lorascA->deflation_tolerance);
 
     /* Apply Lorasc preconditioner on the matrix A_in */
-    //Lorasc_MatApply(lorascA, A_in, B_out);
+    //preAlps_LorascMatApply(lorascA, A_in, B_out);
   }else{
     preAlps_abort("Unknown preconditioner: %d", precond->type);
   }

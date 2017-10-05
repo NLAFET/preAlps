@@ -40,7 +40,7 @@ int preAlps_solver_create(preAlps_solver_t **solver, preAlps_solver_type_t stype
   (*solver)->type = stype;
   (*solver)->comm = comm;
 
-  
+
 
 
   return 0;
@@ -66,6 +66,12 @@ int preAlps_solver_factorize(preAlps_solver_t *solver, int n, double *a, int *ia
     #if defined (USE_SOLVER_PARDISO)
       ierr = pardiso_solver_factorize(&solver->pardiso_ps, n, a, ia, ja);
     #endif
+  } else if(solver->type==SOLVER_MUMPS){
+
+    #if defined (USE_SOLVER_MUMPS)
+      mumps_solver_factorize(&solver->mumps_ps, n, a, ia, ja);
+    #endif
+
   } else{
       preAlps_abort("factorize() not yet supported for this solver");
   }
@@ -215,8 +221,11 @@ int preAlps_solver_triangsolve(preAlps_solver_t *solver, int n, double *a, int *
     #if defined (USE_SOLVER_PARDISO)
       pardiso_solver_triangsolve(&solver->pardiso_ps, n, a, ia, ja, x, b);
     #endif
-  }
-  else {
+  } else if(solver->type==SOLVER_MUMPS){
+    #if defined (USE_SOLVER_MUMPS)
+      pardiso_solver_triangsolve(&solver->mumps_ps, n, a, ia, ja, x, b);
+    #endif
+  } else {
       preAlps_abort("triangsolve() not yet supported for this solver");
   }
 

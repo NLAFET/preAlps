@@ -12,6 +12,106 @@ Date        : Sept 15, 2017
 #include "solverStats.h"
 #include "matrixVectorOp.h"
 
+
+
+/*
+ * Compute the matrix vector product y = A*x
+ * where A = A_{loc}^{-1}*S, S = Agg - sum(Agi*Aii^{-1}*Aig).
+*/
+
+int matrixVectorOp_AggInvxS(MPI_Comm comm, int mloc, int m, int *mcounts, int *mdispls,
+                             CPLM_Mat_CSR_t *Aggloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig, CPLM_Mat_CSR_t *Agg,
+                             preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv, double *X, double *Y,
+                             double *dwork1, double *dwork2, double *ywork,
+                             SolverStats_t *tstats){
+
+  int ierr = 0;
+
+  int my_rank, nbprocs, root = 0;
+  double dONE = 1.0, dZERO = 0.0, dMONE = -1.0;
+  double ttemp;
+
+
+  MPI_Comm_rank(comm, &my_rank);
+  MPI_Comm_size(comm, &nbprocs);
+
+
+  ///if(RCI_its==1) {for(i=0;i<mloc;i++) X[i] = 1e-2; printf("dbgsimp1\n");}
+
+  /*
+   * Compute Y = OP x X = A_{gg}^{-1}*S*X
+   * S = Agg - sum(Agi*Aii^{-1}*Aig);
+  */
+
+  //Gather the vector from each procs
+  ttemp = MPI_Wtime();
+  MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm);
+  tstats->tComm+= MPI_Wtime() - ttemp;
+
+  if(my_rank==root) preAlps_doubleVector_printSynchronized(ywork, m, "ywork", "ywork", MPI_COMM_SELF);
+
+
+  /* Compute S*v */
+
+  ttemp = MPI_Wtime();
+  //ttemp1 = MPI_Wtime();
+  CPLM_MatCSRMatrixVector(Aig, dONE, ywork, dZERO, dwork1);
+  //tstats->tAv += MPI_Wtime() - ttemp1;
+
+  preAlps_doubleVector_printSynchronized(dwork1, Aig->info.m, "dwork1", "dwork1 = Aig*X", comm);
+
+  //ttemp1 = MPI_Wtime();
+  preAlps_solver_triangsolve(Aii_sv, Aii->info.m, Aii->val, Aii->rowPtr, Aii->colInd, dwork2, dwork1);
+  //tstats->tSolve += MPI_Wtime() - ttemp1;
+
+  preAlps_doubleVector_printSynchronized(dwork2, Aii->info.m, "dwork", "dwork2 = Aii^{-1}*dwork1", comm);
+
+  //ttemp1 = MPI_Wtime();
+  CPLM_MatCSRMatrixVector(Agi, dONE, dwork2, dZERO, dwork1);
+  //tstats->tAv += MPI_Wtime() - ttemp1;
+
+
+  preAlps_doubleVector_printSynchronized(dwork1, Agi->info.m, "dwork1", "dwork1 = Agi*dwork2", comm);
+
+  /* Sum on proc O */
+  MPI_Reduce(dwork1, dwork2, Agi->info.m, MPI_DOUBLE, MPI_SUM, root, comm);
+
+  preAlps_doubleVector_printSynchronized(dwork2, m, "dwork2", "dwork2 = Sum(dwork1)", comm);
+
+  /* Scatter dwork2 to X */
+  MPI_Scatterv(dwork2, mcounts, mdispls, MPI_DOUBLE, X, mloc, MPI_DOUBLE, root, comm);
+
+
+  //Copy of Su must be in X
+  //ttemp1 = MPI_Wtime();
+  CPLM_MatCSRMatrixVector(Aggloc, dONE, ywork, dMONE, X);
+  //tstats->tAv += MPI_Wtime() - ttemp1;
+  tstats->tSv += MPI_Wtime() - ttemp;
+
+
+  preAlps_doubleVector_printSynchronized(X, mloc, "X", "X = SX", comm);
+
+  /* Compute Y = inv(Aloc)*X => solve A Y = X with the previous factorized matrix*/
+
+
+  ttemp = MPI_Wtime();
+  //Centralized rhs, gather X on the host
+  MPI_Gatherv(X, mloc, MPI_DOUBLE, dwork2, mcounts, mdispls, MPI_DOUBLE, root, comm);
+  //solve the system
+  preAlps_solver_triangsolve(Agg_sv, Agg->info.m, Agg->val, Agg->rowPtr, Agg->colInd, NULL, dwork2);
+  //centralized solution, scatter X to each procs
+  MPI_Scatterv(dwork2, mcounts, mdispls, MPI_DOUBLE, X, mloc, MPI_DOUBLE, root, comm);
+
+  tstats->tInvAv += MPI_Wtime() - ttemp;
+
+
+
+  preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after matvec", comm);
+
+  return ierr;
+}
+
+
 /* Compute the matrix vector product y = A*x
  * where A = A_{loc}^{-1}*S, S = Aggloc - Agi*Aii^{-1}*Aig.
 */
@@ -93,6 +193,7 @@ int matrixVectorOp_AlocInvxS(MPI_Comm comm, int mloc, int m, int *mcounts, int *
 
   return ierr;
 }
+
 
 
 /* Compute the matrix vector product y = A*x

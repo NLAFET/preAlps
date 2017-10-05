@@ -15,6 +15,21 @@ Date        : Sept 15, 2017
 #include "solverStats.h"
 #include "preAlps_solver.h"
 
+
+
+/*
+ * Compute the matrix vector product y = A*x
+ * where A = A_{loc}^{-1}*S, S = Agg - sum(Agi*Aii^{-1}*Aig).
+*/
+
+int matrixVectorOp_AggInvxS(MPI_Comm comm, int mloc, int m, int *mcounts, int *mdispls,
+                             CPLM_Mat_CSR_t *Aggloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig, CPLM_Mat_CSR_t *Agg,
+                             preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv, double *X, double *Y,
+                             double *dwork1, double *dwork2, double *ywork,
+                             SolverStats_t *tstats);
+
+                             
+
 /* Compute the matrix vector product y = A*x
  * where A = A_{loc}^{-1}*S, S = Aggloc - Agi*Aii^{-1}*Aig.
 */

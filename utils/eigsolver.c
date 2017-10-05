@@ -126,6 +126,8 @@ int Eigsolver_setDefaultParameters(Eigsolver_t *eigs){
 
   eigs->tEigVectors = 0.0;
   eigs->tEigValues  = 0.0;
+
+
   return ierr;
 }
 
@@ -134,7 +136,7 @@ int Eigsolver_setDefaultParameters(Eigsolver_t *eigs){
 int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, double **Y, int *ido){
 
   int ierr=0;
-  
+
 #ifdef USE_PARPACK
   int root = 0, my_rank, nbprocs;
   double ttemp;
