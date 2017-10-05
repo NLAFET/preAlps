@@ -22,45 +22,8 @@ Date        : Mai 15, 2017
 #define min(a,b) ((a) < (b) ? a : b)
 #endif
 
-//#define max(a,b) ((a) > (b) ? a : b)
-
-/* tmp functions*/
-
-/*
- * Split n in P parts.
- * Returns the number of element, and the data offset for the specified index.
- */
-void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i);
-
-/* pinv = p', or p = pinv' */
-int *preAlps_pinv (int const *p, int n);
-
-/*Sort the row index of a CSR matrix*/
-void preAlps_matrix_colIndex_sort(int m, int *xa, int *asub, double *a);
-
-/*
- * Compute A1 = A(pinv,q) where pinv and q are permutations of 0..m-1 and 0..n-1.
- * if pinv or q is NULL it is considered as the identity
- */
-void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, int *q,int *xa1, int *asub1,double *a1);
 
 
-
-/*
- * We consider one binary tree A and two array part_in and part_out.
- * part_in stores the nodes of A as follows: first all the children at the last level n,
- * then all the children at the level n-1 from left to right, and so on,
- * while part_out stores the nodes of A in depth first search, so each parent node follows all its children.
- * The array part_in is compatible with the array sizes returned by ParMETIS_V3_NodeND.
- * part_out[i] = j means node i in part_in correspond to node j in part_in.
-*/
-void preAlps_NodeNDPostOrder(int npart, int *part_in, int *part_out);
-
-
-/*
- * Number the nodes at level targetLevel and decrease the value of pos.
-*/
-void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos);
 
 
 
@@ -212,6 +175,10 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C);
 
 
 
+/* Transpose a matrix */
+int CPLM_MatCSRTranspose(CPLM_Mat_CSR_t *A_in, CPLM_Mat_CSR_t *B_out);
+
+
 
 /*
  * Macros
@@ -225,6 +192,44 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C);
 
 /* Display a message and stop the execution of the program */
 void preAlps_abort(char *s, ...);
+
+/*
+ * From an array, set one when the node number is a leave.
+ * The array should be initialized with zeros before calling this routine
+ * n:  total number of nodes in the tree.
+*/
+void preAlps_binaryTreeIsLeaves(int nparts, int *isLeave);
+
+/*
+ * From an array, set one when the node number is a node at the target Level.
+ * The array should be initialized with zeros before calling this routine
+*/
+void preAlps_binaryTreeIsNodeAtLevel(int targetLevel, int twoPowerLevel, int part_root, int *isNodeLevel);
+
+/*
+ * Create a block arrow structure from a matrix A
+ * comm:
+ *     input: the communicator for all the processors calling the routine
+ * m:
+ *     input: the number of rows of the global matrix
+ * A:
+ *     input: the input matrix
+ * AP:
+ *     output: the matrix permuted into a block arrow structure (relevant only on proc 0)
+ * perm:
+ *     output: the permutation vector
+ * nbparts:
+ *     output: the number of the partition created
+ * partCount:
+ *     output: the number of rows in each part
+ * partBegin:
+ *     output: the begining rows of each part.
+ */
+int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *AP, int *perm, int *nbparts, int **partCount, int **partBegin);
+
+
+
+
 
 /*
  * Check errors
@@ -307,6 +312,51 @@ void preAlps_int_printSynchronized(int a, char *s, MPI_Comm comm);
  *   The string to display before the variable
  */
 void preAlps_intVector_printSynchronized(int *v, int vlen, char *varname, char *s, MPI_Comm comm);
+
+
+
+
+/*Sort the row index of a CSR matrix*/
+void preAlps_matrix_colIndex_sort(int m, int *xa, int *asub, double *a);
+
+/*
+ * Compute A1 = A(pinv,q) where pinv and q are permutations of 0..m-1 and 0..n-1.
+ * if pinv or q is NULL it is considered as the identity
+ */
+void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, int *q,int *xa1, int *asub1,double *a1);
+
+/* Broadcast the matrix dimension from the root to the other procs*/
+int preAlps_matrixDim_Bcast(MPI_Comm comm, CPLM_Mat_CSR_t *A, int root, int *m, int *n, int *nnz);
+
+
+/*
+ * We consider one binary tree A and two array part_in and part_out.
+ * part_in stores the nodes of A as follows: first all the children at the last level n,
+ * then all the children at the level n-1 from left to right, and so on,
+ * while part_out stores the nodes of A in depth first search, so each parent node follows all its children.
+ * The array part_in is compatible with the array sizes returned by ParMETIS_V3_NodeND.
+ * part_out[i] = j means node i in part_in correspond to node j in part_in.
+*/
+void preAlps_NodeNDPostOrder(int nparts, int *part_in, int *part_out);
+
+
+/*
+ * Number the nodes at level targetLevel and decrease the value of pos.
+*/
+void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos);
+
+
+/*
+ * Split n in P parts.
+ * Returns the number of element, and the data offset for the specified index.
+ */
+void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i);
+
+/* pinv = p', or p = pinv' */
+int *preAlps_pinv (int const *p, int n);
+
+/* pinv = p', or p = pinv' */
+int preAlps_pinv_outplace (int const *p, int n, int *pinv);
 
 
 /*

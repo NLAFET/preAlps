@@ -8,7 +8,9 @@ Date        : Mai 15, 2017
 ============================================================================
 */
 #include <mpi.h>
+#ifdef USE_MKL
 #include <mkl.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -26,147 +28,12 @@ Date        : Mai 15, 2017
 /*The default number of rows to print for larger vector */
 #define PRINT_DEFAULT_HEADCOUNT 500
 
-/* tmp functions*/
-
-
-/*
- * Split n in P parts.
- * Returns the number of element, and the data offset for the specified index.
- */
-void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i)
-{
-
-  int r;
-
-  r = n % P;
-
-  *n_i = (int)(n-r)/P;
-
-
-  *offset_i = index*(*n_i);
-
-
-  if(index<r) (*n_i)++;
-
-
-  if(index < r) *offset_i+=index;
-  else *offset_i+=r;
-}
-
-/* pinv = p', or p = pinv' */
-int *preAlps_pinv (int const *p, int n)
-{
-    int k, *pinv ;
-    pinv = (int *) malloc (n *sizeof (int)) ;  /* allocate memory for the results */
-    for (k = 0 ; k < n ; k++) pinv [p [k]] = k ;/* invert the permutation */
-    return (pinv) ;        /* return result */
-}
 
 
 
-/*Sort the row index of a CSR matrix*/
-void preAlps_matrix_colIndex_sort(int m, int *xa, int *asub, double *a){
-
-  int i,j,k;
-
-  int *asub_ptr, row_nnz, itmp;
-  double *a_ptr, dtmp;
-
-  for (k=0; k<m; k++){
-
-    asub_ptr = &asub[xa[k]];
-    a_ptr = &a[xa[k]];
-    row_nnz = xa[k+1] - xa[k];
-    for(i=0;i<row_nnz;i++){
-      for(j=0;j<i;j++){
-        if(asub_ptr[i]<asub_ptr[j]){
-          /*swap column index*/
-            itmp=asub_ptr[i];
-            asub_ptr[i]=asub_ptr[j];
-            asub_ptr[j]=itmp;
-
-          /*swap values */
-            dtmp=a_ptr[i];
-            a_ptr[i]=a_ptr[j];
-            a_ptr[j]=dtmp;
-        }
-      }
-    }
-  }
-}
-
-/*
- * Compute A1 = A(pinv,q) where pinv and q are permutations of 0..m-1 and 0..n-1.
- * if pinv or q is NULL it is considered as the identity
- */
-void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, int *q,int *xa1, int *asub1,double *a1)
-{
-  int j, jp, i, nz = 0;
-
-  for (i = 0 ; i < n ; i++){
-    xa1 [i] = nz ;
-    jp = q==NULL ? i: q [i];
-    for (j = xa [jp] ; j < xa [jp+1] ; j++){
-        asub1 [nz] = pinv==NULL ? asub [j]: pinv [asub [j]]  ;
-        a1 [nz] = a [j] ;
-        nz++;
-    }
-  }
-
-  xa1 [n] = nz ;
-  /*Sort the row index of the matrix*/
-  preAlps_matrix_colIndex_sort(n, xa1, asub1, a1);
-}
-
-
-/*
- * We consider one binary tree A and two array part_in and part_out.
- * part_in stores the nodes of A as follows: first all the children at the last level n,
- * then all the children at the level n-1 from left to right, and so on,
- * while part_out stores the nodes of A in depth first search, so each parent node follows all its children.
- * The array part_in is compatible with the array sizes returned by ParMETIS_V3_NodeND.
- * part_out[i] = j means node i in part_in correspond to node j in part_in.
-*/
-void preAlps_NodeNDPostOrder(int npart, int *part_in, int *part_out){
-
-  int pos = npart-1;
-  int twoPowerLevel = npart+1;
-  int level = twoPowerLevel;
-  while(level>1){
-
-    preAlps_NodeNDPostOrder_targetLevel(level, twoPowerLevel, npart-1, part_in, part_out, &pos);
-    level = (int) level/2;
-  }
-
-}
-
-/*
- * Number the nodes at level targetLevel and decrease the value of pos.
-*/
-void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos){
 
 
 
-    if(twoPowerLevel == targetLevel){
-
-      /*We have reached the target level, number the node and decrease the value of pos */
-      //printf("part[%d] = %d\n", part_root, (*pos-1));
-      part_out[part_root] = part_in[(*pos)--];
-
-    }else if(twoPowerLevel>targetLevel){
-
-      if(twoPowerLevel>2){
-
-        twoPowerLevel = (int) twoPowerLevel/2;
-        /*right*/
-        preAlps_NodeNDPostOrder_targetLevel(targetLevel, twoPowerLevel , part_root - 1, part_in, part_out, pos);
-
-        /*left*/
-        preAlps_NodeNDPostOrder_targetLevel(targetLevel, twoPowerLevel, part_root - twoPowerLevel, part_in, part_out, pos);
-      }
-
-    }
-}
 
 
 
@@ -775,20 +642,22 @@ int CPLM_MatCSROrderingND(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int *or
 
 #ifdef USE_PARMETIS
 
-  int options[METIS_NOPTIONS];
+  idx_t options[METIS_NOPTIONS];
+  idx_t numflag = 0; /*C-style numbering*/
 
-  int numflag = 0; /*C-style numbering*/
-
+  int i, nbprocs ;
   options[0] = 0;
   options[1] = 0;
   options[2] = 42; /* Fixed Seed for reproducibility */
+
+
+
 
 
   err = ParMETIS_V3_NodeND (vtdist, A->rowPtr, A->colInd, &numflag, options, order, sizes, &comm);
 
 
   if(err!=METIS_OK) {printf("METIS returned error:%d\n", err); preAlps_abort("ParMetis Ordering Failed.");}
-
 
 #else
   preAlps_abort("No other NodeND partitioning tool is supported at the moment. Please Rebuild with ParMetis !");
@@ -811,11 +680,12 @@ int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, i
 #ifdef USE_PARMETIS
   int nbprocs;
 
-  int options[METIS_NOPTIONS];
+  idx_t options[METIS_NOPTIONS];
+  idx_t numflag = 0; /*C-style numbering*/
 
-  int wgtflag = 0; /*No weights*/
-  int numflag = 0; /*C-style numbering*/
-  int ncon = 1;
+  idx_t wgtflag = 0; /*No weights*/
+
+  idx_t ncon = 1;
 
 
   int edgecut = 0;
@@ -861,7 +731,10 @@ int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, i
  */
 void CPLM_MatCSRPrintCoords(CPLM_Mat_CSR_t *A, char *s){
 #ifdef DEBUG
-  int i,j, mark_i = 0, mark_j = 0;
+  int i,j;
+  #ifdef PRINT_MOD
+   int mark_i = 0, mark_j = 0;
+  #endif
   if(s) printf("%s\n", s);
 
   for (i=0; i<A->info.m; i++){
@@ -966,11 +839,10 @@ void CPLM_MatCSRPrintSynchronizedCoords (CPLM_Mat_CSR_t *A, MPI_Comm comm, char 
  */
 
 int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
-  double   *Aval;
-  int i, j, irow;
+
+  int i, j;
   double rcmin, rcmax;
   double bignum, smlnum;
-
 
   /* Get machine constants. */
   smlnum = dlamch_("S");
@@ -1062,6 +934,79 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
   return 0;
 }
 
+
+
+/* Transpose a matrix */
+int CPLM_MatCSRTranspose(CPLM_Mat_CSR_t *A_in, CPLM_Mat_CSR_t *B_out){
+
+  int ierr = 0;
+  int irow, jcol, jpos;
+  int *nnz_work;
+  int *xa = A_in->rowPtr, *asub = A_in->colInd;
+  double *a = A_in->val;
+
+
+  B_out->info = A_in->info;
+  B_out->info.m = A_in->info.n;
+  B_out->info.n = A_in->info.m;
+
+  if(A_in->info.nnz==0) return ierr; //Quick return
+
+
+  ierr  = CPLM_MatCSRMalloc(B_out); preAlps_checkError(ierr);
+
+  /* Allocate workspace */
+
+  nnz_work    = (int*) malloc( (B_out->info.n+1)   * sizeof(int));
+  if(!nnz_work) preAlps_abort("Malloc failed for nnz_work");
+
+  for(jcol=0;jcol<B_out->info.n+1;jcol++){
+    nnz_work[jcol] = 0;
+  }
+
+  /* Compute the number of nnz per columns in A */
+  for (irow=0; irow<A_in->info.m; irow++){
+    for (jcol=xa[irow]; jcol<xa[irow+1]; jcol++) {
+      nnz_work[asub[jcol]]++;
+    }
+  }
+
+  //preAlps_intVector_printSynchronized(nnz_work, B_out->info.n, "nnz_count", "nnz in B", MPI_COMM_SELF);
+
+  /* Compute the index of each row of B*/
+
+  B_out->rowPtr[0] = 0;
+  for(irow=0;irow<B_out->info.m;irow++){
+    B_out->rowPtr[irow+1] = B_out->rowPtr[irow] + nnz_work[irow];
+
+    nnz_work[irow] = B_out->rowPtr[irow]; /*reused as current position for inserting the elements in the next step*/
+  }
+
+  //preAlps_intVector_printSynchronized(B_out->rowPtr, B_out->info.m+1, "B_out->rowPtr", "", MPI_COMM_SELF);
+
+  /* Fill the matrix */
+
+  for (irow=0; irow<A_in->info.m; irow++){
+    for (jcol=xa[irow]; jcol<xa[irow+1]; jcol++){
+
+      /* insert (irow, asub[jcol]) the element in column asub[jcol] */
+
+      jpos = nnz_work[asub[jcol]];
+      B_out->colInd[jpos] = irow;
+      B_out->val[jpos] = a[jcol];
+      nnz_work[asub[jcol]]++;
+
+    }
+  }
+
+  /* Free memory*/
+  free(nnz_work);
+
+  return ierr;
+
+}
+
+
 /*
  * utils
  */
@@ -1084,6 +1029,244 @@ void preAlps_abort(char *s, ... ){
   printf("===================\n");
   exit(1);
 }
+
+/*
+ * From an array, set one when the node number is a leave.
+*/
+void preAlps_binaryTreeIsLeaves(int nparts, int *isLeave){
+
+  int i, twoPowerLevel = nparts+1;
+  for(i=0;i<nparts;i++) isLeave[i] = 0;
+
+  /* Call the recursive interface */
+  preAlps_binaryTreeIsNodeAtLevel(2, twoPowerLevel, nparts - 1, isLeave);
+}
+
+
+/*
+ * From an array, set one when the node number is a node at the target Level.
+ * The array should be initialized with zeros before calling this routine
+*/
+void preAlps_binaryTreeIsNodeAtLevel(int targetLevel, int twoPowerLevel, int part_root, int *isNodeLevel){
+
+
+    if(twoPowerLevel == targetLevel){
+
+      /*We have reached a target node level */
+
+      isNodeLevel[part_root] = 1;
+
+    }else if(twoPowerLevel>targetLevel){
+
+      if(twoPowerLevel>2){
+
+        twoPowerLevel = (int) twoPowerLevel/2;
+        /*right*/
+        preAlps_binaryTreeIsNodeAtLevel(targetLevel, twoPowerLevel , part_root - 1, isNodeLevel);
+
+        /*left*/
+        preAlps_binaryTreeIsNodeAtLevel(targetLevel, twoPowerLevel, part_root - twoPowerLevel, isNodeLevel);
+      }
+
+    }
+}
+
+/*
+ * Create a block arrow structure from a matrix A
+ * comm:
+ *     input: the communicator for all the processors calling the routine
+ * m:
+ *     input: the number of rows of the global matrix
+ * A:
+ *     input: the input matrix
+ * AP:
+ *     output: the matrix permuted into a block arrow structure (relevant only on proc 0)
+ * perm:
+ *     output: the permutation vector
+ * nbparts:
+ *     output: the number of the partition created
+ * partCount:
+ *     output: the number of rows in each part
+ * partBegin:
+ *     output: the begining rows of each part.
+ */
+int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *AP, int *perm, int *nbparts, int **partCount, int **partBegin){
+
+
+  int ierr = 0, nbprocs, my_rank, root = 0;
+
+  int i, j, count = 0, mloc;
+  int *order = NULL, *sizes = NULL, *partCountWork=NULL, *partBeginWork=NULL;
+
+  int *partwork = NULL;
+  int *mcounts, *moffsets;
+  int *mwork = NULL; //vector array of size m
+  int nparts, level;
+
+  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
+
+
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+
+  /* Allocate Workspace */
+  if ( !(mcounts  = (int *) malloc((nbprocs) * sizeof(int))) ) preAlps_abort("Malloc fails for mcounts[].");
+  if ( !(moffsets  = (int *) malloc((nbprocs+1) * sizeof(int))) ) preAlps_abort("Malloc fails for moffsets[].");
+
+  /* Split the number of rows among the processors */
+  for(i=0;i<nbprocs;i++){
+    preAlps_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
+  }
+  moffsets[nbprocs] = m;
+
+
+  /* Remove the diagonal in order to call ParMetis. ParMetis crashes if the diagonal is kept inplace. (use AP as workspace) */
+  if(my_rank==root) ierr = CPLM_MatCSRDelDiag(A, AP);preAlps_checkError(ierr);
+
+  /* Distribute the matrix to all procs */
+  ierr = CPLM_MatCSRBlockRowScatterv(AP, &locAP, moffsets, root, comm); preAlps_checkError(ierr);
+
+
+  CPLM_MatCSRPrintSynchronizedCoords (&locAP, comm, "locAP", "RowScatterv locAP");
+  mloc = locAP.info.m;
+
+
+
+  /* Partition the matrix */
+
+#if 0
+  int *partloc;
+  nparts = nbprocs;
+  if ( !(partloc = (int *)  malloc((mloc*sizeof(int)))) ) preAlps_abort("Malloc fails for part_loc[].");
+  CPLM_MatCSRPartitioningKway(comm, &locAP,  moffsets, nparts, partloc);
+  preAlps_intVector_printSynchronized(partloc, mloc, "partloc", "parMetis partloc", comm);
+  free(partloc);
+#endif
+
+
+  nparts = 1;
+  level = 0;
+  while(nparts<nbprocs){
+    nparts = 2*nparts+1;
+    level++;
+  }
+
+
+  preAlps_int_printSynchronized(level, "level", comm);
+  preAlps_int_printSynchronized(nparts, "nparts", comm);
+
+  if ( !(order = (int *)  malloc((mloc*sizeof(int)))) ) preAlps_abort("Malloc fails for order[].");///mloc
+  if ( !(sizes = (int *)  malloc((nparts*sizeof(int)))) ) preAlps_abort("Malloc fails for sizes[]."); //2*Ptilde
+
+
+
+
+  for(i=0;i<nparts;i++) sizes[i] = -1;
+
+  CPLM_MatCSROrderingND(comm, &locAP, moffsets, order, sizes);
+
+  /* Gather the ordering infos from all proc to all  */
+  //MPI_Gatherv(order, mloc, MPI_INT, perm, mcounts, moffsets, MPI_INT, root, comm);
+  ierr = MPI_Allgatherv(order, mloc, MPI_INT, perm, mcounts, moffsets, MPI_INT, comm); preAlps_checkError(ierr);
+
+
+  preAlps_intVector_printSynchronized(order, mloc, "order", "parMetis order", comm);
+  preAlps_intVector_printSynchronized(sizes, nparts, "sizes", "parMetis sizes", comm);
+
+
+  if ( !(mwork  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for mwork[].");
+  if ( !(partwork = (int *)  malloc((nparts*sizeof(int)))) ) preAlps_abort("Malloc fails for partwork[].");
+  if ( !(partCountWork = (int *)  malloc((nparts*sizeof(int)))) ) preAlps_abort("Malloc fails for partCountWork[].");
+  if ( !(partBeginWork = (int *)  malloc((nparts+1)*sizeof(int))) ) preAlps_abort("Malloc fails for partBeginWork[].");
+
+
+  /* Permute the array order returned by ParMetis such as children are followed by their parent node (put each separator close to its children) */
+  preAlps_NodeNDPostOrder(nparts, sizes, partCountWork);
+
+  preAlps_intVector_printSynchronized(partCountWork, nparts, "partCountWork", "parcount after NodeNDPostOrder", comm);
+
+  /* Compute the begining of each part */
+  partBeginWork[0] = 0;
+  for(i=0;i<nparts;i++) partBeginWork[i+1] = partBeginWork[i] + partCountWork[i];
+
+  preAlps_intVector_printSynchronized(perm, m, "mwork", "order collected", comm);
+
+  /* Get the permutation vector */
+  //CPLM_IVectorPtrInvert(mwork, perm);
+
+  preAlps_pinv_outplace (perm, m, mwork);
+  preAlps_intVector_printSynchronized(mwork, m, "invperm", "inv perm", comm);
+
+  /* Determine the leaves from the partitioning */
+  preAlps_binaryTreeIsLeaves(nparts, partwork);
+
+  preAlps_intVector_printSynchronized(partwork, nparts, "partwork", "", comm);
+
+  /* Update the permutation vector in order to permute the separators at the end of the permutation tree */
+
+  count = 0; int nbLeaves = 0;
+  for(i=0;i<nparts;i++) partCountWork[i] = 0;
+
+  for(i=0;i<nparts;i++) {
+
+    if(partwork[i]==1) { //is a leave
+      for(j=partBeginWork[i];j<partBeginWork[i+1];j++){
+        perm[count++] = mwork[j];
+      }
+      /* update partCountWork */
+      partCountWork[nbLeaves] = partBeginWork[i+1] - partBeginWork[i];
+      nbLeaves++;
+    }
+  }
+
+  partCountWork[nbLeaves] = 0;
+  for(i=0;i<nparts;i++) {
+
+    if(partwork[i]==0) { //is a separator
+      for(j=partBeginWork[i];j<partBeginWork[i+1];j++){
+        perm[count++] = mwork[j];
+      }
+      /* update partCountWork */
+      partCountWork[nbLeaves] += partBeginWork[i+1] - partBeginWork[i]; //keep the separator at the end
+    }
+  }
+
+  /* Update partBegin*/
+  partBeginWork[0] = 0;
+  for(i=0;i<nparts;i++) partBeginWork[i+1] = partBeginWork[i] + partCountWork[i];
+
+  preAlps_intVector_printSynchronized(perm, m, "invperm", "inv perm after permuting separator at the end", comm);
+  preAlps_intVector_printSynchronized(partCountWork, nparts, "partCountWork", "parcount after separator sort", comm);
+
+  /* Permute the input matrix to move the separator at the end */
+  if(my_rank==0) {
+    ierr  = CPLM_MatCSRPermute(A, AP, perm, perm, PERMUTE);preAlps_checkError(ierr);
+
+    //CPLM_MatCSRPrintCoords(AP, "Permuted matrix after blockArrowStruct");
+  }
+
+
+  /* free memory */
+  free(mwork);
+  if(partwork) free(partwork);
+  if(sizes) free(sizes);
+  //if(partCountWork) free(partCountWork);
+  //if(partBeginWork) free(partBeginWork);
+  free(mcounts);
+  free(moffsets);
+
+
+  /* Set the output */
+  *nbparts = nbLeaves+1; //the number of nodes + the separator
+  *partCount = partCountWork;
+  *partBegin = partBeginWork;
+
+  return ierr;
+}
+
+
+
 
 /*
  * Check errors
@@ -1210,6 +1393,177 @@ void preAlps_intVector_printSynchronized(int *v, int vlen, char *varname, char *
   CPLM_IVectorPrintSynchronized (&Work1, comm, varname, s);
 }
 
+
+
+
+
+/*Sort the row index of a CSR matrix*/
+void preAlps_matrix_colIndex_sort(int m, int *xa, int *asub, double *a){
+
+  int i,j,k;
+
+  int *asub_ptr, row_nnz, itmp;
+  double *a_ptr, dtmp;
+
+  for (k=0; k<m; k++){
+
+    asub_ptr = &asub[xa[k]];
+    a_ptr = &a[xa[k]];
+    row_nnz = xa[k+1] - xa[k];
+    for(i=0;i<row_nnz;i++){
+      for(j=0;j<i;j++){
+        if(asub_ptr[i]<asub_ptr[j]){
+          /*swap column index*/
+            itmp=asub_ptr[i];
+            asub_ptr[i]=asub_ptr[j];
+            asub_ptr[j]=itmp;
+
+          /*swap values */
+            dtmp=a_ptr[i];
+            a_ptr[i]=a_ptr[j];
+            a_ptr[j]=dtmp;
+        }
+      }
+    }
+  }
+}
+
+/*
+ * Compute A1 = A(pinv,q) where pinv and q are permutations of 0..m-1 and 0..n-1.
+ * if pinv or q is NULL it is considered as the identity
+ */
+void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, int *q,int *xa1, int *asub1,double *a1)
+{
+  int j, jp, i, nz = 0;
+
+  for (i = 0 ; i < n ; i++){
+    xa1 [i] = nz ;
+    jp = q==NULL ? i: q [i];
+    for (j = xa [jp] ; j < xa [jp+1] ; j++){
+        asub1 [nz] = pinv==NULL ? asub [j]: pinv [asub [j]]  ;
+        a1 [nz] = a [j] ;
+        nz++;
+    }
+  }
+
+  xa1 [n] = nz ;
+  /*Sort the row index of the matrix*/
+  preAlps_matrix_colIndex_sort(n, xa1, asub1, a1);
+}
+
+/* Broadcast the matrix dimension from the root to the other procs*/
+int preAlps_matrixDim_Bcast(MPI_Comm comm, CPLM_Mat_CSR_t *A, int root, int *m, int *n, int *nnz){
+
+  int ierr = 0, nbprocs, my_rank, matrixDim[3];
+
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+  /* Prepare the matrix dimensions for the broadcast */
+  if(my_rank==root){
+    matrixDim[0] = A->info.m;
+    matrixDim[1] = A->info.n;
+    matrixDim[2] = A->info.nnz;
+  }
+
+  /* Broadcast the global matrix dimension among all procs */
+  ierr = MPI_Bcast(&matrixDim, 3, MPI_INT, root, comm);
+  *m   = matrixDim[0];
+  *n   = matrixDim[1];
+  *nnz = matrixDim[2];
+
+  return ierr;
+}
+
+/*
+ * We consider one binary tree A and two array part_in and part_out.
+ * part_in stores the nodes of A as follows: first all the children at the last level n,
+ * then all the children at the level n-1 from left to right, and so on,
+ * while part_out stores the nodes of A in depth first search, so each parent node follows all its children.
+ * The array part_in is compatible with the array sizes returned by ParMETIS_V3_NodeND.
+ * part_out[i] = j means node i in part_in correspond to node j in part_in.
+*/
+void preAlps_NodeNDPostOrder(int nparts, int *part_in, int *part_out){
+
+  int pos = nparts-1;
+  int twoPowerLevel = nparts+1;
+  int level = twoPowerLevel;
+  while(level>1){
+
+    preAlps_NodeNDPostOrder_targetLevel(level, twoPowerLevel, nparts-1, part_in, part_out, &pos);
+    level = (int) level/2;
+  }
+
+}
+
+/*
+ * Number the nodes at level targetLevel and decrease the value of pos.
+*/
+void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos){
+
+
+
+    if(twoPowerLevel == targetLevel){
+
+      /*We have reached the target level, number the node and decrease the value of pos */
+      //printf("part[%d] = %d\n", part_root, (*pos-1));
+      part_out[part_root] = part_in[(*pos)--];
+
+    }else if(twoPowerLevel>targetLevel){
+
+      if(twoPowerLevel>2){
+
+        twoPowerLevel = (int) twoPowerLevel/2;
+        /*right*/
+        preAlps_NodeNDPostOrder_targetLevel(targetLevel, twoPowerLevel , part_root - 1, part_in, part_out, pos);
+
+        /*left*/
+        preAlps_NodeNDPostOrder_targetLevel(targetLevel, twoPowerLevel, part_root - twoPowerLevel, part_in, part_out, pos);
+      }
+
+    }
+}
+
+/*
+ * Split n in P parts.
+ * Returns the number of element, and the data offset for the specified index.
+ */
+void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i)
+{
+
+  int r;
+
+  r = n % P;
+
+  *n_i = (int)(n-r)/P;
+
+
+  *offset_i = index*(*n_i);
+
+
+  if(index<r) (*n_i)++;
+
+
+  if(index < r) *offset_i+=index;
+  else *offset_i+=r;
+}
+
+/* pinv = p', or p = pinv' */
+int *preAlps_pinv (int const *p, int n)
+{
+    int k, *pinv ;
+    pinv = (int *) malloc (n *sizeof (int)) ;  /* allocate memory for the results */
+    for (k = 0 ; k < n ; k++) pinv [p [k]] = k ;/* invert the permutation */
+    return (pinv) ;        /* return result */
+}
+
+/* pinv = p', or p = pinv' */
+int preAlps_pinv_outplace (int const *p, int n, int *pinv)
+{
+    int k ;
+    for (k = 0 ; k < n ; k++) pinv [p [k]] = k ;/* invert the permutation */
+    return 0;        /* return result */
+}
 
 /*
  * Permute the rows of the matrix with offDiag elements at the bottom
