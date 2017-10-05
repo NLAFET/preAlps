@@ -28,9 +28,9 @@ LOADOPTS     = -lgfortran
 LD_FLAGS     =
 
 USE_DEBUG=1
-#possible values: -DDEBUG -DPRINT_MOD=<number>
+#possible values: -DDEBUG -DPRINT_MOD=<number> -DDEBUG_AGG_SOLVE=1
 ifeq ($(USE_DEBUG), 1)
-  CFLAGS        += -g -std=c99 -DDEBUG
+  CFLAGS        += -g -std=c99 -DDEBUG -DDEBUG_AGG_SOLVE=1
   OPT           +=
 endif
 
@@ -70,7 +70,7 @@ SCHUR_COMPLEMENT_SOLVER_CHOICE = 2
 # Possible values : 0 for MKL_PARDISO, 1 for PARDIDO,  2 for MUMPS
 #
 
-SPARSE_SOLVER_CHOICE = 2
+SPARSE_SOLVER_CHOICE = 0
 
 #
 # Which Sparse Direct Solver will be used
@@ -87,7 +87,8 @@ SPARSE_SOLVER_CHOICE = 2
 
 # Provide the path for cpalamem
 
-  CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
+# CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
+  CPALAMEM_DIR         = ${CPALAMEM_ROOT}
   CPALAMEM_INC         = ${CPALAMEM_DIR}/include
   CPALAMEM_LIB         = ${CPALAMEM_DIR}/lib
   INCLUDE_FLAGS       += $(addprefix -I,$(CPALAMEM_INC))
@@ -140,7 +141,6 @@ endif
 
 USE_SOLVER_PARDISO=0
 ifeq ($(USE_SOLVER_PARDISO), 1)
-
   # Pardiso will be used (not the one from Intel)
   PARDISO_DIR          = $(HOME_DIR)
   PARDISO_LIB          = $(PARDISO_DIR)/lib
@@ -157,7 +157,6 @@ endif
 #
 
 USE_SOLVER_MUMPS=0
-
 ifeq ($(USE_SOLVER_MUMPS), 1)
   MUMPS_DIR            = $(MUMPS_ROOT)
   MUMPS_INC            = $(MUMPS_DIR)/include
