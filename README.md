@@ -1,5 +1,5 @@
-#PreAlps
-
+# PreAlps
+ 
 PreAlps is a library that implements communication avoiding solvers based on enlarged Krylov subspace methods and robust preconditioners. 
 
 In its current state the library contains routines for solving symmetric positive definite (SPD) linear systems with enlarged Conjugate Gradient (ECG) in parallel. ECG is based on enriching the Krylov subspace used in classic methods that allows to reduce drastically the communication cost of the iterative solver (see [1]).
@@ -8,8 +8,8 @@ The next release will include LORASC, a robust algebraic preconditioner based on
 
 ECG can be used as an iterative solver and can be combined with block Jacobi, LORASC, or any other efficient preconditioner.  It is based on reverse communication such that it can be used also for matrix-free problems.  LORASC can be used in combination with ECG but also with any other Krylov solver.
 
-#References
-
+# References
+ 
 1. Laura Grigori, Sophie Moufawad, and Frederic Nataf. Enlarged Krylov subspace conjugate
 gradient methods for reducing communication. SIAM J. Matrix Anal. Appl., 2016.
 
@@ -21,7 +21,8 @@ correction. Technical report, ALPINES-INRIA, Paris-Rocquencourt, 6 2014.
 4. Laura Grigori , Frederic Nataf, Soleiman Yousef, Simplice Donfack, Remi Lacroix. Robust algebraic schur complement based on low rank
 correction. In submission.
 
-#Running instructions
+# Running instructions
+ 
 
 1. Choose one option below and install the required librairies:
 
