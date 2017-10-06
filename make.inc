@@ -107,7 +107,7 @@ SPARSE_SOLVER_CHOICE = 0
   ADDITIONAL_LD_FLAGS += -lcpalamem_metis
 # Provide the path for ParMetis
 
-USE_PARMETIS=0
+USE_PARMETIS=1
 ifeq ($(USE_PARMETIS), 1)
   PARMETIS_DIR         = ${PARMETIS_ROOT}
   PARMETIS_INC         = $(PARMETIS_DIR)/include
