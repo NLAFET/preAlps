@@ -1,5 +1,6 @@
-# preAlps
-Computational Kernels for Preconditioned Iterative Methods
+# Computational Kernels for Preconditioned Iterative Methods
+
+NOTE: the code in this directory is not used by ECG solver, it is provided as reference for D4.1.
 
 This library provides computational kernels for preconditioned iterative methods. It includes routines such as a sparse matrix matrix product, and sparse communication avoiding low rank approximation using tournament pivoting. 
 The library uses sequential sparse QR factorization and METIS from SuiteSparse.
