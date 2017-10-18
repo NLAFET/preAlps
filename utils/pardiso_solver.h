@@ -60,6 +60,6 @@ int pardiso_solver_factorize(pardiso_solver_t *ps, int n, double *a, int *ia, in
 */
 int pardiso_solver_partial_factorize(pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, int S_n,
                                           double **S, int **iS, int **jS);
-int pardiso_solver_triangsolve(pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b);
+int pardiso_solver_triangsolve(pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b);
 void pardiso_solver_finalize(pardiso_solver_t *ps, int n, int *ia, int *ja);
 #endif

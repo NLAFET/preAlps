@@ -28,9 +28,9 @@ LOADOPTS     = -lgfortran
 LD_FLAGS     =
 
 USE_DEBUG=0
-#possible values: -DDEBUG -DPRINT_MOD=<number> -DDEBUG_AGG_SOLVE=1
+#possible values: -DDEBUG -DPRINT_MOD=<number>
 ifeq ($(USE_DEBUG), 1)
-  CFLAGS        += -g -std=c99 -DDEBUG -DDEBUG_AGG_SOLVE=1
+  CFLAGS        += -g -std=c99 -DDEBUG -DDEBUG_LORASCAPPLY
   OPT           +=
 endif
 
@@ -45,7 +45,7 @@ INCLUDE_FLAGS = -I./ -I../include -I../utils -I../src/preconditioners -I../src/s
 #   Directives:
 #   Possible values: -DARPACK_MAXIT=<number> -DEIG_DISPLAY_STATS -DMAT_CUSTOM_PARTITIONING_FILE=<file_prefix>
 #                    -DMAT_CUSTOM_PARTITIONING_FILE : The matrice provide its own permutation vector. <file_prefix>.perm.txt and <file_prefix>.rowPos.txt must exist
-#                    -DBUILDING_MATRICES_DUMP
+#                    -DBUILDING_MATRICES_DUMP -DCUSTOM_PARTITIONING -DMAT_CUSTOM_PARTITIONING
 
 ADDITIONAL_FLAGS = -DAdd_
 ADDITIONAL_LD_FLAGS =
@@ -104,22 +104,22 @@ SPARSE_SOLVER_CHOICE = 0
   INCLUDE_FLAGS       += $(addprefix -I,$(METIS_INC))
   LD_FLAGS            += -L$(METIS_LIB) -lmetis
   ADDITIONAL_FLAGS    +=
-  ADDITIONAL_LD_FLAGS += -lcpalamem_metis
+  ADDITIONAL_LD_FLAGS += -lcpalamem_metis -lmetis
 # Provide the path for ParMetis
 
-USE_PARMETIS=0
+USE_PARMETIS=1
 ifeq ($(USE_PARMETIS), 1)
   PARMETIS_DIR         = ${PARMETIS_ROOT}
   PARMETIS_INC         = $(PARMETIS_DIR)/include
   PARMETIS_LIB         = $(PARMETIS_DIR)/lib
   INCLUDE_FLAGS       += $(addprefix -I,$(PARMETIS_INC))
-  LD_FLAGS            += -L$(PARMETIS_LIB) -Wl,-rpath,$(PARMETIS_DIR)/lib -lparmetis
+  LD_FLAGS            += -L$(PARMETIS_LIB) -Wl,-rpath,$(PARMETIS_DIR)/lib -lparmetis -lmetis
   ADDITIONAL_FLAGS    += -DUSE_PARMETIS
 endif
 
 # Provide the path for PARPACK
 
-USE_PARPACK=0
+USE_PARPACK=1
 ifeq ($(USE_PARPACK), 1)
   PARPACK_DIR          = ${PARPACK_ROOT}
   PARPACK_LIB          = $(PARPACK_DIR)
@@ -156,7 +156,7 @@ endif
 #     To use one of the following library, set the variable USE_* to 1
 #
 
-USE_SOLVER_MUMPS=0
+USE_SOLVER_MUMPS=1
 ifeq ($(USE_SOLVER_MUMPS), 1)
   MUMPS_DIR            = $(MUMPS_ROOT)
   MUMPS_INC            = $(MUMPS_DIR)/include

@@ -26,7 +26,7 @@ typedef struct{
   double residual_tolerance; // The tolerance of the arnoldi iterative solver
 
   int nev;   /* The number of eigenvalues to compute */
-  int nevComputed; /* Number of nev computed*/
+  int nevComputed; /* Number of nev computed */
   int issym; /*The problem to solve is symmetric*/
 
   /*Output*/
@@ -37,6 +37,8 @@ typedef struct{
   int OPX_iter; /* Number of matrix vector product (case 1 of ARPACK: Y = inv(A)*B*X )*/
   int BX_iter; /* Number of matrix vector product (case 2 of ARPACK: Y = B*X )*/
   double *eigvalues; /* The eigenvalues computed during the build of the solver */
+  double *eigvectorsloc; /* The local part of the eigenvectors computed by each processor */
+  int eigvectorsloc_size;
 
   /*Internal*/
   int ncv;
@@ -61,6 +63,9 @@ typedef struct{
 
 /* Create an eigensolver object */
 int Eigsolver_create(Eigsolver_t **eigs);
+
+/* Gather the local computed eigenvectors on the root process */
+int Eigsolver_eigenvectorsGather(Eigsolver_t *eigs, MPI_Comm comm, int *mcounts, int *mdispls, double **eigenvectors);
 
 /*Initialize the solver and allocate workspace*/
 int Eigsolver_init(Eigsolver_t *eigs, int m, int mloc);

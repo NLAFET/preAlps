@@ -14,8 +14,11 @@ Date        : July 8, 2017
 
 #include "mumps_solver.h"
 
+#include "preAlps_intvector.h"
+#include "preAlps_doublevector.h"
+
 #ifdef DEBUG
-#include<mpi.h>
+#include <mpi.h>
 #endif
 
 /* Initialize mumps structure*/
@@ -24,10 +27,10 @@ int mumps_solver_init(mumps_solver_t *solver, MPI_Comm comm){
   solver->comm = comm;
   solver->id.comm_fortran = MPI_Comm_c2f(solver->comm);
   solver->id.par=1; //parallel
-  solver->id.sym=0;
+  //solver->id.sym=0; //must be set by the user
   solver->id.job=JOB_INIT;
 
-  solver->id.ISOL_loc = NULL;
+  //solver->id.ISOL_loc = NULL;
 
   solver->irn = NULL;
   solver->jcn = NULL;
@@ -67,12 +70,12 @@ int mumps_solver_factorize(mumps_solver_t *solver, int n, double *a, int *ia, in
 int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int *ia, int *ja, int S_n,
                                             double **S, int **iS, int **jS){
 
-  int i, j, nnz, myid, ierr = 0;
+  int i, j, nnz, myid, nprocs, ierr = 0;
   int *listvar_schur=NULL;
   double *Swork = NULL;
 
   MPI_Comm_rank(solver->comm, &myid);
-
+  MPI_Comm_size(solver->comm, &nprocs);
 
   if(S_n>0) listvar_schur = (int*) malloc((S_n)*sizeof(int));
 
@@ -83,51 +86,67 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
   /* Allocate workspace for the schur complement */
   if(S_n>0) Swork = (double*) malloc((S_n * S_n)*sizeof(double));
 
-  /* Define the problem on the host */
-  if (myid == 0) {
+  //set the matrix dimension on the host
+  //if(myid==0){
+  solver->id.n      = solver->m_glob;
+  solver->id.nrhs   = solver->nrhs;
+  //}
 
-    /*convert to 1-based indexing*/
-    /*
-    for (i = 0; i < n+1; i++) {
-        ia[i] += 1;
-    }
-    for (i = 0; i < nnz; i++) {
-        ja[i] += 1;
-    }
-    */
-    solver->irn = (int*) malloc(sizeof(int) * nnz);
-    solver->jcn = (int*) malloc(sizeof(int) * nnz);
+  #ifdef DEBUG
+      printf("[MUMPS] nprocs:%d, m_glob:%d, nnz_loc:%d, idxRowPos:%d\n", nprocs, solver->m_glob, nnz, solver->idxRowPos);
+  #endif
 
-    /* Convert to COO storage and 1-based indexed*/
-    for (i = 0; i < n; i++) {
-      for (j = ia[i]; j < ia[i + 1]; j++) {
-        solver->irn[j] = i + 1;
-        //solver->jcn[j] = ja[j] + 1;
-      }
-    }
+  solver->irn = (int*) malloc(sizeof(int) * nnz);
+  solver->jcn = (int*) malloc(sizeof(int) * nnz);
 
-    for (i = 0; i < nnz; i++) {
-     solver->jcn[i] = ja[i] + 1;
-    }
+  if(!solver->irn || !solver->jcn) {printf("[MUMPS] Error: malloc failed for irc/jcn\n"); exit(1);}
 
-    solver->id.n   = n;
+  // Convert to COO storage and 1-based indexed
+
+  for (i = 0; i < n; i++) {
+    for (j = ia[i]; j < ia[i + 1]; j++) {
+      solver->irn[j] = i + 1 + solver->idxRowPos; //global indices of the matrix
+      //solver->jcn[j] = ja[j] + 1;
+    }
+  }
+
+  for (i = 0; i < nnz; i++) {
+   solver->jcn[i] = ja[i] + 1;
+  }
+
+  if(nprocs==1){
+    //input matrix on the host
     solver->id.nnz = nnz;
     solver->id.irn = solver->irn;
     solver->id.jcn = solver->jcn;
     solver->id.a   = a;
-
-    if(S_n>0) {
-
-      solver->id.schur = Swork;
-      //solver->id.rhs = rhs;
-
-      solver->id.size_schur = S_n;
-
-      //solver->id.schur_lld = S_n;
-      solver->id.listvar_schur = listvar_schur;
-    }
-
+  }else{
+    //input matrix is distributed
+    solver->id.nz_loc   = nnz;
+    solver->id.irn_loc = solver->irn;
+    solver->id.jcn_loc = solver->jcn;
+    solver->id.a_loc   = a;
   }
+
+  preAlps_intVector_printSynchronized(solver->irn, nnz, "irn", "irn in mumps", solver->comm);
+  preAlps_intVector_printSynchronized(solver->jcn, nnz, "jcn", "jcn in mumps", solver->comm);
+  preAlps_doubleVector_printSynchronized(a, nnz, "a", "a in mumps", solver->comm);
+
+  if(S_n>0){
+    if(nprocs==1){
+      if (myid == 0) { //the host must have id 0 in the communicator
+          solver->id.schur = Swork;
+          //solver->id.rhs = rhs;
+          solver->id.size_schur = S_n;
+          //solver->id.schur_lld = S_n;
+          solver->id.listvar_schur = listvar_schur;
+      }
+    }else{
+      printf("Error: parallel schur complement computation using MUMPS is not yet supported in preAlps");
+      exit(1);
+    }
+  }
+
 
 
   /* ICNTL is a macro s.t. indices match documentation */
@@ -145,43 +164,45 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
 
 
   //solver->id.ICNTL(7)=3; //Try using pORD
-  solver->id.ICNTL(18) = 0;//The input matrix is centralized on the host
 
-  if(S_n>0) solver->id.ICNTL(19) = 1; //Computes the schur centralized by rows on the host
+  if(nprocs==1){
+    solver->id.ICNTL(18) = 0;//The input matrix is centralized on the host
+    if(S_n>0) solver->id.ICNTL(19) = 1; //Computes the schur centralized by rows on the host. PreAlps does not support parallel schur yet
+    solver->id.lrhs = n; //the leading dimension of the rhs corresponds to the number of rows of the sequential problem
+  }else{
+
+    solver->id.ICNTL(18) = 3;//The input matrix is distributed
+    solver->id.lrhs = solver->m_glob; //the leading dimension of the rhs corresponds to the global number of rows
+
+    //Actually only the complete factorization can be done in parallel
+    if(S_n>0) {printf("preAlps does not support parallel schur complement yet."); exit(1);}
+
+  }
+
+  //solver->id.ICNTL(21) = 1;//distributed solution
+  solver->id.ICNTL(21) = 0;//centralized solution
+
 
   /* Call the MUMPS package (analyse, factorization). */
   solver->id.job=4;
   dmumps_c(&solver->id);
 
   if (solver->id.infog[0] < 0) {
-    printf("*** MUMPS factorization error. infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
+    printf("[MUMPS] Factorization error. infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
     //preAlps_abort("");
   }
 
-  if (myid == 0) {
-    printf("[mumps] INFO[23]:%d\n", solver->id.info[23]);
-  }
-
+  //if (myid == 0) {
+  //  printf("[mumps] INFO[23]:%d\n", solver->id.info[23]);
+  //}
   //solver->id.LSOL_loc = solver->id.info[23];
   //solver->id.ISOL_loc = (int*) malloc((solver->id.LSOL_loc)*sizeof(int));;
 
+  //Collect the schur complement
   if (myid == 0) {
-
-    /*convert back to 0-based indexing*/
-    /*
-
-    for (i = 0; i < n+1; i++) {
-        ia[i] -= 1;
-    }
-
-    for (i = 0; i < nnz; i++) {
-        ja[i] -= 1;
-    }
-
-    */
-
     if(S_n>0){
-      /*convert to an CSR matrix*/
+
+      /* Convert to a CSR matrix*/
 
       int count_nnz = 0;
       for(int i=0;i<S_n * S_n;i++){
@@ -216,8 +237,8 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
   }
 
   if(S_n>0){
-    free(Swork);
-    free(listvar_schur);
+    if(Swork) free(Swork);
+    if(listvar_schur) free(listvar_schur);
   }
 
   return ierr;
@@ -229,7 +250,7 @@ void mumps_solver_finalize(mumps_solver_t *solver, int n, int *ia, int *ja){
   free(solver->irn);
   free(solver->jcn);
 
-  if(solver->id.ISOL_loc != NULL) free(solver->id.ISOL_loc);
+  //if(solver->id.ISOL_loc != NULL) free(solver->id.ISOL_loc);
 
   solver->id.job=JOB_END;
   dmumps_c(&solver->id);
@@ -237,27 +258,37 @@ void mumps_solver_finalize(mumps_solver_t *solver, int n, int *ia, int *ja){
 }
 
 /*Solve Ax = b using mumps */
-int mumps_solver_triangsolve(mumps_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b){
+int mumps_solver_triangsolve(mumps_solver_t *solver, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b){
 
 
   if(x!= NULL ){
-    printf("MUMPS triangular solve. Argument x is not used, the solution will be overwrite b, set x = NULL\n ");
+    printf("[MUMPS] *** Triangular solve error: Argument x is not used, the solution will overwrite b, set x = NULL\n ");
     exit(1);
   }
-  //solver->id.ICNTL(21) = 1;//distributed solution
-  solver->id.ICNTL(21) = 0;//centralized solution
+
 
   //solver->id.SOL_loc = b;
   solver->id.rhs = b;
+  solver->id.nrhs = nrhs;
+  //solver->id.lrhs = n; //this is set during the factorization
+  
+  /*
+  if(solver->id.nrhs != nrhs){
+    printf("[MUMPS] *** Triangular solve error: mumps requires the same nrhs for the analysis and the solution. "
+    "nrhs provided: analysis: %d, solve: %d\n", solver->id.nrhs, nrhs);
+    exit(1);
+  }
+  */
 
   /* Call the MUMPS package (solve). */
   solver->id.job=3;
   dmumps_c(&solver->id);
 
   if (solver->id.infog[0] < 0) {
-    printf("*** MUMPS factorization error. infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
+    printf("[MUMPS] *** Triangular solve error: infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
     //preAlps_abort("");
   }
 
+  return 0;
 }
 #endif

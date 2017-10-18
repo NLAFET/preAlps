@@ -82,7 +82,7 @@ int **idum = NULL;
 
 ierr = mkl_pardiso_solver_partial_factorize(ps, n, a, ia, ja, S_n, ddum, idum, idum);
 
-return 0;
+return ierr;
 
 }
 
@@ -268,7 +268,7 @@ int mkl_pardiso_solver_partial_factorize(mkl_pardiso_solver_t *ps, int n, double
 }
 
 /*Solve Ax = b using pardiso*/
-int mkl_pardiso_solver_triangsolve(mkl_pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b){
+int mkl_pardiso_solver_triangsolve(mkl_pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b){
 
   //int      idum;              /* Integer dummy. */
 
@@ -283,8 +283,9 @@ int mkl_pardiso_solver_triangsolve(mkl_pardiso_solver_t *ps, int n, double *a, i
     /*pardiso (ps->pt, &(ps->maxfct), &(ps->mnum), &(ps->mtype), &phase,
              &n, a, ia, ja, &idum, &(ps->nrhs),
              ps->iparm, &(ps->msglvl), b, x, &(ps->error));*/
+    ps->nrhs = nrhs;
 
-             pardiso (ps->pt, &(ps->maxfct), &(ps->mnum), &(ps->mtype), &phase,
+    pardiso (ps->pt, &(ps->maxfct), &(ps->mnum), &(ps->mtype), &phase,
                       &n, a, ia, ja, ps->perm, &(ps->nrhs),
                       ps->iparm, &(ps->msglvl), b, x, &(ps->error));
 

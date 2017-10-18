@@ -23,9 +23,9 @@ Date        : Sept 13, 2017
                     char*, int*, double*, double*, int*, double*, int*, int*, int*,
                     double*, double*, int*, int*);
 
-  extern void pdneupd_(MPI_Comm* COMM, int *RVEC, char *HOWMNY, int *SELECT, double *DR, double *DI, double *Z, int *LDZ, double *SIGMAR, double *SIGMAI,
-                    double *WORKEV, char *BMAT, int *N, char *WHICH, int *NEV, double *TOL, double *RESID, int *NCV, double *V, int *LDV,
-                    int *IPARAM, int *IPNTR, double *WORKD, double *WORKL, int *LWORKL, int *INFO );
+  extern void pdneupd_(MPI_Comm* comm, int *rvec, char *howmny, int *select, double *dr, double *di, double *z, int *ldz, double *sigmaR, double *sigmaI,
+                    double *workev, char *bmat, int *n, char *which, int *nev, double *tol, double *resid, int *ncv, double *v, int *ldv,
+                    int *iparam, int *ipntr, double *workd, double *workl, int *lworkl, int *info );
 #endif
 
 /* Create an eigensolver object */
@@ -36,6 +36,55 @@ int Eigsolver_create(Eigsolver_t **eigs){
   return ierr;
 }
 
+/* Gather the local computed eigenvectors on the root process */
+int Eigsolver_eigenvectorsGather(Eigsolver_t *eigs, MPI_Comm comm, int *mcounts, int *mdispls, double **eigenvectors){
+  // Gather the eigenvectors on the root
+  int ierr = 0, j, my_rank, nbprocs, root = 0;
+
+  int TAG_WRITE = 4;
+  MPI_Status status;
+
+  MPI_Comm_rank(comm, &my_rank);
+  MPI_Comm_size(comm, &nbprocs);
+
+  if(my_rank==root){
+
+    //Allocate memory for the global eigenvectors
+    if ( !(*eigenvectors  = (double *) malloc(eigs->m * eigs->nevComputed * sizeof(double))) ) preAlps_abort("Malloc fails for *eigenvectors[].");
+
+    int mrows = mcounts[my_rank];
+    int ldz = mcounts[my_rank];
+
+    dlacpy("A", &mrows, &eigs->nevComputed, eigs->eigvectorsloc, &ldz, *eigenvectors, &eigs->m);
+
+    double *ztmp;
+    int ztmp_size = mcounts[my_rank]*eigs->nevComputed;
+    if ( !(ztmp  = (double *) malloc(ztmp_size * sizeof(double))) ) preAlps_abort("Malloc fails for ztmp[].");
+
+    for (j = 1; j < nbprocs; j++) {
+
+      if(ztmp_size<mcounts[j]*eigs->nevComputed){
+        free(ztmp);
+        ztmp_size = mcounts[j]*eigs->nevComputed;
+        if ( !(ztmp  = (double *) malloc(ztmp_size * sizeof(double))) ) preAlps_abort("Malloc fails for ztmp[].");
+      }
+
+      MPI_Recv(ztmp, mcounts[j]*eigs->nevComputed, MPI_DOUBLE, j, TAG_WRITE, comm, &status);
+
+      mrows = mcounts[j];
+      ldz = mcounts[j];
+      //double *e = *eigenvectors;
+      dlacpy("A", &mrows, &eigs->nevComputed, ztmp, &ldz, &(*eigenvectors)[mdispls[j]], &eigs->m);
+    }
+
+    free(ztmp);
+  }else{
+    MPI_Send(eigs->eigvectorsloc, mcounts[my_rank]*eigs->nevComputed, MPI_DOUBLE, root, TAG_WRITE, comm);
+  }
+
+  return ierr;
+}
+
 /*Initialize the solver and allocate workspace*/
 int Eigsolver_init(Eigsolver_t *eigs, int m, int mloc){
 
@@ -43,7 +92,7 @@ int Eigsolver_init(Eigsolver_t *eigs, int m, int mloc){
 
   /* Quick check*/
   if(mloc<=0) preAlps_abort("[PARPACK] mloc should be >0 for all procs ");
-
+  eigs->m = m;
 
   eigs->iparam[0] = 1;     //ishfts
   eigs->iparam[2] = eigs->maxit; //maxitr
@@ -80,6 +129,7 @@ int Eigsolver_init(Eigsolver_t *eigs, int m, int mloc){
 
   eigs->RCI_iter = 0;
   eigs->OPX_iter = 0;
+  eigs->BX_iter  = 0;
 
   return ierr;
 }
@@ -92,6 +142,7 @@ int Eigsolver_finalize(Eigsolver_t **eigs){
   free((*eigs)->v);
   free((*eigs)->workd);
   if((*eigs)->eigvalues!=NULL) free((*eigs)->eigvalues);
+  if((*eigs)->eigvectorsloc!=NULL) free((*eigs)->eigvectorsloc);
   free(*eigs);
 
   return ierr;
@@ -105,19 +156,21 @@ int Eigsolver_setDefaultParameters(Eigsolver_t *eigs){
 
   sprintf(eigs->which, "%s", "SM"); /*Small eigenvalues*/
 
-  /*Maximum number of iterations*/
+  /* Maximum number of iterations*/
   #ifdef ARPACK_MAXIT
     eigs->maxit = ARPACK_MAXIT;
   #else
     eigs->maxit = 200;
   #endif
 
-  eigs->residual_tolerance  = 1e-3; // The tolerance of the arnoldi iterative solver
+  eigs->residual_tolerance  = 1e-8; // The tolerance of the arnoldi iterative solver
 
 
   eigs->nev         = 0;
   eigs->nevComputed = 0;
   eigs->eigvalues   = NULL;
+  eigs->eigvectorsloc   = NULL;
+  eigs->eigvectorsloc_size   = 0;
   eigs->issym       = 0;
   for(i=0;i<11;i++) eigs->iparam[i] = 0;
   for(i=0;i<14;i++) eigs->ipntr[i] = 0;
@@ -161,8 +214,6 @@ int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, do
   MPI_Comm_rank(comm, &my_rank);
   MPI_Comm_size(comm, &nbprocs);
 
-  //if(my_rank==0) printf("[pdxaupd] before mloc:%d, ncv:%d, nev:%d, eigs->nev:%d\n", mloc, ncv, nev, eigs->nev);
-
   #ifdef USE_PARPACK
 
     ttemp = MPI_Wtime();
@@ -184,10 +235,6 @@ int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, do
     preAlps_abort("No other eigensolver is supported for the moment. Please Rebuild with PARPACK !");
   #endif
 
-  preAlps_int_printSynchronized(eigs->info, "info after pdnaupd", comm);
-  preAlps_int_printSynchronized(ipntr[0] - 1, "ipntr[0] - 1", comm);
-  preAlps_int_printSynchronized(*ido, "ido", comm);
-
   eigs->RCI_iter++;
   if(*ido==1) eigs->OPX_iter++;
   if(*ido==2) eigs->BX_iter++;
@@ -196,8 +243,6 @@ int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, do
 
   *X = &workd[ipntr[0] - 1];
   *Y = &workd[ipntr[1] - 1];
-
-  preAlps_doubleVector_printSynchronized(*X, mloc, "X", "X after pdnaupd", comm);
 
   /* After PARPACK */
   if(*ido==99 && my_rank==root){
@@ -228,35 +273,35 @@ int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, do
       int rvec = 1; // Compute the eigenvectors
       char howMany = 'A'; // Compute all the eigenvalues
       int *vselect; //Specify the eigenvectors to be computed
-      double *z;
-      int ldz;
+      //double *z;
+      //int ldz;
 
-      ldz = mloc; //counts[mynode_rank];
+      //ldz = mloc; //counts[mynode_rank];
 
       if(eigs->issym){
 
         double sigma=0.0;
-
+        eigs->eigvectorsloc_size = mloc*nev;
         if ( !(vselect  = (int *) malloc(ncv * sizeof(int))) ) preAlps_abort("Malloc fails for vselect[].");
-        if ( !(z  = (double *) malloc(ldz * nev * sizeof(double))) ) preAlps_abort("Malloc fails for z[].");
-        pdseupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, z, &ldz,
+        if ( !(eigs->eigvectorsloc  = (double *) malloc(eigs->eigvectorsloc_size * sizeof(double))) ) preAlps_abort("Malloc fails for eigvectorsloc[].");
+        pdseupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, eigs->eigvectorsloc, &mloc,
                &sigma, &bmat, &mloc, which, &nev, &residual_tol, resid,
                &ncv, v, &ldv, iparam, ipntr, workd, workl, &lworkl, &eigs->info);
 
       } else {
 
         double sigmaR = 0.0, sigmaI=0.0;
-
         double *workev, *DI;
+        eigs->eigvectorsloc_size = mloc * (nev+1);
 
         if ( !(vselect  = (int *) malloc(ncv * sizeof(int))) ) preAlps_abort("Malloc fails for vselect[].");
-        if ( !(z  = (double *) malloc(ldz * (nev+1) * sizeof(double))) ) preAlps_abort("Malloc fails for z[].");
+        if ( !(eigs->eigvectorsloc  = (double *) malloc(eigs->eigvectorsloc_size * sizeof(double))) ) preAlps_abort("Malloc fails for eigvectorsloc[].");
 
         if ( !(DI  = (double *) malloc((nev+1) * sizeof(double))) ) preAlps_abort("Malloc fails for D[].");
 
         if ( !(workev  = (double *) malloc((3*ncv) * sizeof(double))) ) preAlps_abort("Malloc fails for D[].");
 
-        pdneupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, DI, z, &ldz,
+        pdneupd_(&comm, &rvec, &howMany, vselect, eigs->eigvalues, DI, eigs->eigvectorsloc, &mloc,
                &sigmaR, &sigmaI, workev, &bmat, &mloc, which, &nev, &residual_tol, resid,
                &ncv, v, &ldv, iparam, ipntr, workd, workl, &lworkl, &eigs->info);
 
@@ -271,8 +316,10 @@ int Eigsolver_iterate(Eigsolver_t *eigs, MPI_Comm comm, int mloc, double **X, do
           //preAlps_abort("An error occured in PARPACK ");
         }
       }
-      free(vselect);
-      free(z);
+
+
+
+    free(vselect);
     #else
       preAlps_abort("No other eigensolver is supported for the moment. Please Rebuild with PARPACK !");
     #endif

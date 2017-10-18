@@ -1,5 +1,5 @@
 /******************************************************************************/
-/* Author     : Olivier Tissot                                                */
+/* Author     : Olivier Tissot, Simplice Donfack                              */
 /* Creation   : 2016/08/05                                                    */
 /* Description: Definition of the linear operator                             */
 /******************************************************************************/
@@ -119,6 +119,47 @@ CPLM_PUSH
 CPLM_POP
   return ierr;
 }
+
+/* Setup a matrix vector product without permuting the matrix. Useful for the cases where the matrix has already been partitioned */
+int preAlps_OperatorBuildNoPerm(CPLM_Mat_CSR_t *locA, int *idxRowBegin, int nbBlockPerProcs, MPI_Comm comm) {
+CPLM_PUSH
+  int rank, size, ierr = 0;
+
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  // Set the communicator
+  comm_g = comm;
+
+  int inc = nbBlockPerProcs;
+  // For the moment we assume that each mpi process has one metis block
+  if (inc != 1) {
+     CPLM_Abort("[OperatorBuildNoPerm] Each MPI process must have one (and only one) metis");
+  }
+
+  CPLM_MatCSRCopy(locA, &A_g);
+
+  //Create a copy of idxRowBegin as it is from an external source
+  int *rowPosTmp = (int*) malloc((size+1)*sizeof(int));
+  CPLM_ASSERT(rowPosTmp != NULL);
+  memcpy (rowPosTmp, idxRowBegin, (size+1)*sizeof(int) );
+
+  CPLM_IVectorCreateFromPtr(&rowPos_g, size+1, rowPosTmp);
+
+
+
+  ierr = CPLM_MatCSRGetColBlockPos(&A_g,
+                                   &rowPos_g,
+                                   &colPos_g);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatCSRGetCommDep(&colPos_g,
+                               A_g.info.m,
+                               size,
+                               rank,
+                               &dep_g);CPLM_CHKERR(ierr);
+CPLM_POP
+  return ierr;
+}
+
 
 void preAlps_OperatorPrint(int rank) {
 CPLM_PUSH

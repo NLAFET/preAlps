@@ -63,5 +63,5 @@ int mkl_pardiso_solver_partial_factorize(mkl_pardiso_solver_t *ps, int n, double
                                             double **S, int **iS, int **jS);
 
 /*Solve Ax = b using pardiso*/
-int mkl_pardiso_solver_triangsolve(mkl_pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b);
+int mkl_pardiso_solver_triangsolve(mkl_pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b);
 #endif

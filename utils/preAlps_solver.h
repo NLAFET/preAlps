@@ -48,15 +48,15 @@ typedef enum {
 */
 
 typedef enum {
-  SOLVER_MATRIX_REAL_NONSYMMETRIC,
-  SOLVER_MATRIX__REAL_SYMMETRIC,
+  SOLVER_MATRIX_REAL_NONSYMMETRIC, // non symmetric
+  SOLVER_MATRIX_REAL_SYMMETRIC, //general symmetric matrix
+  SOLVER_MATRIX_REAL_SPD, // SPD matrix
 } preAlps_solver_matrix_type_t;
 
 typedef struct
 {
 
   preAlps_solver_type_t type;
-
   MPI_Comm comm;
 
   #if defined (USE_SOLVER_MKL_PARDISO)
@@ -98,9 +98,18 @@ int preAlps_solver_init(preAlps_solver_t *solver);
 int preAlps_solver_partial_factorize(preAlps_solver_t *solver, int n, double *a, int *ia, int *ja, int S_n,
                                           double **S, int **iS, int **jS);
 
+/*
+ * Set the global matrix dimension (parallel solver only)
+ * idxRowPos the starting position of the processor calling the initialization routine in the distributed case in the global matrix,
+ * 0 in the sequential case
+ * nrhs:
+ *    The number of nrhs (required only for MUMPS)
+ */
+int preAlps_solver_setGlobalMatrixParam(preAlps_solver_t *solver, int m_glob, int nrhs, int idxRowPos);
+
 /* Set the type of the matrix to factorize */
 int preAlps_solver_setMatrixType(preAlps_solver_t *solver, preAlps_solver_matrix_type_t matrix_type);
 
 /* Solve A x = b with the previous factorized matrix*/
-int preAlps_solver_triangsolve(preAlps_solver_t *solver, int n, double *a, int *ia, int *ja, double *x, double *b);
+int preAlps_solver_triangsolve(preAlps_solver_t *solver, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b);
 #endif
