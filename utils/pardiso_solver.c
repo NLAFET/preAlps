@@ -360,7 +360,7 @@ if(shift_index!=0){
 }
 
 /*Solve Ax = b using pardiso*/
-int pardiso_solver_triangsolve(pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b){
+int pardiso_solver_triangsolve(pardiso_solver_t *ps, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b){
 
   int      idum;              /* Integer dummy. */
 
@@ -397,7 +397,7 @@ int pardiso_solver_triangsolve(pardiso_solver_t *ps, int n, double *a, int *ia, 
 /* ..  Back substitution and iterative refinement.                      */
 /* -------------------------------------------------------------------- */
     int phase = 33;
-
+    ps->nrhs = nrhs;
     ps->iparm[7] = 0; //1      /* Max numbers of iterative refinement steps. */
 
     pardiso (ps->pt, &(ps->maxfct), &(ps->mnum), &(ps->mtype), &phase,

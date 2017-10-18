@@ -27,6 +27,10 @@ typedef struct
   int *irn;
   int *jcn;
 
+  int m_glob;     //global problem size
+  int idxRowPos;  //the starting position of the processor calling the initialization routine in the distributed case in the global matrix
+  int nrhs;       //The number of rhs for the analysis and the solve phase
+
   DMUMPS_STRUC_C id;
 
 } mumps_solver_t;
@@ -54,6 +58,6 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
 void mumps_solver_finalize(mumps_solver_t *solver, int n, int *ia, int *ja);
 
 /*Solve Ax = b using mumps */
-int mumps_solver_triangsolve(mumps_solver_t *ps, int n, double *a, int *ia, int *ja, double *x, double *b);
+int mumps_solver_triangsolve(mumps_solver_t *solver, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b);
 
 #endif

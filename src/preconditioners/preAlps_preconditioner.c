@@ -32,7 +32,10 @@ int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, CPLM_Mat_D
 
   int ierr = 0;
 
-  if(precond->type==PREALPS_LORASC){
+  if(precond->type==PREALPS_NOPREC){
+    //Just copy the matrix
+    CPLM_MatDenseCopy(A_in, B_out);
+  } else if(precond->type==PREALPS_LORASC){
 
     /* Lorasc preconditioner */
     preAlps_Lorasc_t *lorascA = NULL;
@@ -40,14 +43,10 @@ int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, CPLM_Mat_D
     /* Get the preconditioner data */
     lorascA = (preAlps_Lorasc_t*) precond->data;
 
-#ifdef DEBUG
-    printf("Lorasc tolerance: %e\n", lorascA->deflation_tolerance);
-#endif
-
     /* Apply Lorasc preconditioner on the matrix A_in */
-    //preAlps_LorascMatApply(lorascA, A_in, B_out);
+    preAlps_LorascMatApply(lorascA, A_in, B_out);
+
   }else{
-    
     preAlps_abort("Unknown preconditioner: %d", precond->type);
   }
 
@@ -58,5 +57,6 @@ int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, CPLM_Mat_D
 int preAlps_PreconditionerDestroy(PreAlps_preconditioner_t **precond){
 
   if(*precond!=NULL) free(*precond);
+
   return 0;
 }

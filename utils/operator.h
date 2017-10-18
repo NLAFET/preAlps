@@ -42,6 +42,10 @@
  */
 int  preAlps_OperatorBuild(const char* matrixFilename, MPI_Comm comm);
 
+
+/* Setup a matrix vector product without permuting the matrix. Useful for the cases where the matrix has already been partitioned */
+int preAlps_OperatorBuildNoPerm(CPLM_Mat_CSR_t *locA, int *idxRowBegin, int nbBlockPerProcs, MPI_Comm comm);
+
 /*
  * Release memory allocated during preAlp_OperatorBuild.
  */

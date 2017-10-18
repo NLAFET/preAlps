@@ -10,9 +10,17 @@ Date        : Mai 15, 2017
 #ifndef PREALPS_UTILS_H
 #define PREALPS_UTILS_H
 
+#include <stdlib.h>
 #include <mpi.h>
+#ifdef USE_MKL
+#include <mkl.h>
+#endif
 #include <mat_csr.h>
 #include <ivector.h>
+
+#include "preAlps_intvector.h"
+#include "preAlps_doublevector.h"
+#include "preAlps_cplm_matcsr.h"
 
 #ifndef max
 #define max(a,b) ((a) > (b) ? a : b)
@@ -21,164 +29,6 @@ Date        : Mai 15, 2017
 #ifndef min
 #define min(a,b) ((a) < (b) ? a : b)
 #endif
-
-
-
-
-
-
-/*
- * Move in Ivector.h
- */
-
-/*
- * Each processor print a vector of integer
- * Work only in debug (-DDEBUG) mode
- * v:
- *    The vector to print
- */
-
-void CPLM_IVectorPrintSynchronized (CPLM_IVector_t *v, MPI_Comm comm, char *varname, char *s);
-
-
-/*
- * Move in Dvector.c
- */
-
-/*
- * Each processor print a vector of double
- * Work only in debug (-DDEBUG) mode
- * v:
- *    The vector to print
- */
-
-void CPLM_DVectorPrintSynchronized (CPLM_DVector_t *v, MPI_Comm comm, char *varname, char *s);
-
-
-
-
-
-
-
-
-
-
-
-/*
- * Move in CPLM_MatCSR.h
- */
-
- /*
-  * Split the matrix in block column and remove the selected block column number,
-  * Which is the same as replacing all values of that block with zeros.
-  * This reoutine can be used to fill the diag of a Block diag of global matrix with zeros when each proc
-  * has a rowPanel as locA.
-  * A:
-  *     input: the input matrix to remove the diag block
-  * colCount:
-  *     input: the global number of columns in each Block
-  * numBlock:
-  *     input: the number of the block to remove
-  */
-
- int CPLM_MatCSRBlockColRemove(CPLM_Mat_CSR_t *A, int *colCount, int numBlock);
-
-
-  /*
-   * 1D block rows gather of the matrix from all the processors in the communicator .
-   * Asend:
-   *     input: the matrix to send
-   * Arecv
-   *     output: the matrix to assemble the block matrix received from all (relevant only on the root)
-   * idxRowBegin:
-   *     input: the global row indices of the distribution
-   */
- int CPLM_MatCSRBlockRowGatherv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm);
-
- /*
-  * Gatherv a local matrix from each process and dump into a file
-  *
-  */
- int CPLM_MatCSRBlockRowGathervDump(CPLM_Mat_CSR_t *locA, char *filename, int *idxRowBegin, int root, MPI_Comm comm);
-
-
- /*
-  * 1D block rows distribution of the matrix to all the processors in the communicator using ncounts and displs.
-  * The data are originally stored on processor root. After this routine each processor i will have the row indexes from
-  * idxRowBegin[i] to idxRowBegin[i+1] - 1 of the input matrix.
-  *
-  * Asend:
-  *     input: the matrix to scatterv (relevant only on the root)
-  * Arecv
-  *     output: the matrix to store the block matrix received
-  * idxRowBegin:
-  *     input: the global row indices of the distribution
-  */
-int CPLM_MatCSRBlockRowScatterv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, int *idxRowBegin, int root, MPI_Comm comm);
-
-/*Create a matrix from a dense vector of type double, the matrix is stored in column major format*/
-int CPLM_MatCSRConvertFromDenseColumnMajorDVectorPtr(CPLM_Mat_CSR_t *m_out, double *v_in, int M, int N);
-
-/*Create a matrix from a dense vector of type double*/
-int CPLM_MatCSRConvertFromDenseDVectorPtr(CPLM_Mat_CSR_t *m_out, double *v_in, int M, int N);
-
-/*
- * Matrix vector product, y := alpha*A*x + beta*y
- */
-int CPLM_MatCSRMatrixVector(CPLM_Mat_CSR_t *A, double alpha, double *x, double beta, double *y);
-
-/*
- * Perform an ordering of a matrix using parMetis
- *
- */
-
-int CPLM_MatCSROrderingND(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int *order, int *sizes);
-
-/*
- * Partition a matrix using parMetis
- * part_loc:
- *     output: part_loc[i]=k means rows i belongs to subdomain k
- */
-
-int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int nparts, int *part_loc);
-
-
-/* Print a CSR matrix as coordinate triplet (i,j, val)*/
-void CPLM_MatCSRPrintCoords(CPLM_Mat_CSR_t *A, char *s);
-
-/* Only one process print its matrix, forces synchronisation between all the procs in the communicator*/
-void CPLM_MatCSRPrintSingleCoords(CPLM_Mat_CSR_t *A, MPI_Comm comm, int root, char *varname, char *s);
-
-/*
- * Each processor print the matrix it has as coordinate triplet (i,j, val)
- * Work only in debug (-DDEBUG) mode
- * A:
- *    The matrix to print
- */
-
-void CPLM_MatCSRPrintSynchronizedCoords (CPLM_Mat_CSR_t *A, MPI_Comm comm, char *varname, char *s);
-
-
-
-/*
- *
- * Scale a scaling vectors R and C, and scale the matrix by computing A1 = R * A * C
- * A:
- *     input: the matrix to scale
- * R:
- *     output: a vector with the same size as the number of rows of the matrix
- * C:
- *     output: a vector with the same size as the number of columns of the matrix
- */
-
-int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C);
-
-
-
-/* Transpose a matrix */
-int CPLM_MatCSRTranspose(CPLM_Mat_CSR_t *A_in, CPLM_Mat_CSR_t *B_out);
-
-
 
 /*
  * Macros
@@ -190,6 +40,10 @@ int CPLM_MatCSRTranspose(CPLM_Mat_CSR_t *A_in, CPLM_Mat_CSR_t *B_out);
  * Functions
  */
 
+ /* MPI custom function to sum the column of a matrix using MPI_REDUCE */
+ void DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype);
+
+ 
 /* Display a message and stop the execution of the program */
 void preAlps_abort(char *s, ...);
 
@@ -229,6 +83,17 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
 
 
 
+/*
+ * Distribute the matrix which has a block Arrow structure to the processors.
+ */
+
+ int preAlps_blockArrowStructDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
+   CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
+
+
+  /* Distribute the separator to each proc and permute the matrix such as their are contiguous in memory */
+  int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
+    CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
 
 
 /*
@@ -238,56 +103,11 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
 void preAlps_checkError_srcLine(int err, int line, char *src);
 
 
-/*
- * Load a vector from a file.
- */
-void preAlps_doubleVector_load(char *filename, double **v, int *vlen);
-
-
-
-/*
- * Each processor print the vector of type double that it has.
- * Work only in debug (-DDEBUG) mode
- * v:
- *    input: The vector to print
- * vlen:
- *    input: The len of the vector to print
- * varname:
- *   The name of the vector
- * s:
- *   The string to display before the variable
- */
-void preAlps_doubleVector_printSynchronized(double *v, int vlen, char *varname, char *s, MPI_Comm comm);
 
 /* Display statistiques min, max and avg of a double*/
 void preAlps_dstats_display(MPI_Comm comm, double d, char *str);
 
 
-/*
- * preAlps_intVector_* is a wrapper for some Ivector functions when the user do not want to create an Ivector object.
- * Although it is recommended to use the Ivector class directly for a better memory management and bugs tracking,
- * some users might still find simple to just use preAlps_intVector_* when these pointer has been already created in their program.
- * preAlps_intVector_ allocates and free internally all workspace required in order to call functions from preAlps_intVector_();
- *
- * Exple: a user want to compute c = a + b, where a, b, c are vectors declared as int *a, *b,*c;
- * Approach 1:  (using IVector)
- * ----------
- * int *a, *b, *c; int m;
- * //... some user initialisation for a and b
- * Ivector aWorK = IVectorNULL(), bWorK = IVectorNULL(), cWorK = IVectorNULL()
- * IVectorCreateFromPtr(aWork, m, a);
- * IVectorCreateFromPtr(bWork, m, b);
- * IVectorCreateFromPtr(cWork, m, c);
- * IVectorAdd(&c, &a, &b)
- * IvectorPrint(&c);
- *
- * Approach 2:  (using preAlps_intVector_)
- * ----------
- * int *a, *b, *c; int m;
- * //... some user initialisation for a and b
- * preAlps_intVector_add(m, c, a, b);
- * preAlps_intVector_Print(c);
-*/
 
 /*
  * Each processor print the value of type int that it has
@@ -298,22 +118,6 @@ void preAlps_dstats_display(MPI_Comm comm, double d, char *str);
  *   The string to display before the variable
  */
 void preAlps_int_printSynchronized(int a, char *s, MPI_Comm comm);
-
-/*
- * Each processor print the vector of type int that it has.
- * Work only in debug (-DDEBUG) mode
- * v:
- *    input: The vector to print
- * vlen:
- *    input: The len of the vector to print
- * varname:
- *   The name of the vector
- * s:
- *   The string to display before the variable
- */
-void preAlps_intVector_printSynchronized(int *v, int vlen, char *varname, char *s, MPI_Comm comm);
-
-
 
 
 /*Sort the row index of a CSR matrix*/
@@ -418,5 +222,6 @@ int preAlps_schurComplementGet(CPLM_Mat_CSR_t *A, int firstBlock_nrows, int firs
 /*Force the current process to sleep few seconds for debugging purpose*/
 void preAlps_sleep(int my_rank, int nbseconds);
 
-
+/* Load a vector from a file and distribute the other procs */
+int preAlps_loadDistributeFromFile(MPI_Comm comm, char *fileName, int *mcounts, double **x);
 #endif

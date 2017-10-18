@@ -188,6 +188,38 @@ int preAlps_solver_partial_factorize(preAlps_solver_t *solver, int n, double *a,
 }
 
 
+/*
+ * Set the global matrix dimension (parallel solver only)
+ * idxRowPos the starting position of the processor calling the initialization routine in the distributed case in the global matrix,
+ * 0 in the sequential case
+ * nrhs:
+ *    The number of nrhs (required only for MUMPS)
+ */
+int preAlps_solver_setGlobalMatrixParam(preAlps_solver_t *solver, int m_glob, int nrhs, int idxRowPos){
+
+
+  if(solver->type==SOLVER_MKL_PARDISO){
+    #if defined (USE_SOLVER_MKL_PARDISO)
+      preAlps_abort("This solver is sequential. Global size not supported");
+    #endif
+  }
+  else if(solver->type==SOLVER_PARDISO){
+    #if defined (USE_SOLVER_PARDISO)
+      preAlps_abort("This solver is sequential. Global size not supported");
+    #endif
+  } else if(solver->type==SOLVER_MUMPS){
+    #if defined (USE_SOLVER_MUMPS)
+      solver->mumps_ps.m_glob = m_glob;
+      solver->mumps_ps.idxRowPos = idxRowPos;
+      solver->mumps_ps.nrhs = nrhs;
+    #endif
+  }else {
+      preAlps_abort("setGlobalMatrixDim() not supported for this solver");
+  }
+
+  return 0;
+}
+
 /* Set the type of the matrix to factorize */
 int preAlps_solver_setMatrixType(preAlps_solver_t *solver, preAlps_solver_matrix_type_t matrix_type){
 
@@ -203,7 +235,14 @@ int preAlps_solver_setMatrixType(preAlps_solver_t *solver, preAlps_solver_matrix
       if(matrix_type==SOLVER_MATRIX_REAL_NONSYMMETRIC) solver->pardiso_ps.mtype = 11;
       else preAlps_abort("Matrix type not supported for this solver");
     #endif
-  } else { //if(solver->type==SOLVER_MUMPS){
+  } else if(solver->type==SOLVER_MUMPS){
+    #if defined (USE_SOLVER_MUMPS)
+      if(matrix_type==SOLVER_MATRIX_REAL_NONSYMMETRIC) solver->mumps_ps.id.sym = 0;
+      else if(matrix_type==SOLVER_MATRIX_REAL_SPD) solver->mumps_ps.id.sym = 1;
+      else if(matrix_type==SOLVER_MATRIX_REAL_SYMMETRIC) solver->mumps_ps.id.sym = 2;
+      else preAlps_abort("Matrix type not supported for this solver");
+    #endif
+  }else { //if(solver->type==SOLVER_MUMPS){
       preAlps_abort("setMatrixType() not supported for this solver");
   }
 
@@ -211,19 +250,19 @@ int preAlps_solver_setMatrixType(preAlps_solver_t *solver, preAlps_solver_matrix
 }
 
 /* Solve A x = b with the previous factorized matrix*/
-int preAlps_solver_triangsolve(preAlps_solver_t *solver, int n, double *a, int *ia, int *ja, double *x, double *b){
+int preAlps_solver_triangsolve(preAlps_solver_t *solver, int n, double *a, int *ia, int *ja, int nrhs, double *x, double *b){
 
   if(solver->type==SOLVER_MKL_PARDISO){
     #if defined (USE_SOLVER_MKL_PARDISO)
-      mkl_pardiso_solver_triangsolve(&solver->mkl_pardiso_ps, n, a, ia, ja, x, b);
+      mkl_pardiso_solver_triangsolve(&solver->mkl_pardiso_ps, n, a, ia, ja, nrhs, x, b);
     #endif
   } else if(solver->type==SOLVER_PARDISO){
     #if defined (USE_SOLVER_PARDISO)
-      pardiso_solver_triangsolve(&solver->pardiso_ps, n, a, ia, ja, x, b);
+      pardiso_solver_triangsolve(&solver->pardiso_ps, n, a, ia, ja, nrhs, x, b);
     #endif
   } else if(solver->type==SOLVER_MUMPS){
     #if defined (USE_SOLVER_MUMPS)
-      pardiso_solver_triangsolve(&solver->mumps_ps, n, a, ia, ja, x, b);
+      mumps_solver_triangsolve(&solver->mumps_ps, n, a, ia, ja, nrhs, x, b);
     #endif
   } else {
       preAlps_abort("triangsolve() not yet supported for this solver");

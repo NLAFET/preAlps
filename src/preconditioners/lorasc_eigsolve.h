@@ -20,18 +20,16 @@ Date        : oct 1, 2017
  *    input: the communicator
  * mloc:
  *    input: the number of rows of the local matrice.
- * Aggloc
- *    input: the matrix Agg distributed on all procs
  * Agi, Aii, Aig
  *    input: the matrices required for computing the second part of S
- * Agg
- *    input: the matrix Agg on processor 0
+ * Aggloc
+ *    input: the matrix Agg distributed on all procs
  * Aii_sv
  *    input: the solver object to apply to compute  Aii^{-1}v
  * Agg_sv
  *    input: the solver object to apply to compute  Agg^{-1}v
 */
 
-int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, MPI_Comm comm, int mloc, CPLM_Mat_CSR_t *Aggloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
-                         CPLM_Mat_CSR_t *Agg, preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv);
+int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, MPI_Comm comm, int mloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
+                         CPLM_Mat_CSR_t *Aggloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv);
 #endif
