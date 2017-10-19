@@ -162,7 +162,7 @@ ifeq ($(USE_SOLVER_MUMPS), 1)
   MUMPS_INC            = $(MUMPS_DIR)/include
   MUMPS_LIB            = $(MUMPS_DIR)/lib
   INCLUDE_FLAGS       += $(addprefix -I,$(MUMPS_INC))
-  LD_FLAGS            += -L$(MUMPS_LIB)  -Wl,-rpath,$(MUMPS_DIR)/lib -ldmumps -lmumps_common -lpord -qopenmp -lmkl_scalapack_lp64 -lmkl_blacs_intelmpi_lp64
+  LD_FLAGS            += -L$(MUMPS_LIB)  -Wl,-rpath,$(MUMPS_DIR)/lib -ldmumps -lmumps_common -lpord -lmkl_scalapack_lp64 -lmkl_blacs_intelmpi_lp64
   ADDITIONAL_FLAGS    += -DUSE_SOLVER_MUMPS
 endif
 
