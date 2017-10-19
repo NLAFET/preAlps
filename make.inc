@@ -171,10 +171,10 @@ USE_MKL=1
 ifeq ($(USE_MKL), 1)
   MKL_DIR              = ${MKL_ROOT}
   MKL_INC              = $(MKL_DIR)/include
-  MKL_LIB              = $(MKL_DIR)/lib
+  MKL_LIB              = $(MKL_DIR)/lib/intel64
   INCLUDE_FLAGS       += $(addprefix -I,$(MKL_INC))
-  LD_FLAGS            += -L$(MKL_LIB) -Wl,-rpath,$(MKL_DIR)/lib -lmkl_core -lmkl_sequential -lmkl_intel_lp64 -lpthread -ldl
-  # LD_FLAGS          += -L$(MKL_DIR)/lib/intel64 -Wl,-rpath,$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
+  LD_FLAGS            += -L$(MKL_LIB) -Wl,-rpath,$(MKL_LIB) -lmkl_core -lmkl_sequential -lmkl_intel_lp64 -lpthread -ldl
+# LD_FLAGS          += -L$(MKL_DIR)/lib/intel64 -Wl,-rpath,$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
   # LD_FLAGS          += -Wl,--no-as-needed -L$(MKL_DIR)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
   ADDITIONAL_FLAGS    += -DMKLACTIVATE -DUSE_MKL
   ADDITIONAL_LD_FLAGS += -lcpalamem_mkl
