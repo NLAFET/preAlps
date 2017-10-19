@@ -170,7 +170,7 @@ int main(int argc, char** argv){
 
     CPLM_MatCSRPrintCoords(&A, "Scaled matrix");
 
-    CPLM_MatCSRPrintInfo(&A);
+    //CPLM_MatCSRPrintInfo(&A);
     //CPLM_MatCSRPrintf2D("Loaded matrix", &A);
 
     CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
@@ -369,7 +369,7 @@ int main(int argc, char** argv){
     free(vs);
   #endif
 
-  //Free memory 
+  //Free memory
   preAlps_OperatorFree();
 
   //Destroy the preconditioner/the partitioning
