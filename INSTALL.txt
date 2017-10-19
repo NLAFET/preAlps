@@ -1,9 +1,0 @@
-# 1. Install METIS
-
-# 2. install cpalamem
-# Minimal installation of cpalamem
-#./configure -cc mpicc --with-mpi --with-metis
-
-# 3. Install ARPACK & PARPACK
-#
-# Recommanded: in ARmacke.inc comment BLASLIB & LAPACKLIB and set vendor BLAS
