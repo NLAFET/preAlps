@@ -60,6 +60,14 @@ CPLM_PUSH
         CPLM_Abort("Please Compile with PETSC to read other matrix file type");
       #endif
     }
+    // Scale the matrix
+    double* R = NULL;
+    double* C = NULL;
+    R = (double*) malloc(matCSR.info.m*sizeof(double));
+    C = (double*) malloc(matCSR.info.m*sizeof(double));
+    CPLM_MatCSRSymRACScaling(&matCSR,R,C);
+    if (R != NULL) free(R);
+    if (C != NULL) free(C);
     CPLM_IVector_t posB = CPLM_IVectorNULL(), perm = CPLM_IVectorNULL();
     ierr = CPLM_metisKwayOrdering(&matCSR,
                                   &perm,

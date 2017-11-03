@@ -279,7 +279,7 @@ int main(int argc, char** argv){
 
   /* Solve the system */
 
-  ECG_t ecg;
+  preAlps_ECG_t ecg;
   // Set parameters
   ecg.comm       = comm;              /* MPI Communicator */
   ecg.globPbSize = m;                 /* Size of the global problem */

@@ -4,6 +4,7 @@
 /* Description: Example of usage of E(nlarged) C(onjugate) G(radient)         */
 /******************************************************************************/
 
+
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
@@ -71,12 +72,25 @@ CPLM_OPEN_TIMER
                             colPos,
                             sizeColPos);
 
-  /*============= Construct a random rhs =============*/
+  /*============= Construct a normalized random rhs =============*/
   double* rhs = (double*) malloc(A.info.m*sizeof(double));
   // Set the seed of the random generator
   srand(0);
-  for (int i = 0; i < A.info.m; ++i)
+  double normb = 0.0;
+  for (int i = 0; i < A.info.m; ++i) {
     rhs[i] = ((double) rand() / (double) RAND_MAX);
+    normb += pow(rhs[i],2);
+  }
+  // Compute the norm of rhs and scale it accordingly
+  MPI_Allreduce(MPI_IN_PLACE,
+                &normb,
+                1,
+                MPI_DOUBLE,
+                MPI_SUM,
+                MPI_COMM_WORLD);
+  normb = sqrt(normb);
+  for (int i = 1; i < A.info.m; ++i)
+    rhs[i] /= normb;
 
   // Set global parameters for both PETSc and ECG
   double tol = 1e-5;
@@ -92,7 +106,7 @@ CPLM_OPEN_TIMER
   ecg.enlFac     = 4;              /* Enlarging factor */
   ecg.tol        = tol;            /* Tolerance of the method */
   ecg.ortho_alg  = ORTHOMIN;       /* Orthogonalization algorithm */
-  ecg.bs_red     = NO_BS_RED;      /* Only NO_BS_RED implemented !! */
+  ecg.bs_red     = ALPHA_RANK;      /* Reduction of the search directions */
   // Get local and global sizes of operator A
   int rci_request = 0;
   int stop = 0;
@@ -123,8 +137,9 @@ CPLM_TIC(step1,"ECGSolve")
   preAlps_ECGFinalize(&ecg,sol);
 CPLM_TAC(step1)
 
-  if (rank == 0)
-    printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
+  if (rank == 0) {
+    preAlps_ECGPrint(&ecg,0);
+  }
 
 
   /*================ Finalize ================*/
