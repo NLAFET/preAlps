@@ -22,7 +22,8 @@ CPLM_PUSH
   MPI_Comm_size(ecg->comm,&size);
   if (size < ecg->enlFac) {
     CPLM_Abort("Enlarging factor must be lower than the number of processors"
-               " in the MPI communicator!");
+               " in the MPI communicator! size: %d ; enlarging factor: %d",
+	       size,ecg->enlFac);
   }
 
   // Allocate Memory
@@ -207,23 +208,31 @@ CPLM_POP
 
 int preAlps_ECGIterate(preAlps_ECG_t* ecg, int* rci_request) {
 CPLM_PUSH
+CPLM_OPEN_TIMER
   int ierr = -1;
   if (*rci_request == 0) {
-    ierr = _preAlps_ECGIterateRRQRSearchDirections(ecg);
+    //CPLM_TIC(step1,"RRQR(P_k)")
+      //ierr = _preAlps_ECGIterateRRQRSearchDirections(ecg);
+    //CPLM_TAC(step1)
+    CPLM_TIC(step2,"Build X_k")
     ierr = _preAlps_ECGIterateBuildSolution(ecg);
+    CPLM_TAC(step2)
     // Iteration finished
     ecg->iter++;
     // Now we need the preconditioner
     *rci_request = 1;
   }
   else if (*rci_request == 1) {
+    CPLM_TIC(step3,"Build P_k")
     ierr = _preAlps_ECGIterateBuildSearchDirections(ecg);
+    CPLM_TAC(step3)
     // Now we need A*P to continue
     *rci_request = 0;
   }
   else {
     CPLM_Abort("Internal error: wrong rci_request value: %d",*rci_request);
   }
+CPLM_CLOSE_TIMER
 CPLM_POP
   return ierr;
 }
@@ -371,7 +380,6 @@ CPLM_PUSH
   CPLM_Mat_Dense_t* H      = ecg->H;
   CPLM_Mat_Dense_t* AH     = ecg->AH;
   CPLM_Mat_Dense_t* delta  = ecg->delta;
-  CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
   int*    iwork = ecg->iwork;
   double* tau_s = NULL;   // Householder reflectors
@@ -382,17 +390,15 @@ CPLM_PUSH
   int t1   = 0;           // Reduced size
   double tol = ecg->tol*ecg->normb/sqrt(nrhs);
 
-  work_s.info = alpha->info;
-  work_s.val = work;
   memcpy(work,alpha->val,sizeof(double)*alpha->info.nval);
   // # RRQR
   // Very important: memset iwork to 0
-  memset(iwork,0,work_s.info.n*sizeof(int));
+  memset(iwork,0,nrhs*sizeof(int));
   // Reuse work for storing Householder reflectors
   tau_s = work+nrhs*t;
-  ierr = CPLM_MatDenseDgeqp3(&work_s,iwork,tau_s);
-  for (int i = 0; i < work_s.info.n; i++) {
-    if (fabs(work[i + work_s.info.m * i]) > tol) {
+  ierr = LAPACKE_dgeqp3(LAPACK_COL_MAJOR,t,nrhs,work,nrhs,iwork,tau_s);
+  for (int i = 0; i < nrhs; i++) {
+    if (fabs(work[i + t * i]) > tol) {
       t1++;
     }
     else break;
@@ -401,9 +407,9 @@ CPLM_PUSH
   //  Reduction of the search directions
   if (t1 > 0 && t1 < nrhs && t1 < t) {
     // Update alpha, P, AP
-    CPLM_MatDenseDormqr(&work_s,alpha,tau_s,'L','T');
-    CPLM_MatDenseDormqr(&work_s, P,tau_s,'R','N');
-    CPLM_MatDenseDormqr(&work_s,AP,tau_s,'R','N');
+    LAPACKE_dormqr(LAPACK_COL_MAJOR,'L','T',t,nrhs,t,work,nrhs,tau_s,alpha->val,nrhs);
+    LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,work,nrhs,tau_s,P->val,m);
+    LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,work,nrhs,tau_s,AP->val,m);
 
     // Reduce sizes
     mkl_dimatcopy('C','N',t,nrhs,1.0,alpha->val,t,t1);
