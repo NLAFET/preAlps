@@ -43,7 +43,7 @@ Date        : Mai 15, 2017
  /* MPI custom function to sum the column of a matrix using MPI_REDUCE */
  void DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype);
 
- 
+
 /* Display a message and stop the execution of the program */
 void preAlps_abort(char *s, ...);
 
@@ -91,10 +91,31 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
    CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
 
 
-  /* Distribute the separator to each proc and permute the matrix such as their are contiguous in memory */
-  int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
+/* Distribute the separator to each proc and permute the matrix such as their are contiguous in memory */
+int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
     CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
 
+
+    /*
+     *
+     * First permute the matrix using kway partitioning
+     * Permute each block row such as any row with zeros outside the diagonal move
+     * to the bottom on the matrix (ODB)
+     *
+     * comm:
+     *     input: the communicator for all the processors calling the routine
+     * A:
+     *     input: the input matrix
+     * locA:
+     *     output: the matrix permuted into a block arrow structure on each procs
+     * perm:
+     *     output: the permutation vector
+     * partBegin:
+     *     output: the begining rows of each part.
+     * nbDiagRows:
+     *     output: the number of rows in the diag of each Row block
+    */
+    int preAlps_blockDiagODBStructCreate(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locA, int *perm, int **partBegin, int *nbDiagRows);
 
 /*
  * Check errors
@@ -179,7 +200,7 @@ int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, i
 
 
 /*
- * Permute the matrix to reflect the global matrix structure where all the Block diag are ordered first
+ * Permute the matrix to create the global matrix structure where all the Block diag are ordered first
  * followed by the Schur complement.
  * The permuted local matrix will have the form locA = [... A_{i, Gamma};... A_{gamma,gamma}]
  *
@@ -189,6 +210,8 @@ int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, i
  *     input: the local part of the matrix owned by the processor calling this routine
  * idxRowBegin:
  *     input: the global array to indicate the column partitioning
+ * locAP:
+ *     output: the permuted matrix
  * colPerm
  *     output: a preallocated vector of the size of the number of columns of A
  *            to return the global permutation vector
@@ -196,7 +219,7 @@ int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, i
  *    output: the number of column of the schur complement after the partitioning
  *
 */
-int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, int *colPerm, int *schur_ncols, MPI_Comm comm);
+int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, CPLM_Mat_CSR_t *locAP, int *colPerm, int *schur_ncols, MPI_Comm comm);
 
 
 /*

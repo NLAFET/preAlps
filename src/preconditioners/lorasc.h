@@ -21,7 +21,7 @@ typedef struct{
   /* User input*/
   double deflation_tol;    /* The deflation tolerance (default: 10^-2)*/
   int nrhs;                /* The number of rhs on which lorasc will be applied. This is required internally for the analysis. Default value: 1 */
-  int OptPermuteOnly;         /* Option to only permute the matrix for LORASC, do not build the preconditioner */
+  int OptPermuteOnly;      /* Option to only permute the matrix for LORASC, do not build the preconditioner */
 
   /* Computed during the build but accessible by the user */
   int *partCount;           /* array of size P (idxRowCount[i] indicates the number of rows for processor i in the permuted matrix)*/
@@ -37,7 +37,7 @@ typedef struct{
   int sep_nrows;
 
   /* */
-  MPI_Comm comm;            /* The MPI communicator */
+  MPI_Comm comm;            /* The MPI communicator used to build the preconditioner. Should be the same to apply it. */
   int nev;                  /* Number of eigenvalues computed */
 
 

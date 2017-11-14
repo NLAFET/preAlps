@@ -13,6 +13,7 @@ Date        : Sept 27, 2017
 #include "preAlps_utils.h"
 
 #include "lorasc.h"
+#include "presc.h"
 #include <mat_csr.h>
 
 /* Create a generic preconditioner object compatible with EcgSolver*/
@@ -45,6 +46,17 @@ int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, CPLM_Mat_D
 
     /* Apply Lorasc preconditioner on the matrix A_in */
     preAlps_LorascMatApply(lorascA, A_in, B_out);
+
+  }else if(precond->type==PREALPS_PRESC){
+
+    /* Presc preconditioner */
+    preAlps_Presc_t *prescA = NULL;
+
+    /* Get the preconditioner data */
+    prescA = (preAlps_Presc_t*) precond->data;
+
+    /* Apply Lorasc preconditioner on the matrix A_in */
+    preAlps_PrescMatApply(prescA, A_in, B_out);
 
   }else{
     preAlps_abort("Unknown preconditioner: %d", precond->type);

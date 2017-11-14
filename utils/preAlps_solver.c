@@ -227,6 +227,8 @@ int preAlps_solver_setMatrixType(preAlps_solver_t *solver, preAlps_solver_matrix
   if(solver->type==SOLVER_MKL_PARDISO){
     #if defined (USE_SOLVER_MKL_PARDISO)
       if(matrix_type==SOLVER_MATRIX_REAL_NONSYMMETRIC) solver->mkl_pardiso_ps.mtype = 11;
+      else if(matrix_type==SOLVER_MATRIX_REAL_SPD) solver->mkl_pardiso_ps.mtype = 2;
+      else if(matrix_type==SOLVER_MATRIX_REAL_SYMMETRIC) solver->mkl_pardiso_ps.mtype = -2;
       else preAlps_abort("Matrix type not supported for this solver");
     #endif
   }

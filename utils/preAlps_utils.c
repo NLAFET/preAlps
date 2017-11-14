@@ -15,6 +15,7 @@ Date        : Mai 15, 2017
 #include <unistd.h>
 #include <stdarg.h>
 #include <mat_csr.h>
+#include <metis_interface.h>
 #include <ivector.h>
 #include "preAlps_intvector.h"
 #include "preAlps_doublevector.h"
@@ -409,6 +410,177 @@ int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_C
   return ierr;
 }
 
+/*
+ *
+ * First permute the matrix using kway partitioning
+ * Permute each block row such as any row with zeros outside the diagonal move
+ * to the bottom on the matrix (ODB)
+ *
+ * comm:
+ *     input: the communicator for all the processors calling the routine
+ * A:
+ *     input: the input matrix
+ * locA:
+ *     output: the matrix permuted into a block arrow structure on each procs
+ * perm:
+ *     output: the permutation vector
+ * partBegin:
+ *     output: the begining rows of each part.
+ * nbDiagRows:
+ *     output: the number of rows in the diag of each Row block
+*/
+int preAlps_blockDiagODBStructCreate(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locA, int *perm, int **partBegin, int *nbDiagRows){
+
+  int i, ierr=0, my_rank, nbprocs, root = 0;
+  CPLM_IVector_t idxRowBegin   = CPLM_IVectorNULL(), idxColBegin   = CPLM_IVectorNULL();
+  CPLM_IVector_t Iperm   = CPLM_IVectorNULL();
+  CPLM_Mat_CSR_t AP = CPLM_MatCSRNULL();
+  int *workColPerm;
+  int n;
+
+  MPI_Comm_rank(comm, &my_rank);
+  MPI_Comm_size(comm, &nbprocs);
+
+
+  /*
+   * Partition the matrix on proc 0 and distribute (TODO: use parMETIS)
+   */
+
+  if(my_rank==root){
+
+    #ifdef MAT_LFAT5 /* The smallest SPD matrix on matrix-market for debugging purpose */
+      /*DEBUG: reproductible permutation */
+
+      ierr = CPLM_IVectorMalloc(&idxRowBegin, nbprocs+1);preAlps_checkError(ierr);
+
+      //MEtis on Matlab
+      perm[0]=1;perm[1]=5;perm[2]=9;perm[3]=2;perm[4]=6;perm[5]=10;perm[6]=0;
+      perm[7]=3;perm[8]=4;perm[9]=7;perm[10]=8;perm[11]=11;perm[12]=12;perm[13]=13;
+
+      idxRowBegin.val[0]= 0;idxRowBegin.val[1]= 3;idxRowBegin.val[2]= 6;
+      idxRowBegin.val[3]= 10; idxRowBegin.val[4]= 14;
+      //CPLM_IVectorPrintf("***** ATT: Permutation vector for reproductibility",&perm);
+      //CPLM_IVectorPrintf("***** ATT: Row position for reproductibility",&idxRowBegin);
+    #elif defined(MAT_CUSTOM_PARTITIONING_FILE) /* The custom already permuted matrix and the corresponding permutation vector */
+
+      char permFile[250], rowPosFile[250];
+      sprintf(permFile, "matrix/%s.perm.txt", MAT_CUSTOM_PARTITIONING_FILE);
+      sprintf(rowPosFile, "matrix/%s.rowPos.txt", MAT_CUSTOM_PARTITIONING_FILE);
+
+      printf("Loading partititioning details from files: Perm vector:%s, rowPos:%s ... \n", permFile, rowPosFile);
+
+      /* This matrice provides its own permutation vector */
+      CPLM_IVectorLoad(permFile, &Iperm, 0); //perm.nval
+      CPLM_IVectorLoad(rowPosFile, &idxRowBegin, 0); //idxRowBegin.nval
+
+      //CPLM_IVectorLoad("matrix/ela12.perm.txt", &perm, A->info.m); //perm.nval
+      //CPLM_IVectorLoad("matrix/ela12.rowPos.txt", &idxRowBegin, nbprocs+1); //idxRowBegin.nval
+
+      /* Copy and Convert to zero based indexing */
+      for(i=0;i<Iperm.nval;i++) perm[i]= Iperm[i] - 1;
+      for(i=0;i<idxRowBegin.nval;i++) idxRowBegin.val[i]-=1;
+
+      #ifdef DEBUG
+        preAlps_permVectorCheck(perm, perm);
+      #endif
+
+      printf("Loading ... done\n");
+
+      //CPLM_IVectorPrintf("***** ATT: CUSTOM matrix,  Permutation vector for reproductibility",&perm);
+      //CPLM_IVectorPrintf("***** ATT: CUSTOM matrix, Row position for reproductibility",&idxRowBegin);
+
+      //Check the size
+      int m_expected = 0;
+
+      for(i=0;i<nbprocs;i++) m_expected+=(idxRowBegin.val[i+1] - idxRowBegin.val[i]);
+      if(A->info.m!=m_expected){
+        preAlps_abort("Error: the sum of the rows in the provided partitioning: %d is different to the matrix size:%d\n", m_expected, A->info.m);
+      }
+
+      CPLM_IVectorFree(&Iperm);
+    #else
+
+      /* Use metis to partition the matrix */
+      ierr = CPLM_metisKwayOrdering(A, &Iperm, nbprocs, &idxRowBegin);preAlps_checkError(ierr);
+      //CPLM_IVectorPrintf("Permutation vector returned by Kway",&perm);
+      //CPLM_IVectorPrintf("Row position",&idxRowBegin);
+      for(i=0;i<Iperm.nval;i++) perm[i]= Iperm.val[i];
+
+      CPLM_IVectorFree(&Iperm);
+    #endif
+
+
+    #ifdef MAT_CUSTOM_PARTITIONING_FILE
+
+      CPLM_MatCSRCopy(A, &AP);
+
+      CPLM_MatCSRPrintfInfo("A Info", A);
+      CPLM_MatCSRPrintfInfo("AP info", &AP);
+
+    #else
+      ierr  = CPLM_MatCSRPermute(A, &AP, perm, perm, PERMUTE);preAlps_checkError(ierr);
+    #endif
+
+    CPLM_MatCSRPrintCoords(&AP, "Permuted matrix from Kway");
+
+    #ifdef BUILDING_MATRICES_DUMP
+      printf("Dumping the matrix ...\n");
+      CPLM_MatCSRSave(&AP, "dump_AP.mtx");
+      printf("Dumping the matrix ... done\n");
+    #endif
+
+  }else{
+
+    /*Allocate memory for the partitioning vector*/
+    ierr = CPLM_IVectorMalloc(&idxRowBegin, nbprocs+1);preAlps_checkError(ierr);
+  }
+
+  /*
+   *  distribute the matrix using block row data distribution
+   */
+
+  /*Broadcast the Block row distribution of the global matrix*/
+  MPI_Bcast(idxRowBegin.val, idxRowBegin.nval, MPI_INT, root, comm);
+
+
+  preAlps_intVector_printSynchronized(idxRowBegin.val, idxRowBegin.nval, "idxRowBegin", "after dist.", comm);
+
+  ierr = CPLM_MatCSRBlockRowScatterv(&AP, locA, idxRowBegin.val, root, comm); preAlps_checkError(ierr);
+
+
+  if(my_rank==root){
+    CPLM_MatCSRFree(&AP);
+  }
+
+
+  CPLM_MatCSRPrintSynchronizedCoords (locA, comm, "locA", "Recv locA");
+
+  n = locA->info.n;
+
+  //workspace of the size of the number of column of the global matrix
+
+  if ( !(workColPerm  = (int *) malloc(n * sizeof(int))) ) preAlps_abort("Malloc fails for workColPerm[].");
+
+  /*
+   * Permute the off diag rows on each local matrix to the bottom (inplace)
+   */
+
+  idxColBegin = idxRowBegin; //The matrix is symmetric
+
+  preAlps_permuteOffDiagRowsToBottom(locA, idxColBegin.val, nbDiagRows, workColPerm, comm);
+
+  CPLM_MatCSRPrintSynchronizedCoords (locA, comm, "locA", "2.0 locA after permuteOffDiagrows");
+
+  preAlps_int_printSynchronized(*nbDiagRows, "nbDiagRows", comm);
+
+
+  *partBegin = idxRowBegin.val;
+
+  free(workColPerm);
+
+  return ierr;
+}
+
 
 /*
  * Check errors
@@ -765,7 +937,7 @@ int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, i
 }
 
 /*
- * Permute the matrix to reflect the global matrix structure where all the Block diag are ordered first
+ * Permute the matrix to create the global matrix structure where all the Block diag are ordered first
  * followed by the Schur complement.
  * The permuted local matrix will have the form locA = [... A_{i, Gamma};... A_{gamma,gamma}]
  *
@@ -775,6 +947,8 @@ int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, i
  *     input: the local part of the matrix owned by the processor calling this routine
  * idxRowBegin:
  *     input: the global array to indicate the column partitioning
+ * locAP:
+ *     output: the permuted matrix
  * colPerm
  *     output: a preallocated vector of the size of the number of columns of A
  *            to return the global permutation vector
@@ -782,13 +956,13 @@ int preAlps_permuteOffDiagRowsToBottom(CPLM_Mat_CSR_t *locA, int *idxColBegin, i
  *    output: the number of column of the schur complement after the partitioning
  *
 */
-int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, int *colPerm, int *schur_ncols, MPI_Comm comm){
+int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows, int *idxColBegin, CPLM_Mat_CSR_t *locAP, int *colPerm, int *schur_ncols, MPI_Comm comm){
 
   int nbprocs, my_rank;
   int *workP; //a workspace of the size of the number of procs
   int i, j, ierr = 0, sum = 0, count = 0;
 
-  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
+  //CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int *locRowPerm;//permutation applied on the local matrix
 
   int mloc, n, r;
@@ -800,7 +974,6 @@ int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows,
 
   //Workspace
   if ( !(workP  = (int *) malloc(nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for workP[].");
-
   if ( !(locRowPerm  = (int *) malloc(mloc * sizeof(int))) ) preAlps_abort("Malloc fails for locRowPerm[].");
 
   //Gather the number of elements in the diag for each procs
@@ -829,16 +1002,15 @@ int preAlps_permuteSchurComplementToBottom(CPLM_Mat_CSR_t *locA, int nbDiagRows,
 
   //permute the matrix to form the schur complement
   for(i=0;i<mloc;i++) locRowPerm[i] = i; //no change in the rows
-  ierr  = CPLM_MatCSRPermute(locA, &locAP, locRowPerm, colPerm, PERMUTE); preAlps_checkError(ierr);
+  ierr  = CPLM_MatCSRPermute(locA, locAP, locRowPerm, colPerm, PERMUTE); preAlps_checkError(ierr);
 
 #ifdef DEBUG
-  CPLM_MatCSRPrintSynchronizedCoords (&locAP, comm, "locAP", "locAP after permuteSchurToBottom");
+  CPLM_MatCSRPrintSynchronizedCoords (locAP, comm, "locAP", "locAP after permuteSchurToBottom");
 #endif
 
   /*Copy and free the workspace matrice*/
-  CPLM_MatCSRCopy(&locAP, locA);
-
-  CPLM_MatCSRFree(&locAP);
+  //CPLM_MatCSRCopy(&locAP, locA);
+  //CPLM_MatCSRFree(&locAP);
 
   free(workP);
 

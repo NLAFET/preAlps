@@ -10,6 +10,11 @@ Date        : oct 1, 2017
 #ifndef LORASC_EIGSOLVE_H
 #define LORASC_EIGSOLVE_H
 
+#include <mpi.h>
+#include <mat_csr.h>
+#include "lorasc.h"
+#include "preAlps_solver.h"
+
 /*
  * Solve the eigenvalues problem S*u = \lambda*Agg*u using arpack.
  * Where  S = Agg - Agi*inv(Aii)*Aig.

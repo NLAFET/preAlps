@@ -58,7 +58,7 @@ Date        : oct 1, 2017
   SolverStats_t tstats;
   int i, iterate = 0, m, ido = 0, RCI_its = 0, max_m;
   int *mcounts, *mdispls;
-  double deflation_tol = 1e-2; //the deflation tolerance, all eigenvalues lower than this will be selected for deflation
+  double deflation_tol = lorascA->deflation_tol; //1e-2//the deflation tolerance, all eigenvalues lower than this will be selected for deflation
   Eigsolver_t *eigs;
 
 
