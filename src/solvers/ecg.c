@@ -333,9 +333,15 @@ CPLM_PUSH
   // Cholesky of C: R^tR = C
   int nrank;
   ierr = LAPACKE_dpstrf(LAPACK_COL_MAJOR,'U',t,work,t,iwork,&nrank,tol);
+
   // Permute P and AP
+  #ifdef USE_MKL
+  mkl_lapack_dlapmt(LAPACK_COL_MAJOR,1,m,t,P->val,m,iwork);
+  mkl_lapack_dlapmt(LAPACK_COL_MAJOR,1,m,t,AP->val,m,iwork);
+  #else
   LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,t,P->val,m,iwork);
   LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,t,AP->val,m,iwork);
+  #endif
   // Update Sizes of work, P and AP
   CPLM_MatDenseSetInfo(&work_s,nrank,nrank,nrank,nrank,COL_MAJOR);
   CPLM_MatDenseSetInfo(P,P->info.M,P->info.N,P->info.m,nrank,COL_MAJOR);
