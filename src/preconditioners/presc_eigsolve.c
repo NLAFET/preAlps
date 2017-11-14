@@ -45,7 +45,7 @@ Date        : Mai 15, 2017
  * AggP
  *    input: the matrix AggP
 */
-int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver_t *Sloc_sv, CPLM_Mat_CSR_t *Sloc, CPLM_Mat_CSR_t *AggP){
+int Presc_eigSolve_SSloc(preAlps_Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver_t *Sloc_sv, CPLM_Mat_CSR_t *Sloc, CPLM_Mat_CSR_t *AggP){
 
   int ierr;
   int root = 0, my_rank, nbprocs;
@@ -246,7 +246,7 @@ int Presc_eigSolve_SSloc(Presc_t *presc, MPI_Comm comm, int mloc, preAlps_solver
   *    input: the solver object to apply to compute  Aloc^{-1}v
  */
 
- int Presc_eigSolve_SAloc(Presc_t *presc, MPI_Comm comm, int mloc,
+ int Presc_eigSolve_SAloc(preAlps_Presc_t *presc, MPI_Comm comm, int mloc,
                           CPLM_Mat_CSR_t *Aggloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
                           CPLM_Mat_CSR_t *Aloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Aloc_sv){
 
