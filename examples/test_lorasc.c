@@ -57,10 +57,10 @@ int main(int argc, char** argv){
   preAlps_Lorasc_t *lorascA = NULL;
 
   /* Program default parameters */
-  int doScale = 0, monitorResidual = 0;
+  int doScale = 1, monitorResidual = 0;
   int precond_num = 2; /* 0: no prec, 1: blockJacobi, 2: Lorasc */
-  int ecg_enlargedFactor = 1, ecg_maxIter = 10000;
-  double ecg_tol = 1e-6;
+  int ecg_enlargedFactor = 1, ecg_maxIter = 30000;
+  double ecg_tol = 1e-5;
 
 
   // Start MPI
@@ -212,7 +212,7 @@ int main(int argc, char** argv){
     ierr =  preAlps_LorascAlloc(&lorascA); preAlps_checkError(ierr);
 
     /* Set parameters for the preconditioners */
-    lorascA->deflation_tol = 1e-2;
+    lorascA->deflation_tol = 5e-3;
 
     /* Change the nrhs before building lorasc (required for analysis by internal solvers and memory allocation ) */
     lorascA->nrhs = ecg_enlargedFactor;
@@ -273,6 +273,8 @@ int main(int argc, char** argv){
   }
 
 
+//if(my_rank==0) preAlps_doubleVector_gathervDump(b, A.info.m, "dump/b0.txt", MPI_COMM_SELF, "b0");
+
   // Broadcast the rhs to all the processors
   MPI_Bcast(b, m, MPI_DOUBLE, root, comm);
 
@@ -287,7 +289,7 @@ int main(int argc, char** argv){
   ecg.maxIter    = ecg_maxIter;       /* Maximum number of iterations */
   ecg.enlFac     = ecg_enlargedFactor;/* Enlarging factor */
   ecg.tol        = ecg_tol;           /* Tolerance of the method */
-  ecg.ortho_alg  = ORTHOMIN;          /* Orthogonalization algorithm */
+  ecg.ortho_alg  = ORTHODIR;          /* Orthogonalization algorithm */
 
   int rci_request = 0;
   int stop = 0;
