@@ -236,8 +236,42 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t* beta  = ecg->beta;
   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
-  int m = ecg->locPbSize, t = ecg->enlFac;
+  int*    iwork = ecg->iwork;
+  double tol = 1e-15;
+  int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
+  int t = P->info.n, nrank;
   if (*rci_request == 0) {
+    /**************** RR-QR with Cholesky-like algorithm **********************/
+    ierr = CPLM_MatDenseSetInfo(&work_s,t,t,t,t,COL_MAJOR);
+    work_s.val = work + 5*m*t + t*t;
+    ierr = CPLM_MatDenseMatDotProd(AP, P, &work_s, comm);
+    // Cholesky of C: R^tR = C
+    int nrank;
+    ierr = LAPACKE_dpstrf(LAPACK_COL_MAJOR,'U',t,work + 5*m*t + t*t,t,
+                          iwork,&nrank,tol);
+    if (nrank == 0) {
+      preAlps_ECGPrint(ecg,0);
+      CPLM_Abort("nrank = 0!");
+    }
+    // Permute P and AP
+    LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,t,P->val,m,iwork);
+    LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,t,AP->val,m,iwork);
+    // Update Sizes of work, P and AP
+    CPLM_MatDenseSetInfo(&work_s,nrank,nrank,nrank,nrank,COL_MAJOR);
+    CPLM_MatDenseSetInfo(P,M,nrank,m,nrank,COL_MAJOR);
+    CPLM_MatDenseSetInfo(AP,M,nrank,m,nrank,COL_MAJOR);
+    // Solve triangular right system for P
+    ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&work_s, P);
+    // Solve triangular right system for AP
+    ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&work_s, AP);
+    t  = nrank; // Update the value of t!
+    // Update the sizes of the other variables
+    ierr = CPLM_MatDenseSetInfo(alpha,t,nrhs,t,nrhs,COL_MAJOR);
+    ierr = CPLM_MatDenseSetInfo(Z,M,nrhs,m,nrhs,COL_MAJOR);
+    ierr = CPLM_MatDenseSetInfo(beta,t,nrhs,t,nrhs,COL_MAJOR);
+    // Update block size
+    ecg->bs = nrank;
+    /**************************************************************************/
     ierr = CPLM_MatDenseSetInfo(&work_s,t,t,t,t,COL_MAJOR);
     work_s.val = work + 5*m*t + t*t;
     ierr = CPLM_MatDenseACholQR(P, AP, &work_s, comm);
@@ -279,10 +313,11 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t* beta  = ecg->beta;
   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
-  int m = ecg->locPbSize, t = ecg->enlFac;
+  int*    iwork = ecg->iwork;
+  int m = ecg->locPbSize, nrhs = ecg->enlFac, t = P->info.n;
   if (*rci_request == 0) {
     ierr = CPLM_MatDenseSetInfo(&work_s,t,t,t,t,COL_MAJOR);
-    work_s.val = work + 7*m*t + 2*t*t;
+    work_s.val = work + 7*m*nrhs + 2*nrhs*nrhs;
     ierr = CPLM_MatDenseACholQR(P, AP, &work_s, comm);
     ierr = CPLM_MatDenseMatDotProd(P,R,alpha,comm);
     ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
@@ -299,7 +334,7 @@ CPLM_OPEN_TIMER
     mkl_domatcopy('C','N',m,t,1.E0,Kp->val,m,Kp->val+m*t,m);
     mkl_domatcopy('C','N',m,t,1.E0,AKp->val,m,AKp->val+m*t,m);
     mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,Kp->val,m);
-    // Now we need A*Kp to continue
+    // Now we need A*P to continue
     *rci_request = 0;
   }
 CPLM_CLOSE_TIMER
