@@ -10,26 +10,6 @@
 #ifndef BCG_H
 #define BCG_H
 
-/* STD */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-/* MPI */
-#include <mpi.h>
-/* MKL */
-#include<mkl.h>
-/* CPaLAMeM */
-#include <cpalamem_macro.h>
-#include <mat_csr.h>
-#include <mat_dense.h>
-#include <ivector.h>
-#include <dvector.h>
-#include <cholqr.h>
-#include <matmult.h>
-#include <kernels.h>
-#include <cpalamem_instrumentation.h>
-
 /* A-orthonormalization algorithm */
 typedef enum {
   ORTHOMIN,
@@ -42,23 +22,28 @@ typedef enum {
 } ECG_Block_Size_Red_t;
 
 typedef struct {
-  /* Array type variables */
-  double*           b;         /* Right hand side */
-  CPLM_Mat_Dense_t* X;         /* Approximated solution */
-  CPLM_Mat_Dense_t* R;         /* Residual */
-  CPLM_Mat_Dense_t* P;         /* Descent direction */
-  CPLM_Mat_Dense_t* AP;        /* A*P */
-  CPLM_Mat_Dense_t* P_prev;    /* Previous descent direction */
-  CPLM_Mat_Dense_t* AP_prev;   /* A*P_prev */
-  CPLM_Mat_Dense_t* alpha;     /* Descent step */
-  CPLM_Mat_Dense_t* beta;      /* Step to construt search directions */
-  CPLM_Mat_Dense_t* gamma;     /* Step to construct odir search directions */
-  CPLM_Mat_Dense_t* Z;         /* Extra memory */
-  CPLM_Mat_Dense_t* H;         /* Descent directions needed to reduce block size */
-  CPLM_Mat_Dense_t* AH;        /* A*H */
-  CPLM_Mat_Dense_t* delta;     /* Step to A-ortho H */
-  double*           work;      /* working array */
-  int*              iwork;     /* working array */
+  /* Input variable */
+  double* b;                    /* Right hand side */
+
+  /* Internal symbolic variables */
+  CPLM_Mat_Dense_t* X;          /* Approximated solution */
+  CPLM_Mat_Dense_t* R;          /* Residual */
+  CPLM_Mat_Dense_t* Kp;         /* Descent directions ([P,P_prev] or P) */
+  CPLM_Mat_Dense_t* AKp;        /* A*Kp */
+  CPLM_Mat_Dense_t* Z;          /* Preconditioned residual or AP */
+  CPLM_Mat_Dense_t* alpha;      /* Descent step */
+  CPLM_Mat_Dense_t* beta;       /* Step to construt search directions */
+
+  /* User interface variables */
+  CPLM_Mat_Dense_t* P;          /* For retro compatibility */
+  CPLM_Mat_Dense_t* AP;         /* For retro compatibility */
+  // TODO
+  // double* P_p;
+  // double* AP_p;
+
+  /* Working arrays */
+  double*           work;
+  int*              iwork;
 
   /* Single value variables */
   double            normb;     /* norm_2(b) */
@@ -76,7 +61,6 @@ typedef struct {
   ECG_Block_Size_Red_t bs_red;     /* Block size reduction */
   MPI_Comm             comm;       /* MPI communicator */
 } preAlps_ECG_t;
-
 /******************************************************************************/
 
 /******************************************************************************/
@@ -92,6 +76,8 @@ void preAlps_ECGPrint(preAlps_ECG_t* ecg, int verbosity);
 int  _preAlps_ECGMalloc(preAlps_ECG_t* ecg);
 void _preAlps_ECGFree(preAlps_ECG_t* ecg);
 int  _preAlps_ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex);
+int  _preAlps_ECGIterateOmin(preAlps_ECG_t* ecg, int* rci_request);
+int  _preAlps_ECGIterateOdir(preAlps_ECG_t* ecg, int* rci_request);
 int  _preAlps_ECGIterateBuildSolution(preAlps_ECG_t* ecg);
 int  _preAlps_ECGIterateBuildSearchDirections(preAlps_ECG_t* ecg);
 int  _preAlps_ECGIterateRRQRSearchDirections(preAlps_ECG_t* ecg);
