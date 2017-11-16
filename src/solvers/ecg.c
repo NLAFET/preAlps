@@ -307,73 +307,6 @@ CPLM_POP
   return ierr;
 }
 
-// int _preAlps_ECGIterateBuildSolution(preAlps_ECG_t* ecg) {
-// CPLM_PUSH
-//   // Simplify notations
-//   int ierr;
-//   MPI_Comm          comm    = ecg->comm;
-//   CPLM_Mat_Dense_t* P       = ecg->P;
-//   CPLM_Mat_Dense_t* AP      = ecg->AP;
-//   CPLM_Mat_Dense_t* X       = ecg->X;
-//   CPLM_Mat_Dense_t* R       = ecg->R;
-//   CPLM_Mat_Dense_t* alpha   = ecg->alpha;
-//   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
-//   double*  work = ecg->work;
-//   int t = P->info.n;
-//   ierr = CPLM_MatDenseSetInfo(&work_s,t,t,t,t,COL_MAJOR);
-//   work_s.val = work;
-//
-//   ierr = CPLM_MatDenseACholQR(P,AP,&work_s,comm);
-//   ierr = CPLM_MatDenseMatDotProd(P,R,alpha,comm);
-//   if (ecg->bs_red == ALPHA_RANK) {
-//     ierr = _preAlps_ECGIterateRRQRAlpha(ecg);
-//   }
-//   ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
-//   ierr = CPLM_MatDenseKernelMatMult(AP,'N',alpha,'N',R,-1.E0,1.E0);
-// CPLM_POP
-//   return ierr;
-// }
-
-// int _preAlps_ECGIterateBuildSearchDirections(preAlps_ECG_t* ecg) {
-// CPLM_PUSH
-//   // Simplify notations
-//   int ierr;
-//   MPI_Comm          comm    = ecg->comm;
-//   CPLM_Mat_Dense_t* P       = ecg->P;
-//   CPLM_Mat_Dense_t* P_prev  = ecg->P_prev;
-//   CPLM_Mat_Dense_t* AP      = ecg->AP;
-//   CPLM_Mat_Dense_t* AP_prev = ecg->AP_prev;
-//   CPLM_Mat_Dense_t* beta    = ecg->beta;
-//   CPLM_Mat_Dense_t* gamma   = ecg->gamma;
-//   CPLM_Mat_Dense_t* Z       = ecg->Z;
-//   CPLM_Mat_Dense_t* H      = ecg->H;
-//   CPLM_Mat_Dense_t* AH     = ecg->AH;
-//   CPLM_Mat_Dense_t* delta  = ecg->delta;
-//
-//   ierr = CPLM_MatDenseMatDotProd(AP,Z,beta,comm);
-//   ierr = CPLM_MatDenseKernelMatMult(P,'N',beta,'N',Z,-1.E0,1.E0);
-//   if (ecg->ortho_alg == ORTHODIR) {
-//     ierr = CPLM_MatDenseMatDotProd(AP_prev,Z,gamma,comm);
-//     ierr = CPLM_MatDenseKernelMatMult(P_prev,'N',gamma,'N',Z,-1.E0,1.E0);
-//   }
-//   if (ecg->bs_red == ALPHA_RANK && P->info.n < ecg->enlFac) {
-//     ierr = CPLM_MatDenseMatDotProd(AH,Z,delta,comm);
-//     ierr = CPLM_MatDenseKernelMatMult(H,'N',delta,'N',Z,-1.E0,1.E0);
-//   }
-//
-//   // Swapping time
-//   CPLM_MatDenseSwap(P,Z);
-//   if (ecg->ortho_alg == ORTHODIR) {
-//     CPLM_MatDenseSwap(AP,AP_prev);
-//     CPLM_MatDenseSwap(P_prev,Z);
-//     AP->info = P->info;
-//     AP_prev->info = P_prev->info;
-//   }
-//
-// CPLM_POP
-//   return ierr;
-// }
-
 // int _preAlps_ECGIterateRRQRSearchDirections(preAlps_ECG_t* ecg) {
 // CPLM_PUSH
 //   int ierr = -1;
@@ -567,20 +500,17 @@ CPLM_POP
 
 void _preAlps_ECGFree(preAlps_ECG_t* ecg) {
 CPLM_PUSH
-  if (ecg->X != NULL)
-    free(ecg->X);
-  if (ecg->R != NULL)
-    free(ecg->R);
-  if (ecg->Kp != NULL)
-    free(ecg->Kp);
-  if (ecg->AKp != NULL)
-    free(ecg->AKp);
-  if (ecg->alpha != NULL)
-    free(ecg->alpha);
-  if (ecg->beta != NULL)
-    free(ecg->beta);
-  if (ecg->Z != NULL)
-    free(ecg->Z);
+  if (ecg->X     != NULL) free(ecg->X);
+  if (ecg->R     != NULL) free(ecg->R);
+  if (ecg->Kp    != NULL) free(ecg->Kp);
+  if (ecg->AKp   != NULL) free(ecg->AKp);
+  if (ecg->alpha != NULL) free(ecg->alpha);
+  if (ecg->beta  != NULL) free(ecg->beta);
+  if (ecg->Z     != NULL) free(ecg->Z);
+  if (ecg->ortho_alg == ORTHODIR) {
+    if (ecg->P  != NULL) free(ecg->P);
+    if (ecg->AP != NULL) free(ecg->AP);
+  }
   mkl_free(ecg->work);
 CPLM_POP
 }
