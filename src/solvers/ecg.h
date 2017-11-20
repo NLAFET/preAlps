@@ -14,12 +14,12 @@
 typedef enum {
   ORTHOMIN,
   ORTHODIR
-} ECG_Ortho_Alg_t;
+} preAlps_ECG_Ortho_Alg_t;
 /* Block size reduction */
 typedef enum {
-  ALPHA_RANK,
+  ADAPT_BS,
   NO_BS_RED
-} ECG_Block_Size_Red_t;
+} preAlps_ECG_Block_Size_Red_t;
 
 typedef struct {
   /* Input variable */
@@ -52,14 +52,14 @@ typedef struct {
   int               bs;        /* Block size */
 
   /* Options and parameters */
-  int                  globPbSize; /* Size of the global problem */
-  int                  locPbSize;  /* Size of the local problem */
-  int                  maxIter;    /* Maximum number of iterations */
-  int                  enlFac;     /* Enlarging factor */
-  double               tol;        /* Tolerance */
-  ECG_Ortho_Alg_t      ortho_alg;  /* A-orthonormalization algorithm */
-  ECG_Block_Size_Red_t bs_red;     /* Block size reduction */
-  MPI_Comm             comm;       /* MPI communicator */
+  int                          globPbSize; /* Size of the global problem */
+  int                          locPbSize;  /* Size of the local problem */
+  int                          maxIter;    /* Maximum number of iterations */
+  int                          enlFac;     /* Enlarging factor */
+  double                       tol;        /* Tolerance */
+  preAlps_ECG_Ortho_Alg_t      ortho_alg;  /* A-orthonormalization algorithm */
+  preAlps_ECG_Block_Size_Red_t bs_red;     /* Block size reduction */
+  MPI_Comm             comm;               /* MPI communicator */
 } preAlps_ECG_t;
 /******************************************************************************/
 
@@ -78,10 +78,6 @@ void _preAlps_ECGFree(preAlps_ECG_t* ecg);
 int  _preAlps_ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex);
 int  _preAlps_ECGIterateOmin(preAlps_ECG_t* ecg, int* rci_request);
 int  _preAlps_ECGIterateOdir(preAlps_ECG_t* ecg, int* rci_request);
-int  _preAlps_ECGIterateBuildSolution(preAlps_ECG_t* ecg);
-int  _preAlps_ECGIterateBuildSearchDirections(preAlps_ECG_t* ecg);
-int  _preAlps_ECGIterateRRQRSearchDirections(preAlps_ECG_t* ecg);
-int  _preAlps_ECGIterateRRQRAlpha(preAlps_ECG_t* ecg);
 
 /******************************************************************************/
 
