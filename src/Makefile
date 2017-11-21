@@ -4,7 +4,8 @@ PREC_DIR=preconditioners
 SOLVER_DIR=solvers
 PRECONDITIONERS_SRC = $(PREC_DIR)/preAlps_preconditioner.c\
 			$(PREC_DIR)/lorasc.c $(PREC_DIR)/block_jacobi.c \
-			$(PREC_DIR)/lorasc_eigsolve.c
+			$(PREC_DIR)/lorasc_eigsolve.c $(PREC_DIR)/presc.c \
+			$(PREC_DIR)/presc_eigsolve.c
 
 SOLVERS_SRC = $(SOLVER_DIR)/ecg.c
 
