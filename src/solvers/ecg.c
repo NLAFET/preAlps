@@ -434,8 +434,8 @@ CPLM_PUSH
   if (ecg->alpha != NULL) free(ecg->alpha);
   if (ecg->beta  != NULL) free(ecg->beta);
   if (ecg->Z     != NULL) free(ecg->Z);
-  if (ecg->P  != NULL) free(ecg->P);
-  if (ecg->AP != NULL) free(ecg->AP);
+  if (ecg->P     != NULL) free(ecg->P);
+  if (ecg->AP    != NULL) free(ecg->AP);
   mkl_free(ecg->work);
 CPLM_POP
 }
