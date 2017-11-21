@@ -42,8 +42,8 @@ CPLM_PUSH
   // Malloc the pointers
   ecg->X     = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
   ecg->R     = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
-  ecg->Kp    = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
-  ecg->AKp   = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
+  ecg->V     = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
+  ecg->AV    = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
   ecg->Z     = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
   ecg->alpha = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
   ecg->beta  = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
@@ -52,8 +52,8 @@ CPLM_PUSH
     allocatedSize = 5*m*t + 2*t*t;
     CPLM_MatDenseSetInfo(ecg->X    , M, t, m, t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->R    , M, t, m, t, COL_MAJOR);
-    CPLM_MatDenseSetInfo(ecg->Kp   , M, t, m, t, COL_MAJOR);
-    CPLM_MatDenseSetInfo(ecg->AKp  , M, t, m, t, COL_MAJOR);
+    CPLM_MatDenseSetInfo(ecg->V    , M, t, m, t, COL_MAJOR);
+    CPLM_MatDenseSetInfo(ecg->AV   , M, t, m, t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->Z    , M, t, m, t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->alpha, t, t, t, t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->beta , t, t, t, t, COL_MAJOR);
@@ -62,8 +62,8 @@ CPLM_PUSH
     allocatedSize = 7*m*t + 3*t*t;
     CPLM_MatDenseSetInfo(ecg->X    ,   M,   t,   m,   t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->R    ,   M,   t,   m,   t, COL_MAJOR);
-    CPLM_MatDenseSetInfo(ecg->Kp   ,   M, 2*t,   m, 2*t, COL_MAJOR);
-    CPLM_MatDenseSetInfo(ecg->AKp  ,   M, 2*t,   m, 2*t, COL_MAJOR);
+    CPLM_MatDenseSetInfo(ecg->V    ,   M, 2*t,   m, 2*t, COL_MAJOR);
+    CPLM_MatDenseSetInfo(ecg->AV   ,   M, 2*t,   m, 2*t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->Z    ,   M,   t,   m,   t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->alpha,   t,   t,   t,   t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->beta , 2*t,   t, 2*t,   t, COL_MAJOR);
@@ -73,31 +73,34 @@ CPLM_PUSH
   ecg->iwork = (int*) mkl_calloc(ecg->enlFac,sizeof(int),32);
   // Distribute it among variables
   if (ecg->ortho_alg == ORTHOMIN) {
-    ecg->Kp->val    = ecg->work;
-    ecg->AKp->val   = ecg->work +   m*t;
+    ecg->V->val     = ecg->work;
+    ecg->AV->val    = ecg->work +   m*t;
     ecg->Z->val     = ecg->work + 2*m*t;
     ecg->R->val     = ecg->work + 3*m*t;
     ecg->X->val     = ecg->work + 4*m*t;
     ecg->alpha->val = ecg->work + 5*m*t;
     ecg->beta->val  = ecg->work + 5*m*t + t*t;
-    ecg->P = ecg->Kp;
-    ecg->AP = ecg->AKp;
   }
   else if (ecg->ortho_alg == ORTHODIR) {
-    ecg->Kp->val    = ecg->work;
-    ecg->AKp->val   = ecg->work + 2*m*t;
+    ecg->V->val     = ecg->work;
+    ecg->AV->val    = ecg->work + 2*m*t;
     ecg->Z->val     = ecg->work + 4*m*t;
     ecg->R->val     = ecg->work + 5*m*t;
     ecg->X->val     = ecg->work + 6*m*t;
     ecg->alpha->val = ecg->work + 7*m*t;
     ecg->beta->val  = ecg->work + 7*m*t + t*t;
-    ecg->P  = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
-    ecg->AP = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
-    CPLM_MatDenseSetInfo(ecg->P , M, t, m ,t, COL_MAJOR);
-    CPLM_MatDenseSetInfo(ecg->AP, M, t, m ,t, COL_MAJOR);
-    ecg->P->val  = ecg->Kp->val;
-    ecg->AP->val = ecg->AKp->val;
   }
+  // User interface variables
+  ecg->P  = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
+  ecg->AP = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
+  CPLM_MatDenseSetInfo(ecg->P , M, t, m ,t, COL_MAJOR);
+  CPLM_MatDenseSetInfo(ecg->AP, M, t, m ,t, COL_MAJOR);
+  ecg->P->val  = ecg->V->val;
+  ecg->AP->val = ecg->AV->val;
+  ecg->P_p     = ecg->V->val;
+  ecg->AP_p    = ecg->AV->val;
+  ecg->R_p     = ecg->R->val;
+  ecg->Z_p     = ecg->Z->val;
 CPLM_POP
   return ierr;
 }
@@ -249,10 +252,6 @@ CPLM_OPEN_TIMER
       int nrank;
       ierr = LAPACKE_dpstrf(LAPACK_COL_MAJOR,'U',t,work + 5*m*t + t*t,t,
                             iwork,&nrank,tol);
-      if (nrank == 0) {
-        preAlps_ECGPrint(ecg,0);
-        CPLM_Abort("nrank = 0!");
-      }
       // Permute P and AP
       LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,t,P->val,m,iwork);
       LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,t,AP->val,m,iwork);
@@ -288,7 +287,7 @@ CPLM_OPEN_TIMER
     ierr = CPLM_MatDenseMatDotProd(AP,Z,beta,comm);
     ierr = CPLM_MatDenseKernelMatMult(P,'N',beta,'N',Z,-1.E0,1.E0);
     // Swapping time
-    CPLM_MatDenseSwap(P,Z);
+    mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,P->val,m);
     // Now we need A*P to continue
     *rci_request = 0;
   }
@@ -303,8 +302,8 @@ CPLM_OPEN_TIMER
   int ierr = 0;
   // Simplify notations
   MPI_Comm          comm  = ecg->comm;
-  CPLM_Mat_Dense_t* Kp    = ecg->Kp;
-  CPLM_Mat_Dense_t* AKp   = ecg->AKp;
+  CPLM_Mat_Dense_t* V     = ecg->V;
+  CPLM_Mat_Dense_t* AV    = ecg->AV;
   CPLM_Mat_Dense_t* P     = ecg->P;
   CPLM_Mat_Dense_t* AP    = ecg->AP;
   CPLM_Mat_Dense_t* X     = ecg->X;
@@ -360,8 +359,8 @@ CPLM_OPEN_TIMER
       }
       CPLM_MatDenseSetInfo(beta, sizeBasis, t1, sizeBasis, t1, COL_MAJOR);
       CPLM_MatDenseSetInfo(beta, sizeBasis, nrhs, sizeBasis, nrhs, COL_MAJOR);
-      CPLM_MatDenseSetInfo(Kp, M, sizeBasis, m, sizeBasis, COL_MAJOR);
-      CPLM_MatDenseSetInfo(AKp, M, sizeBasis, m, sizeBasis, COL_MAJOR);
+      CPLM_MatDenseSetInfo(V, M, sizeBasis, m, sizeBasis, COL_MAJOR);
+      CPLM_MatDenseSetInfo(AV, M, sizeBasis, m, sizeBasis, COL_MAJOR);
       // Update block size
       ecg->bs = t1;
     }
@@ -375,12 +374,12 @@ CPLM_OPEN_TIMER
     *rci_request = 1;
   }
   else if (*rci_request == 1) {
-    ierr = CPLM_MatDenseMatDotProd(AKp,Z,beta,comm);
-    ierr = CPLM_MatDenseKernelMatMult(Kp,'N',beta,'N',Z,-1.E0,1.E0);
+    ierr = CPLM_MatDenseMatDotProd(AV,Z,beta,comm);
+    ierr = CPLM_MatDenseKernelMatMult(V,'N',beta,'N',Z,-1.E0,1.E0);
     // Swapping time
-    mkl_domatcopy('C','N',m,t,1.E0,Kp->val,m,Kp->val+m*nrhs,m);
-    mkl_domatcopy('C','N',m,t,1.E0,AKp->val,m,AKp->val+m*nrhs,m);
-    mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,Kp->val,m);
+    mkl_domatcopy('C','N',m,t,1.E0,V->val,m,V->val+m*nrhs,m);
+    mkl_domatcopy('C','N',m,t,1.E0,AV->val,m,AV->val+m*nrhs,m);
+    mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,V->val,m);
     // Now we need A*P to continue
     *rci_request = 0;
   }
@@ -415,8 +414,8 @@ CPLM_PUSH
     printf("=== Memory consumption ===\n");
     CPLM_MatDensePrintfInfo("X",    ecg->X);
     CPLM_MatDensePrintfInfo("R",    ecg->R);
-    CPLM_MatDensePrintfInfo("Kp",   ecg->Kp);
-    CPLM_MatDensePrintfInfo("AKp",  ecg->AKp);
+    CPLM_MatDensePrintfInfo("V",   ecg->V);
+    CPLM_MatDensePrintfInfo("AV",  ecg->AV);
     CPLM_MatDensePrintfInfo("Z",    ecg->Z);
     CPLM_MatDensePrintfInfo("alpha",ecg->alpha);
     CPLM_MatDensePrintfInfo("beta", ecg->beta);
@@ -430,15 +429,13 @@ void _preAlps_ECGFree(preAlps_ECG_t* ecg) {
 CPLM_PUSH
   if (ecg->X     != NULL) free(ecg->X);
   if (ecg->R     != NULL) free(ecg->R);
-  if (ecg->Kp    != NULL) free(ecg->Kp);
-  if (ecg->AKp   != NULL) free(ecg->AKp);
+  if (ecg->V     != NULL) free(ecg->V);
+  if (ecg->AV    != NULL) free(ecg->AV);
   if (ecg->alpha != NULL) free(ecg->alpha);
   if (ecg->beta  != NULL) free(ecg->beta);
   if (ecg->Z     != NULL) free(ecg->Z);
-  if (ecg->ortho_alg == ORTHODIR) {
-    if (ecg->P  != NULL) free(ecg->P);
-    if (ecg->AP != NULL) free(ecg->AP);
-  }
+  if (ecg->P  != NULL) free(ecg->P);
+  if (ecg->AP != NULL) free(ecg->AP);
   mkl_free(ecg->work);
 CPLM_POP
 }

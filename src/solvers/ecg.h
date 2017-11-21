@@ -28,18 +28,19 @@ typedef struct {
   /* Internal symbolic variables */
   CPLM_Mat_Dense_t* X;          /* Approximated solution */
   CPLM_Mat_Dense_t* R;          /* Residual */
-  CPLM_Mat_Dense_t* Kp;         /* Descent directions ([P,P_prev] or P) */
-  CPLM_Mat_Dense_t* AKp;        /* A*Kp */
+  CPLM_Mat_Dense_t* V;          /* Descent directions ([P,P_prev] or P) */
+  CPLM_Mat_Dense_t* AV;         /* A*V */
   CPLM_Mat_Dense_t* Z;          /* Preconditioned residual or AP */
   CPLM_Mat_Dense_t* alpha;      /* Descent step */
   CPLM_Mat_Dense_t* beta;       /* Step to construt search directions */
 
   /* User interface variables */
-  CPLM_Mat_Dense_t* P;          /* For retro compatibility */
-  CPLM_Mat_Dense_t* AP;         /* For retro compatibility */
-  // TODO
-  // double* P_p;
-  // double* AP_p;
+  CPLM_Mat_Dense_t* P;
+  CPLM_Mat_Dense_t* AP;
+  double* R_p;
+  double* P_p;
+  double* AP_p;
+  double* Z_p;
 
   /* Working arrays */
   double*           work;
