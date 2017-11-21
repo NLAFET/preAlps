@@ -34,9 +34,37 @@
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
+void mkl_sparse_set_double_sm_hint(sparse_matrix_t Aii, int nrhs, int ncall) {
+  // Descriptor of main sparse matrix properties
+  struct matrix_descr descr_Aii;
+  // Analyze sparse matrix; choose proper kernels and workload balancing strategy
+  descr_Aii.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
+  descr_Aii.mode = SPARSE_FILL_MODE_LOWER;
+  descr_Aii.diag = SPARSE_DIAG_UNIT;
+  mkl_sparse_set_sm_hint(Aii,SPARSE_OPERATION_NON_TRANSPOSE,descr_Aii,
+                         SPARSE_LAYOUT_COLUMN_MAJOR,nrhs,ncall);
+  descr_Aii.mode = SPARSE_FILL_MODE_UPPER;
+  descr_Aii.diag = SPARSE_DIAG_NON_UNIT;
+  mkl_sparse_set_sm_hint(Aii,SPARSE_OPERATION_NON_TRANSPOSE,descr_Aii,
+                         SPARSE_LAYOUT_COLUMN_MAJOR,nrhs,ncall);
+}
+
+void mkl_ilu0_apply(sparse_matrix_t Aii, double* x, double* y, int m, int n) {
+  struct matrix_descr descr_Aii;
+  descr_Aii.type = SPARSE_MATRIX_TYPE_TRIANGULAR;
+  descr_Aii.mode = SPARSE_FILL_MODE_LOWER;
+  descr_Aii.diag = SPARSE_DIAG_UNIT;
+  mkl_sparse_d_trsm(SPARSE_OPERATION_NON_TRANSPOSE,1.0,Aii,descr_Aii,
+                    SPARSE_LAYOUT_COLUMN_MAJOR,x,n,m,y,m);
+  descr_Aii.mode = SPARSE_FILL_MODE_UPPER;
+  descr_Aii.diag = SPARSE_DIAG_NON_UNIT;
+  mkl_sparse_d_trsm(SPARSE_OPERATION_NON_TRANSPOSE,1.0,Aii,descr_Aii,
+                    SPARSE_LAYOUT_COLUMN_MAJOR,y,n,m,y,m);
+}
+
 int main(int argc, char** argv) {
 #ifdef PETSC
-  PetscInitialize(&argc, &argv,NULL,NULL);
+  PetscInitialize(&argc,&argv,NULL,NULL);
   CPLM_SetEnv();
 
 CPLM_OPEN_TIMER
@@ -55,8 +83,7 @@ CPLM_OPEN_TIMER
   int M, m;
   int* rowPos = NULL;
   int* colPos = NULL;
-  int* dep = NULL;
-  int sizeRowPos, sizeColPos, sizeDep;
+  int sizeRowPos, sizeColPos;
   // Read and partition the matrix
   preAlps_OperatorBuild(matrixFilename,MPI_COMM_WORLD);
   // Get the CSR structure of A
@@ -67,22 +94,49 @@ CPLM_OPEN_TIMER
   preAlps_OperatorGetRowPosPtr(&rowPos,&sizeRowPos);
   // Get col partitioning induced by this row partitioning
   preAlps_OperatorGetColPosPtr(&colPos,&sizeColPos);
-  // Get neighbours (dependencies)
-  preAlps_OperatorGetDepPtr(&dep,&sizeDep);
 
-  /*======== Construct the preconditioner ========*/
-  preAlps_BlockJacobiCreate(&A,
-                            rowPos,
-                            sizeRowPos,
-                            colPos,
-                            sizeColPos);
+  /*======== Construct block ILU0 preconditioner ========*/
+  // Get the diagonal block corresponding to the local row panel
+  CPLM_Mat_CSR_t Aii;
+  CPLM_IVector_t rowPos_s = CPLM_IVectorNULL();
+  CPLM_IVector_t colPos_s = CPLM_IVectorNULL();
+  CPLM_IVectorCreateFromPtr(&rowPos_s,sizeRowPos,rowPos);
+  CPLM_IVectorCreateFromPtr(&colPos_s,sizeRowPos,colPos);
+  CPLM_MatCSRGetDiagBlock(&A,&Aii,&rowPos_s,&colPos_s,UNSYMMETRIC);
+  CPLM_MatCSRConvertTo1BasedIndexing(&Aii);
+  // Parameters (see MKL documentation)
+  int ipar[128], ierr;
+  double dpar[128];
+  ipar[30] = 1;
+  dpar[30] = 1e-16;
+  dpar[31] = 1e-10;
+  // Allocate memory
+  double* ilu0 = NULL;
+  ilu0 = (double*) mkl_malloc(Aii.info.nnz*sizeof(double),64);
+  // Compute ilu0 factorization of Adiag
+  dcsrilu0(&Aii.info.n,Aii.val,Aii.rowPtr,Aii.colInd,ilu0,ipar,dpar,&ierr);
+  if (ierr < 0) {
+    CPLM_Abort("Error in ilu0 factorization: %d!",ierr);
+  }
+  // Create MKL sparse handle
+  sparse_matrix_t mkl_Aii;
+  mkl_sparse_d_create_csr(&mkl_Aii,SPARSE_INDEX_BASE_ONE,m,m,
+                          Aii.rowPtr,Aii.rowPtr+1,Aii.colInd,ilu0);
 
-  /*============= Construct a random rhs =============*/
-  double* rhs = (double*) malloc(A.info.m*sizeof(double));
+  /*============= Construct a normalized random rhs =============*/
+  double* rhs = (double*) malloc(m*sizeof(double));
   // Set the seed of the random generator
   srand(0);
-  for (int i = 0; i < A.info.m; ++i)
+  double normb = 0.0;
+  for (int i = 0; i < m; ++i) {
     rhs[i] = ((double) rand() / (double) RAND_MAX);
+    normb += pow(rhs[i],2);
+  }
+  // Compute the norm of rhs and scale it accordingly
+  MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+  normb = sqrt(normb);
+  for (int i = 1; i < m; ++i)
+    rhs[i] /= normb;
 
   // Set global parameters for both PETSc and ECG
   double tol = 1e-5;
@@ -97,8 +151,8 @@ CPLM_OPEN_TIMER
   int first,nlocal;
 
   // Set RHS
-  VecCreateMPIWithArray(MPI_COMM_WORLD,1,A.info.m,A.info.M,rhs,&B);
-  VecCreateMPI(MPI_COMM_WORLD,A.info.m,A.info.M,&X);
+  VecCreateMPIWithArray(MPI_COMM_WORLD,1,m,M,rhs,&B);
+  VecCreateMPI(MPI_COMM_WORLD,m,M,&X);
   VecAssemblyBegin(X);
   VecAssemblyBegin(X);
   VecAssemblyBegin(B);
@@ -108,11 +162,7 @@ CPLM_OPEN_TIMER
   CPLM_petscCreateMatFromMatCSR(&A,&A_petsc);
   KSPSetOperators(ksp,A_petsc,A_petsc);
   KSPSetType(ksp,KSPCG);
-  KSPSetTolerances(ksp,
-                   tol,
-                   PETSC_DEFAULT,
-                   PETSC_DEFAULT,
-                   maxIter);
+  KSPSetTolerances(ksp,tol,PETSC_DEFAULT,PETSC_DEFAULT,maxIter);
   KSPSetPCSide(ksp,PC_LEFT);
   KSPCGSetType(ksp,KSP_CG_SYMMETRIC);
   KSPSetNormType(ksp,KSP_NORM_UNPRECONDITIONED);
@@ -121,13 +171,12 @@ CPLM_OPEN_TIMER
   KSPSetUp(ksp);
   PCBJacobiGetSubKSP(pc,&nlocal,&first,&subksp);
 
-  /*
-    Loop over the local blocks, setting various KSP options
-    for each block.
-  */
+  // Loop over the local blocks, setting various KSP options
+  // for each block.
   for (int i=0; i<nlocal; i++) {
     KSPGetPC(subksp[i],&subpc);
-    PCSetType(subpc,PCCHOLESKY);
+    PCSetType(subpc,PCILU);
+    PCFactorSetLevels(subpc,0);
     //PCFactorSetMatSolverPackage(subpc,MATSOLVERMKL_PARDISO);
   }
 
@@ -150,11 +199,12 @@ CPLM_TAC(step1)
   ecg.globPbSize = M;         /* Size of the global problem */
   ecg.locPbSize = m;          /* Size of the local problem */
   ecg.maxIter = maxIter;      /* Maximum number of iterations */
-  ecg.enlFac = 4;             /* Enlarging factor */
+  ecg.enlFac = atoi(argv[2]); /* Enlarging factor */
   ecg.tol = tol;              /* Tolerance of the method */
-  ecg.ortho_alg = ORTHOMIN;   /* Orthogonalization algorithm */
+  ecg.ortho_alg = ORTHODIR;   /* Orthogonalization algorithm */
   ecg.bs_red = NO_BS_RED;     /* Only NO_BS_RED implemented !! */
-
+  // Petsc matrices
+  Mat P_petsc, AP_petsc;
   // Restore the pointer
   VecGetArray(B,&rhs);
   // Get local and global sizes of operator A
@@ -163,67 +213,57 @@ CPLM_TAC(step1)
   double* sol = NULL;
   sol = (double*) malloc(m*sizeof(double));
 CPLM_TIC(step2,"ECGSolve")
+  // Choose proper kernels and workload balancing strategy
+  mkl_sparse_set_double_sm_hint(mkl_Aii,maxIter,ecg.enlFac);
+  mkl_sparse_optimize(mkl_Aii);
   // Allocate memory and initialize variables
   preAlps_ECGInitialize(&ecg,rhs,&rci_request);
   // Finish initialization
+  mkl_ilu0_apply(mkl_Aii,ecg.R_p,ecg.P_p,m,ecg.enlFac);
+  // Set-up petsc matrices
+  MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,ecg.enlFac,ecg.P_p,&P_petsc);
+  MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,
+                 ecg.enlFac,ecg.AP_p,&AP_petsc);
+  MatDenseGetArray(P_petsc , &(ecg.P_p));
+  MatDenseGetArray(AP_petsc, &(ecg.AP_p));
+  // Finish initialization
   preAlps_BlockJacobiApply(ecg.R,ecg.P);
-  Mat P_petsc, AP_petsc;
-  MatCreateDense(PETSC_COMM_WORLD,
-                 ecg.locPbSize,
-                 PETSC_DECIDE,
-                 ecg.globPbSize,
-                 ecg.enlFac,
-                 ecg.P->val,
-                 &P_petsc);
-  MatCreateDense(PETSC_COMM_WORLD,
-                 ecg.locPbSize,
-                 PETSC_DECIDE,
-                 ecg.globPbSize,
-                 ecg.enlFac,
-                 ecg.AP->val,
-                 &AP_petsc);
+  MatDenseRestoreArray(P_petsc , &(ecg.P_p));
+  MatDenseRestoreArray(AP_petsc, &(ecg.AP_p));
   MatMatMult(A_petsc, P_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AP_petsc);
-  MatDestroy(&P_petsc);
-  MatDestroy(&AP_petsc);
+  MatDenseGetArray(P_petsc , &(ecg.P_p));
+  MatDenseGetArray(AP_petsc, &(ecg.AP_p));
   // Main loop
   while (stop != 1) {
     preAlps_ECGIterate(&ecg,&rci_request);
     if (rci_request == 0) {
-      //preAlps_BlockOperator(ecg.P,ecg.AP);
-      MatCreateDense(PETSC_COMM_WORLD,
-                     ecg.locPbSize,
-                     PETSC_DECIDE,
-                     ecg.globPbSize,
-                     ecg.enlFac,
-                     ecg.P->val,
-                     &P_petsc);
-      MatCreateDense(PETSC_COMM_WORLD,
-                     ecg.locPbSize,
-                     PETSC_DECIDE,
-                     ecg.globPbSize,
-                     ecg.enlFac,
-                     ecg.AP->val,
-                     &AP_petsc);
+      MatDenseRestoreArray(P_petsc , &(ecg.P_p));
+      MatDenseRestoreArray(AP_petsc, &(ecg.AP_p));
       MatMatMult(A_petsc, P_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AP_petsc);
-      MatDestroy(&P_petsc);
-      MatDestroy(&AP_petsc);
+      MatDenseGetArray(P_petsc , &(ecg.P_p));
+      MatDenseGetArray(AP_petsc, &(ecg.AP_p));
     }
     else if (rci_request == 1) {
       preAlps_ECGStoppingCriterion(&ecg,&stop);
       if (stop == 1) break;
       if (ecg.ortho_alg == ORTHOMIN)
-        preAlps_BlockJacobiApply(ecg.R,ecg.Z);
+        mkl_ilu0_apply(mkl_Aii,ecg.R_p,ecg.Z_p,m,ecg.enlFac);
       else if (ecg.ortho_alg == ORTHODIR)
-        preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
+        mkl_ilu0_apply(mkl_Aii,ecg.AP_p,ecg.Z_p,m,ecg.bs);
     }
   }
   // Retrieve solution and free memory
+  MatDestroy(&P_petsc);
+  MatDestroy(&AP_petsc);
   preAlps_ECGFinalize(&ecg,sol);
 CPLM_TAC(step2)
 
-  if (rank == 0)
-    printf("=== ECG ===\n\titerations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
-
+  if (rank == 0) {
+    printf("=== ECG ===\n");
+    printf("\titerations: %d\n",ecg.iter);
+    printf("\tnorm(res) : %e\n",ecg.res);
+    printf("\tblock size: %d\n",ecg.bs);
+  }
 
   /*================ Finalize ================*/
 

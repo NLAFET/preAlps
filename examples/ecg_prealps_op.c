@@ -50,8 +50,7 @@ CPLM_OPEN_TIMER
   int M, m;
   int* rowPos = NULL;
   int* colPos = NULL;
-  int* dep = NULL;
-  int sizeRowPos, sizeColPos, sizeDep;
+  int sizeRowPos, sizeColPos;
   // Read and partition the matrix
   preAlps_OperatorBuild(matrixFilename,MPI_COMM_WORLD);
   // Get the CSR structure of A
@@ -62,37 +61,26 @@ CPLM_OPEN_TIMER
   preAlps_OperatorGetRowPosPtr(&rowPos,&sizeRowPos);
   // Get col partitioning induced by this row partitioning
   preAlps_OperatorGetColPosPtr(&colPos,&sizeColPos);
-  // Get neighbours (dependencies)
-  preAlps_OperatorGetDepPtr(&dep,&sizeDep);
 
   /*======== Construct the preconditioner ========*/
-  preAlps_BlockJacobiCreate(&A,
-                            rowPos,
-                            sizeRowPos,
-                            colPos,
-                            sizeColPos);
+  preAlps_BlockJacobiCreate(&A,rowPos,sizeRowPos,colPos,sizeColPos);
 
   /*============= Construct a normalized random rhs =============*/
-  double* rhs = (double*) malloc(A.info.m*sizeof(double));
+  double* rhs = (double*) malloc(m*sizeof(double));
   // Set the seed of the random generator
   srand(0);
   double normb = 0.0;
-  for (int i = 0; i < A.info.m; ++i) {
+  for (int i = 0; i < m; ++i) {
     rhs[i] = ((double) rand() / (double) RAND_MAX);
     normb += pow(rhs[i],2);
   }
   // Compute the norm of rhs and scale it accordingly
-  MPI_Allreduce(MPI_IN_PLACE,
-                &normb,
-                1,
-                MPI_DOUBLE,
-                MPI_SUM,
-                MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
   normb = sqrt(normb);
-  for (int i = 1; i < A.info.m; ++i)
+  for (int i = 1; i < m; ++i)
     rhs[i] /= normb;
 
-  // Set global parameters for both PETSc and ECG
+  // Set global parameters for ECG
   double tol = 1e-5;
   int maxIter = 1000;
 
@@ -106,7 +94,7 @@ CPLM_OPEN_TIMER
   ecg.enlFac     = 4;              /* Enlarging factor */
   ecg.tol        = tol;            /* Tolerance of the method */
   ecg.ortho_alg  = ORTHOMIN;       /* Orthogonalization algorithm */
-  ecg.bs_red     = ALPHA_RANK;      /* Reduction of the search directions */
+  ecg.bs_red     = NO_BS_RED;      /* Reduction of the search directions */
   // Get local and global sizes of operator A
   int rci_request = 0;
   int stop = 0;
@@ -140,7 +128,6 @@ CPLM_TAC(step1)
   if (rank == 0) {
     preAlps_ECGPrint(&ecg,0);
   }
-
 
   /*================ Finalize ================*/
 
