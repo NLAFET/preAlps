@@ -51,6 +51,7 @@ typedef struct {
   double            res;       /* norm_2 of the residual */
   int               iter;      /* Iteration */
   int               bs;        /* Block size */
+  int               kbs;       /* Krylov basis size */
 
   /* Options and parameters */
   int                          globPbSize; /* Size of the global problem */
