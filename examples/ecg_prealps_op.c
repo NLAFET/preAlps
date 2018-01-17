@@ -87,14 +87,14 @@ CPLM_OPEN_TIMER
   /*================ ECG solve ================*/
   preAlps_ECG_t ecg;
   // Set parameters
-  ecg.comm       = MPI_COMM_WORLD; /* MPI Communicator */
-  ecg.globPbSize = M;              /* Size of the global problem */
-  ecg.locPbSize  = m;              /* Size of the local problem */
-  ecg.maxIter    = maxIter;        /* Maximum number of iterations */
-  ecg.enlFac     = 4;              /* Enlarging factor */
-  ecg.tol        = tol;            /* Tolerance of the method */
-  ecg.ortho_alg  = ORTHOMIN;       /* Orthogonalization algorithm */
-  ecg.bs_red     = NO_BS_RED;      /* Reduction of the search directions */
+  ecg.comm = MPI_COMM_WORLD;  /* MPI Communicator */
+  ecg.globPbSize = M;         /* Size of the global problem */
+  ecg.locPbSize = m;          /* Size of the local problem */
+  ecg.maxIter = maxIter;      /* Maximum number of iterations */
+  ecg.enlFac = atoi(argv[2]); /* Enlarging factor */
+  ecg.tol = tol;              /* Tolerance of the method */
+  ecg.ortho_alg = ORTHOMIN;   /* Orthogonalization algorithm */
+  ecg.bs_red = ADAPT_BS;      /* Adaptive reduction of the search directions */
   // Get local and global sizes of operator A
   int rci_request = 0;
   int stop = 0;

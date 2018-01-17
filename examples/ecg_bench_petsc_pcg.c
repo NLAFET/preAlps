@@ -146,10 +146,10 @@ CPLM_TAC(step1)
   ecg.globPbSize = M;         /* Size of the global problem */
   ecg.locPbSize = m;          /* Size of the local problem */
   ecg.maxIter = maxIter;      /* Maximum number of iterations */
-  ecg.enlFac = 4;             /* Enlarging factor */
+  ecg.enlFac = atoi(argv[2]); /* Enlarging factor */
   ecg.tol = tol;              /* Tolerance of the method */
   ecg.ortho_alg = ORTHODIR;   /* Orthogonalization algorithm */
-  ecg.bs_red = NO_BS_RED;     /* Only NO_BS_RED implemented !! */
+  ecg.bs_red = ADAPT_BS;      /* Adaptive reduction of the search directions */
   /* Restore the pointer */
   VecGetArray(B,&rhs);
   // Get local and global sizes of operator A
@@ -159,27 +159,38 @@ CPLM_TAC(step1)
   sol = (double*) malloc(m*sizeof(double));
 CPLM_TIC(step2,"ECGSolve")
   // Allocate memory and initialize variables
-  preAlps_ECGInitialize(&ecg,rhs,&rci_request);
+  CPLM_TIC(step3, "        initialization")  preAlps_ECGInitialize(&ecg,rhs,&rci_request);
   // Finish initialization
   preAlps_BlockJacobiApply(ecg.R,ecg.P);
-  preAlps_BlockOperator(ecg.P,ecg.AP);
+  preAlps_BlockOperator(ecg.P,ecg.AV);
+  CPLM_TAC(step3)
   // Main loop
   while (stop != 1) {
+    CPLM_TIC(step4, "        iteration")
     preAlps_ECGIterate(&ecg,&rci_request);
+    CPLM_TAC(step4)
     if (rci_request == 0) {
+      CPLM_TIC(step5, "        operator")
       preAlps_BlockOperator(ecg.P,ecg.AP);
+      CPLM_TAC(step5)
     }
     else if (rci_request == 1) {
+      CPLM_TIC(step6, "        convergence test")
       preAlps_ECGStoppingCriterion(&ecg,&stop);
+      CPLM_TAC(step6)
       if (stop == 1) break;
+      CPLM_TIC(step7, "        precond")
       if (ecg.ortho_alg == ORTHOMIN)
         preAlps_BlockJacobiApply(ecg.R,ecg.Z);
       else if (ecg.ortho_alg == ORTHODIR)
         preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
+      CPLM_TAC(step7)
     }
   }
   // Retrieve solution and free memory
+  CPLM_TIC(step8, "        finalize")
   preAlps_ECGFinalize(&ecg,sol);
+  CPLM_TAC(step8)
 CPLM_TAC(step2)
 
   if (rank == 0) {

@@ -202,7 +202,7 @@ CPLM_TAC(step1)
   ecg.enlFac = atoi(argv[2]); /* Enlarging factor */
   ecg.tol = tol;              /* Tolerance of the method */
   ecg.ortho_alg = ORTHODIR;   /* Orthogonalization algorithm */
-  ecg.bs_red = NO_BS_RED;     /* Only NO_BS_RED implemented !! */
+  ecg.bs_red = NO_BS_RED;     /* ADAPT_BS does not work with PETSc MatMatMult */
   // Petsc matrices
   Mat P_petsc, AP_petsc;
   // Restore the pointer
@@ -214,6 +214,7 @@ CPLM_TAC(step1)
   sol = (double*) malloc(m*sizeof(double));
 CPLM_TIC(step2,"ECGSolve")
   // Choose proper kernels and workload balancing strategy
+  CPLM_TIC(step3, "        initialization")
   mkl_sparse_set_double_sm_hint(mkl_Aii,maxIter,ecg.enlFac);
   mkl_sparse_optimize(mkl_Aii);
   // Allocate memory and initialize variables
@@ -227,35 +228,45 @@ CPLM_TIC(step2,"ECGSolve")
   MatDenseGetArray(P_petsc , &(ecg.P_p));
   MatDenseGetArray(AP_petsc, &(ecg.AP_p));
   // Finish initialization
-  preAlps_BlockJacobiApply(ecg.R,ecg.P);
   MatDenseRestoreArray(P_petsc , &(ecg.P_p));
   MatDenseRestoreArray(AP_petsc, &(ecg.AP_p));
   MatMatMult(A_petsc, P_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AP_petsc);
   MatDenseGetArray(P_petsc , &(ecg.P_p));
   MatDenseGetArray(AP_petsc, &(ecg.AP_p));
+  CPLM_TAC(step3)
   // Main loop
   while (stop != 1) {
+    CPLM_TIC(step4, "        iterate")
     preAlps_ECGIterate(&ecg,&rci_request);
+    CPLM_TAC(step4)
     if (rci_request == 0) {
+      CPLM_TIC(step5, "        operator")
       MatDenseRestoreArray(P_petsc , &(ecg.P_p));
       MatDenseRestoreArray(AP_petsc, &(ecg.AP_p));
       MatMatMult(A_petsc, P_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AP_petsc);
       MatDenseGetArray(P_petsc , &(ecg.P_p));
       MatDenseGetArray(AP_petsc, &(ecg.AP_p));
+      CPLM_TAC(step5)
     }
     else if (rci_request == 1) {
+      CPLM_TIC(step6, "        convergence test")
       preAlps_ECGStoppingCriterion(&ecg,&stop);
+      CPLM_TAC(step6)
       if (stop == 1) break;
+      CPLM_TIC(step7, "        precond")
       if (ecg.ortho_alg == ORTHOMIN)
         mkl_ilu0_apply(mkl_Aii,ecg.R_p,ecg.Z_p,m,ecg.enlFac);
       else if (ecg.ortho_alg == ORTHODIR)
         mkl_ilu0_apply(mkl_Aii,ecg.AP_p,ecg.Z_p,m,ecg.bs);
+      CPLM_TAC(step7)
     }
   }
+  CPLM_TIC(step8, "        finalize")
   // Retrieve solution and free memory
   MatDestroy(&P_petsc);
   MatDestroy(&AP_petsc);
   preAlps_ECGFinalize(&ecg,sol);
+  CPLM_TAC(step8)
 CPLM_TAC(step2)
 
   if (rank == 0) {
