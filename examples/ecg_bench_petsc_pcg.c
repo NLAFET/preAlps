@@ -30,15 +30,118 @@
 #include "operator.h"
 #include "block_jacobi.h"
 #include "ecg.h"
+
+/* Command line parser */
+#include <getopt.h>
+#include <ctype.h>
 /******************************************************************************/
 
 /******************************************************************************/
 /*                                    CODE                                    */
 /******************************************************************************/
+/* Private function to print the help message */
+void _print_help() {
+  printf("DESCRIPTION\n");
+  printf("\tSolves Ax = b using a Parallel Enlarged Conjugate Gradient."
+          " A must be symmetric positive definite.\n");
+  printf("USAGE\n");
+  printf("\tmpirun -n nb_proc"
+         " ./ecg_bench_petsc_pcg"
+         " -e/--enlarging-factor int"
+         " [-h/--help]"
+         " [-i/--iteration-maximum int]"
+         " -m/--matrix file"
+         " -o/--ortho-alg int"
+         " -r/--search-dir-red int"
+         " [-t/--tolerance double]\n");
+  printf("OPTIONS\n");
+  printf("\t-e/--enlarging-factor : enlarging factor"
+                                  " (cannot exceed nprocs)\n");
+  printf("\t-h/--help             : print this help message\n");
+  printf("\t-i/--iteration-maximum: maximum of iteration count"
+                                  " (default is 1000)\n");
+  printf("\t-m/--matrix           : the .mtx file containing the matrix A\n");
+  printf("\t-o/--ortho-alg        : orthogonalization scheme"
+                                  " (0: odir, 1: omin)\n");
+  printf("\t-r/--search-dir-red   : adaptive reduction of the search"
+                                  " directions (0: no, 1: yes)\n");
+  printf("\t-t/--tolerance        : tolerance of the method"
+                                  " (default is 1e-5)\n");
+}
+
 int main(int argc, char** argv) {
 #ifdef PETSC
   PetscInitialize(&argc, &argv,NULL,NULL);
   CPLM_SetEnv();
+
+  /*================ Command line parser ================*/
+  int c;
+  static struct option long_options[] = {
+    {"enlarging-factor" , required_argument, NULL, 'e'},
+    {"help"             , no_argument      , NULL, 'h'},
+    {"iteration-maximum", optional_argument, NULL, 'i'},
+    {"matrix"           , required_argument, NULL, 'm'},
+    {"ortho-alg"        , required_argument, NULL, 'o'},
+    {"search-dir-red"   , required_argument, NULL, 'r'},
+    {"tolerance"        , optional_argument, NULL, 't'},
+    {NULL               , 0                , NULL, 0}
+  };
+
+  int opterr = 0;
+  int option_index = 0;
+
+  // Set global parameters for both PETSc and ECG
+  double tol = 1e-5;
+  int maxIter = 1000;
+  int enlFac = 1, ortho_alg = 0, bs_red = 0;
+  const char* matrixFilename = NULL;
+  while ((c = getopt_long(argc, argv, "e:hi:m:o:r:t:", long_options, &option_index)) != -1)
+    switch (c) {
+      case 'e':
+        enlFac = atoi(optarg);
+        break;
+      case 'h':
+        _print_help();
+        MPI_Abort(MPI_COMM_WORLD, opterr);
+      case 'i':
+        if (optarg != NULL)
+          maxIter = atoi(optarg);
+        break;
+      case 'm':
+        if (optarg == NULL) {
+          _print_help();
+          MPI_Abort(MPI_COMM_WORLD, opterr);
+        }
+        else
+          matrixFilename = optarg;
+        break;
+      case 'o':
+        ortho_alg = atoi(optarg);
+        break;
+      case 'r':
+        bs_red = atoi(optarg);
+        break;
+      case 't':
+        if (optarg != NULL)
+          tol = atof(optarg);
+        break;
+      case '?':
+        if (optopt == 'e'
+            || optopt == 'i'
+            || optopt == 'm'
+            || optopt == 'o'
+            || optopt == 'r'
+            || optopt == 't')
+          fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+        else if (isprint (optopt))
+          fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+        else
+          fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+        _print_help();
+        MPI_Abort(MPI_COMM_WORLD, opterr);
+      default:
+        MPI_Abort(MPI_COMM_WORLD, opterr);
+    }
 
 CPLM_OPEN_TIMER
   /*================ Initialize ================*/
@@ -51,7 +154,6 @@ CPLM_OPEN_TIMER
   MKL_Set_Num_Threads(1);
 
   /*======== Construct the operator using a CSR matrix ========*/
-  const char* matrixFilename = argv[1];
   CPLM_Mat_CSR_t A = CPLM_MatCSRNULL();
   int M, m;
   int* rowPos = NULL;
@@ -85,10 +187,6 @@ CPLM_OPEN_TIMER
   normb = sqrt(normb);
   for (int i = 1; i < m; ++i)
     rhs[i] /= normb;
-
-  // Set global parameters for both PETSc and ECG
-  double tol = 1e-5;
-  int maxIter = 1000;
 
   /*================ Petsc solve ================*/
   Mat A_petsc;
@@ -142,14 +240,14 @@ CPLM_TAC(step1)
   /*================ ECG solve ================*/
   preAlps_ECG_t ecg;
   // Set parameters
-  ecg.comm = MPI_COMM_WORLD;  /* MPI Communicator */
-  ecg.globPbSize = M;         /* Size of the global problem */
-  ecg.locPbSize = m;          /* Size of the local problem */
-  ecg.maxIter = maxIter;      /* Maximum number of iterations */
-  ecg.enlFac = atoi(argv[2]); /* Enlarging factor */
-  ecg.tol = tol;              /* Tolerance of the method */
-  ecg.ortho_alg = ORTHODIR;   /* Orthogonalization algorithm */
-  ecg.bs_red = ADAPT_BS;      /* Adaptive reduction of the search directions */
+  ecg.comm = MPI_COMM_WORLD;
+  ecg.globPbSize = M;
+  ecg.locPbSize = m;
+  ecg.maxIter = maxIter;
+  ecg.enlFac = enlFac;
+  ecg.tol = tol;
+  ecg.ortho_alg = (ortho_alg == 0 ? ORTHODIR : ORTHOMIN);
+  ecg.bs_red = (bs_red == 0 ? NO_BS_RED : ADAPT_BS);
   /* Restore the pointer */
   VecGetArray(B,&rhs);
   // Get local and global sizes of operator A
