@@ -372,7 +372,6 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t* beta  = ecg->beta;
   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
-  int*    iwork = ecg->iwork;
   int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
   int t = P->info.n, t1 = 0; // Reduced size
   double tol = ecg->tol*ecg->normb/sqrt(nrhs);
