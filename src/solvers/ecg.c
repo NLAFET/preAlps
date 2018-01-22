@@ -151,7 +151,8 @@ CPLM_PUSH
                    nrhs,ecg->beta->val + nrhs*nrhs,ecg->alpha->val,nrhs);
   }
   // First we construct R_0 by splitting b
-  nCol = rank % (ecg->enlFac);
+  //nCol = rank % (ecg->enlFac);
+  nCol = (int) (rank * (ecg->enlFac) / size);
   ierr = _preAlps_ECGSplit(rhs, R, nCol);
   // Then we need to construct R_0 and P_0
   *rci_request = 0;
@@ -372,6 +373,7 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t* beta  = ecg->beta;
   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
+  int*    iwork = ecg->iwork;
   int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
   int t = P->info.n, t1 = 0; // Reduced size
   double tol = ecg->tol*ecg->normb/sqrt(nrhs);
