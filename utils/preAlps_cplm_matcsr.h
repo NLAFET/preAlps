@@ -32,21 +32,26 @@ Date        : Oct 13, 2017
 int CPLM_MatCSRBlockColumnExtract(CPLM_Mat_CSR_t *A, int nparts, int *partBegin, int numBlock, CPLM_Mat_CSR_t *B_out);
 
 
- /*
-  * Split the matrix in block column and remove the selected block column number,
-  * Which is the same as replacing all values of that block with zeros.
-  * This reoutine can be used to fill the diag of a Block diag of global matrix with zeros when each proc
-  * has a rowPanel as locA.
-  * A:
-  *     input: the input matrix to remove the diag block
-  * colCount:
-  *     input: the global number of columns in each Block
-  * numBlock:
-  *     input: the number of the block to remove
-  */
+/*
+ * Split the matrix in block column and fill the selected block column number with zeros,
+ * Optimize the routine to avoid storing these zeros in the output matrix.
+ * A_in:
+ *     input: the input matrix
+ * colCount:
+ *     input: the global number of columns in each Block
+ * numBlock:
+ *     input: the number of the block to fill with zeros
+ * B_out:
+ *     output: the output matrix after removing the diag block
+ */
 
- int CPLM_MatCSRBlockColRemove(CPLM_Mat_CSR_t *A, int *colCount, int numBlock);
+int CPLM_MatCSRBlockColumnZerosFill(CPLM_Mat_CSR_t *A_in, int *colCount, int numBlock, CPLM_Mat_CSR_t *B_out);
 
+/*
+ * 1D block row distirbution of the matrix. At the end, each proc has approximatively the same number of rows.
+ *
+ */
+int CPLM_MatCSRBlockRowDistribute(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, int *mcounts, int *moffsets, int root, MPI_Comm comm);
 
   /*
    * 1D block rows gather of the matrix from all the processors in the communicator .

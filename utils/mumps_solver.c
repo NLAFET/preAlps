@@ -182,7 +182,6 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
   //solver->id.ICNTL(21) = 1;//distributed solution
   solver->id.ICNTL(21) = 0;//centralized solution
 
-
   /* Call the MUMPS package (analyse, factorization). */
   solver->id.job=4;
   dmumps_c(&solver->id);
@@ -271,7 +270,7 @@ int mumps_solver_triangsolve(mumps_solver_t *solver, int n, double *a, int *ia, 
   solver->id.rhs = b;
   solver->id.nrhs = nrhs;
   //solver->id.lrhs = n; //this is set during the factorization
-  
+
   /*
   if(solver->id.nrhs != nrhs){
     printf("[MUMPS] *** Triangular solve error: mumps requires the same nrhs for the analysis and the solution. "

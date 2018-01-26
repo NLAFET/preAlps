@@ -272,6 +272,10 @@ int mkl_pardiso_solver_triangsolve(mkl_pardiso_solver_t *ps, int n, double *a, i
 
   //int      idum;              /* Integer dummy. */
 
+  if(!x){
+    printf("[MKL_PARDISO] *** Triangular solve error: Argument x is required for the solver.\n ");
+    exit(1);
+  }
 
 /* -------------------------------------------------------------------- */
 /* ..  Back substitution and iterative refinement.                      */

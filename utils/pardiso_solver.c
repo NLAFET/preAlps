@@ -364,6 +364,13 @@ int pardiso_solver_triangsolve(pardiso_solver_t *ps, int n, double *a, int *ia, 
 
   int      idum;              /* Integer dummy. */
 
+
+  if(!x){
+    printf("[PARDISO] *** Triangular solve error: Argument x is required for the solver.\n ");
+    exit(1);
+  }
+
+
 /* -------------------------------------------------------------------- */
 /* ..  pardiso_chkvec(...)                                              */
 /*     Checks the given vectors for infinite and NaN values             */

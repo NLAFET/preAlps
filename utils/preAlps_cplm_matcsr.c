@@ -62,24 +62,24 @@ int CPLM_MatCSRBlockColumnExtract(CPLM_Mat_CSR_t *A, int nparts, int *partBegin,
 
 
 /*
- * Split the matrix in block column and remove the selected block column number,
- * Which is the same as replacing all values of that block with zeros.
- * This reoutine can be used to fill the diag of a Block diag of global matrix with zeros when each proc
- * has a rowPanel as locA.
- * A:
- *     input: the input matrix to remove the diag block
+ * Split the matrix in block column and fill the selected block column number with zeros,
+ * Optimize the routine to avoid storing these zeros in the output matrix.
+ * A_in:
+ *     input: the input matrix
  * colCount:
  *     input: the global number of columns in each Block
  * numBlock:
- *     input: the number of the block to remove
+ *     input: the number of the block to fill with zeros
+ * B_out:
+ *     output: the output matrix after removing the diag block
  */
 
-int CPLM_MatCSRBlockColRemove(CPLM_Mat_CSR_t *A, int *colCount, int numBlock){
+int CPLM_MatCSRBlockColumnZerosFill(CPLM_Mat_CSR_t *A_in, int *colCount, int numBlock, CPLM_Mat_CSR_t *B_out){
 
-  int i,j, m, lpos = 0, count = 0;
+  int i,j, m, lpos = 0, count = 0, ierr = 0;
   int *mwork;
 
-  m = A->info.m;
+  m = A_in->info.m;
 
   if(m<=0) return 0;
 
@@ -88,15 +88,33 @@ int CPLM_MatCSRBlockColRemove(CPLM_Mat_CSR_t *A, int *colCount, int numBlock){
 
   if ( !(mwork  = (int *) malloc((m+1) * sizeof(int))) ) preAlps_abort("Malloc fails for mwork[].");
 
+
+  //First precompute the number of elements outside the colmun to remove
+  count = 0;
+  for(i=0;i<m;i++){
+    for(j=A_in->rowPtr[i];j<A_in->rowPtr[i+1];j++){
+      if(A_in->colInd[j]>=lpos && A_in->colInd[j]<lpos+colCount[numBlock]) continue;
+      /* element outside the column to remove , count it */
+      count ++;
+    }
+  }
+
+
+  // Set the matrix infos
+  CPLM_MatCSRSetInfo(B_out, A_in->info.m, A_in->info.n, count, A_in->info.m,  A_in->info.n, count, 1);
+  ierr = CPLM_MatCSRMalloc(B_out); preAlps_checkError(ierr);
+
+  // Fill the output matrix
+  count = 0;
   for(i=0;i<m;i++){
 
-    for(j=A->rowPtr[i];j<A->rowPtr[i+1];j++){
+    for(j=A_in->rowPtr[i];j<A_in->rowPtr[i+1];j++){
 
-      if(A->colInd[j]>=lpos && A->colInd[j]<lpos+colCount[numBlock]) continue;
+      if(A_in->colInd[j]>=lpos && A_in->colInd[j]<lpos+colCount[numBlock]) continue;
 
-      /* OffDiag element , copy it */
-      A->colInd[count] = A->colInd[j];
-      A->val[count] = A->val[j];
+      /* element outside the column to remove , copy it */
+      B_out->colInd[count] = A_in->colInd[j];
+      B_out->val[count]    = A_in->val[j];
       count ++;
 
     }
@@ -104,14 +122,42 @@ int CPLM_MatCSRBlockColRemove(CPLM_Mat_CSR_t *A, int *colCount, int numBlock){
     mwork[i+1] = count;
   }
 
-  for(i=1;i<m+1;i++) A->rowPtr[i] = mwork[i];
+  B_out->rowPtr[0] = 0;
+  for(i=1;i<m+1;i++) B_out->rowPtr[i] = mwork[i];
 
   free(mwork);
 
-  return 0;
+  return ierr;
 }
 
+/*
+ * 1D block row distirbution of the matrix. At the end, each proc has approximatively the same number of rows.
+ *
+ */
+int CPLM_MatCSRBlockRowDistribute(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, int *mcounts, int *moffsets, int root, MPI_Comm comm){
 
+  int i, m, ierr = 0;
+  int nbprocs, my_rank;
+
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+  //Broadcast the matrix size from the root to the other procs
+  m = Asend->info.m;
+  MPI_Bcast(&m, 1, MPI_INT, root, comm);
+  preAlps_int_printSynchronized(m, "m in rowDistribute", comm);
+
+  // Split the number of rows among the processors
+  for(i=0;i<nbprocs;i++){
+    preAlps_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
+  }
+  moffsets[nbprocs] = m;
+
+  //distributes the matrix
+  ierr = CPLM_MatCSRBlockRowScatterv(Asend, Arecv, moffsets, root, comm); preAlps_checkError(ierr);
+
+  return ierr;
+}
 /*
  * 1D block rows gatherv of the matrix from the processors in the communicator.
  * The result is stored on processor 0.

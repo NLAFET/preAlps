@@ -15,6 +15,9 @@ Date        : Sept 15, 2017
 typedef struct{
 
  double tParpack;
+ double teigvectors;
+ double tOPv; /*time required to perform OP x v in arpack for a generalized problem Au=\lamda Bu, OP = inv(B)*A */
+ double tBv; /*time required to perform B x v in arpack for generalized problem Au=\lamda Bu*/
  double tSolve;
  double tAv;
  double tSv;
