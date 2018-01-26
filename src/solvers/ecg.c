@@ -127,6 +127,7 @@ CPLM_PUSH
   MPI_Comm_rank(ecg->comm, &rank);
   ecg->iter = 0;
   // Compute normb
+  *normb_p =0;
   for (int i = 0; i < ecg->locPbSize; ++i)
     *normb_p += pow(rhs[i],2);
   // Sum over all processes

@@ -34,8 +34,8 @@ int preAlps_OperatorBuild(const char* matrixFilename, MPI_Comm comm) {
 CPLM_PUSH
   int rank, size, ierr = 0;
 
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(comm, &size);
+  MPI_Comm_rank(comm, &rank);
   int root = 0; // root or master processor
   // Number of Metis domains: assumed to be size of comm for the moment
   int nbBlockPart = size;
@@ -133,8 +133,8 @@ int preAlps_OperatorBuildNoPerm(CPLM_Mat_CSR_t *locA, int *idxRowBegin, int nbBl
 CPLM_PUSH
   int rank, size, ierr = 0;
 
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(comm, &size);
+  MPI_Comm_rank(comm, &rank);
 
   // Set the communicator
   comm_g = comm;
