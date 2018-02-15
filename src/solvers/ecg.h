@@ -76,6 +76,8 @@ int  preAlps_ECGFinalize(preAlps_ECG_t* ecg, double* solution);
 void preAlps_ECGPrint(preAlps_ECG_t* ecg, int verbosity);
 // "Private" functions
 int  _preAlps_ECGMalloc(preAlps_ECG_t* ecg);
+int  _preAlps_ECGReset(preAlps_ECG_t* ecg, double* rhs, int* rci_request);
+int  _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double* solution);
 void _preAlps_ECGFree(preAlps_ECG_t* ecg);
 int  _preAlps_ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex);
 int  _preAlps_ECGIterateOmin(preAlps_ECG_t* ecg, int* rci_request);
