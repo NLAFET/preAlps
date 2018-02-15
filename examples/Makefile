@@ -1,6 +1,6 @@
 include ../make.inc
 
-SRC = ecg_petsc_op.c ecg_prealps_op.c ecg_bench_petsc_pcg.c test_lorasc.c
+SRC = ecg_petsc_op.c ecg_prealps_op.c ecg_bench_petsc_pcg.c #test_lorasc.c
 
 OBJ = $(SRC:.c=.o)
 EXE = $(OBJ:.o=)
