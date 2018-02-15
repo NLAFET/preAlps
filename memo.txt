@@ -1,0 +1,3 @@
+An example of usage of PETSc command line argument:
+
+mpirun -n 8 ./bin/ecg_bench_petsc_pcg -pc_type bjacobi -pc_bjacobi_blocks 8 -sub_pc_type icc -sub_pc_factor_levels 0 -m ~/matrix/CS_Pressure/BUNDLE_iter0/Pressure_0000262144_mat.mtx -e 2 -o 0 -r 1 -print_timer
