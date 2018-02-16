@@ -128,7 +128,7 @@ CPLM_PUSH
   MPI_Comm_rank(ecg->comm, &rank);
   ecg->iter = 0;
   // Compute normb
-  *normb_p =0;
+  *normb_p =0.E0;
   for (int i = 0; i < ecg->locPbSize; ++i)
     *normb_p += pow(rhs[i],2);
   // Sum over all processes
@@ -276,7 +276,7 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
   int*    iwork = ecg->iwork;
-  double tol = 1e-15;
+  double tol = -1.E0;
   int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
   int t = P->info.n;
   if (*rci_request == 0) {
