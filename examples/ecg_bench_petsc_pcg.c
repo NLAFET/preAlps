@@ -48,8 +48,6 @@ void petsc_precond_apply(Mat P, double* V, double* W, int M, int m, int n) {
   Mat V_petsc, W_petsc;
   MatCreateSeqDense(PETSC_COMM_SELF,m,n,V,&V_petsc);
   MatCreateSeqDense(PETSC_COMM_SELF,m,n,W,&W_petsc);
-  // MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,n,V,&V_petsc);
-  // MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,n,W,&W_petsc);
   MatMatSolve(P,V_petsc,W_petsc);
   MatDestroy(&V_petsc);MatDestroy(&W_petsc);
 }
@@ -211,9 +209,9 @@ CPLM_OPEN_TIMER
     /* PCFactorSetMatSolverPackage(subpc,MATSOLVERMKL_PARDISO); */
   }
 
-// CPLM_TIC(step1, "KSPSolve Warm-up")
-//   KSPSolve(ksp,B,X);
-// CPLM_TAC(step1)
+CPLM_TIC(step1, "KSPSolve Warm-up")
+  KSPSolve(ksp,B,X);
+CPLM_TAC(step1)
   VecSet(X,0e0);
 CPLM_TIC(step2, "KSPSolve")
   KSPSolve(ksp,B,X);
@@ -250,7 +248,7 @@ CPLM_TAC(step2)
   sol = (double*) malloc(m*sizeof(double));
   bs = (int*) calloc(maxIter,sizeof(int));
   res = (double*) calloc(maxIter,sizeof(double));
-//CPLM_TIC(step3,"ECGSolve Warm-up")
+CPLM_TIC(step3,"ECGSolve Warm-up")
   // Allocate memory and initialize variables
   preAlps_ECGInitialize(&ecg,rhs,&rci_request);
   // Finish initialization
@@ -273,7 +271,7 @@ CPLM_TAC(step2)
   }
   // Just get the solution but do not free internal memory
   _preAlps_ECGWrapUp(&ecg,sol);
-//CPLM_TAC(step3)
+CPLM_TAC(step3)
   int mem_pool_size;
   if (ortho_alg == 0)
     mem_pool_size = 7*m*enlFac + 3*enlFac*enlFac;
