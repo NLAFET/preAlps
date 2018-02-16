@@ -1,8 +1,12 @@
-/******************************************************************************/
-/* Author     : Olivier Tissot                                                */
-/* Creation   : 2016/06/24                                                    */
-/* Description: Enlarged Preconditioned C(onjugate) G(radient)                */
-/******************************************************************************/
+/**
+ * \file    ecg.c
+ * \author  Olivier Tissot
+ * \date    2016/06/24
+ * \brief   Enlarged Preconditioned C(onjugate) G(radient) solver
+ *
+ * \details Implements Orthomin, Orthodir as well as their dynamic
+ *          counterparts (BF-Omin and D-Odir).
+ */
 
 /******************************************************************************/
 /*                                  INCLUDE                                   */
@@ -34,6 +38,9 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 
+/**
+ * \brief Allocate memory for the solver
+ */
 int _preAlps_ECGMalloc(preAlps_ECG_t* ecg) {
 CPLM_PUSH
   int ierr = 0;
