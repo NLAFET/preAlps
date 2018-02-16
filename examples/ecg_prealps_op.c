@@ -1,9 +1,9 @@
-/******************************************************************************/
-/* Author     : Olivier Tissot , Simplice Donfack                             */
-/* Creation   : 2016/06/23                                                    */
-/* Description: Example of usage of E(nlarged) C(onjugate) G(radient)         */
-/******************************************************************************/
-
+/**
+ * \file    ecg_prealps_op.c
+ * \author  Olivier Tissot
+ * \date    2016/06/23
+ * \brief   Example of usage of E(nlarged) C(onjugate) G(radient)
+ */
 
 /******************************************************************************/
 /*                                  INCLUDE                                   */

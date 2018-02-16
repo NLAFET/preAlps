@@ -1,9 +1,13 @@
-/******************************************************************************/
-/* Author     : Olivier Tissot , Simplice Donfack                             */
-/* Creation   : 2016/06/23                                                    */
-/* Description: Benchmark ECG vs. PETSc PCG                                   */
-/******************************************************************************/
-
+/**
+ * \file    ecg_petsc_op.c
+ * \author  Olivier Tissot
+ * \date    2016/06/23
+ * \brief   Example of usage of ECG with PETSc MatMatMult and MatMatSolve
+ *
+ * \details This works only if the preconditioner set in PETSc is BJACOBI and
+ * the number of blocks is the same as the number of MPI processes
+ */
+ 
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
@@ -35,7 +39,7 @@
 /******************************************************************************/
 /*                            AUXILIARY FUNCTIONS                             */
 /******************************************************************************/
-/* Use PETSc MatMatMult */
+/** \brief Simple wrapper to PETSc MatMatMult */
 void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
   Mat V_petsc, AV_petsc;
   MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,n,V,&V_petsc);
@@ -43,7 +47,7 @@ void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
   MatMatMult(A, V_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AV_petsc);
   MatDestroy(&V_petsc);MatDestroy(&AV_petsc);
 }
-/* Apply PETSc preconditoner */
+/** \brief Simple wrapper for applying PETSc preconditoner */
 void petsc_precond_apply(Mat P, double* V, double* W, int M, int m, int n) {
   Mat V_petsc, W_petsc;
   MatCreateSeqDense(PETSC_COMM_SELF,m,n,V,&V_petsc);

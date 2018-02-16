@@ -1,8 +1,11 @@
-//******************************************************************************/
-/* Author     : Olivier Tissot , Simplice Donfack                             */
-/* Creation   : 2016/06/23                                                    */
-/* Description: Benchmark ECG vs. PETSc PCG                                   */
-/******************************************************************************/
+/**
+ * \file    ecg_bench_petsc_pcg.c
+ * \author  Olivier Tissot
+ * \date    2016/06/23
+ * \brief   Comparison between ECG and PETSc PCG
+ *
+ * \details Be carefull to set MATSOLVERPACKAGE to MATSOLVERMKL_PARDISO
+ */
 
 /******************************************************************************/
 /*                                  INCLUDE                                   */

@@ -1,5 +1,5 @@
 /**
- * \file    ecg.c
+ * \file    ecg.h
  * \author  Olivier Tissot
  * \date    2016/06/24
  * \brief   Enlarged Preconditioned C(onjugate) G(radient) solver
@@ -91,53 +91,132 @@ typedef struct {
 
 /**
  * \brief Create the solver and allocate memory
+ *
+ * \param[in, out] ecg solver structure
+ * \param[in]      rhs the local part of the right-hand side
+ * \param[out]     rci_request the initialized RCI flag
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  preAlps_ECGInitialize(preAlps_ECG_t* ecg, double* rhs, int* rci_request);
+
 /**
  * \brief Performs different steps in ECG iteration according to the value of
  * rci_request
+ *
+ * \param[in, out] ecg solver structure
+ * \param[in, out] rci_request the RCI flag
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  preAlps_ECGIterate(preAlps_ECG_t* ecg, int* rci_request);
+
 /**
  * \brief Check for the residual norm and return a boolean that is true if the
  * normalized residual is lower than the specified tolerance
+ *
+ * \param[in, out] ecg solver structure
+ * \param[in, out] rci_request the RCI flag
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  preAlps_ECGStoppingCriterion(preAlps_ECG_t* ecg, int* stop);
+
 /**
  * \brief Releases the internal memory and returns the solution
+ *
+ * \param[in, out] ecg solver structure
+ * \param[out]     solution the local part of the solution
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  preAlps_ECGFinalize(preAlps_ECG_t* ecg, double* solution);
+
 /**
  * \brief Print informations on the solver
+ *
+ * \param[in] ecg solver structure
+ * \param[in] verbosity the level of information printed: if verbosity <= 1
+ * then the iteration count, the residual and the block size are printed, if
+ * verbosity > 1 then the full detail of the memory footprint of the solver is
+ * also printed
  */
 void preAlps_ECGPrint(preAlps_ECG_t* ecg, int verbosity);
+
 /* "Private" functions */
+
 /**
- * \brief Allocate memory for the solver
+ * \brief Private function
+ * \details Allocate memory for the solver
+ *
+ * \param[in, out] ecg solver structure
  */
 int  _preAlps_ECGMalloc(preAlps_ECG_t* ecg);
+
 /**
- * \brief Initialize the solver assuming that the memory has been allocated
+ * \brief Private function
+ * \detail Initialize the solver assuming that the memory has been allocated
+ *
+ * \param[in, out] ecg solver structure
+ * \param[in]      rhs the local part of the right-hand side
+ * \param[out]     rci_request the initialized RCI flag
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  _preAlps_ECGReset(preAlps_ECG_t* ecg, double* rhs, int* rci_request);
+
 /**
- * \brief Returns the solution
+ * \brief Private function
+ * \detail Returns the solution
+ *
+ * \param[in, out] ecg solver structure
+ * \param[out]     solution the local part of the solution
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double* solution);
+
 /**
- * \brief Release memory of the solver
+ * \brief Private function
+ * \detail Release memory of the solver
+ *
+ * \param[in, out] ecg solver structure
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 void _preAlps_ECGFree(preAlps_ECG_t* ecg);
+
 /**
- * \brief Enlarge the vector x
+ * \brief Private function
+ * \detail Enlarge the vector x
+ *
+ * \param[in] x the local part of the vector to enlarge
+ * \param[out] XSplit the local part of the enlarged vector
+ * \param[in] colIndex the index of the column of XSplit where the local vector * is put
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  _preAlps_ECGSplit(double* x, CPLM_Mat_Dense_t* XSplit, int colIndex);
+
 /**
- * \brief Orthomin iteration
+ * \brief Private function
+ * \detail Orthomin iteration
+ *
+ * \param[in, out] ecg solver structure
+ * \param[in, out] rci_request the RCI flag
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  _preAlps_ECGIterateOmin(preAlps_ECG_t* ecg, int* rci_request);
+
 /**
- * \brief Orthodir iteration
+ * \brief Private function
+ * \detail Orthodir iteration
+ *
+ * \param[in, out] ecg solver structure
+ * \param[in, out] rci_request the RCI flag
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
  */
 int  _preAlps_ECGIterateOdir(preAlps_ECG_t* ecg, int* rci_request);
 

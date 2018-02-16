@@ -38,9 +38,6 @@
 /*                                    CODE                                    */
 /******************************************************************************/
 
-/**
- * \brief Allocate memory for the solver
- */
 int _preAlps_ECGMalloc(preAlps_ECG_t* ecg) {
 CPLM_PUSH
   int ierr = 0;
