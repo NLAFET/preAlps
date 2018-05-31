@@ -265,6 +265,10 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
 
   if(my_rank==0) {
     ierr  = CPLM_MatCSRPermute(A, AP, perm, perm, PERMUTE);preAlps_checkError(ierr);
+    #ifdef SAVE_PERM
+      preAlps_intVector_save(perm, m, "dump/perm.out.txt", "Permutation vector after NodeND");
+      preAlps_intVector_save(sizes, nparts, "dump/sizes.out.txt", "Sizes vector after NodeND");
+    #endif
   }
 
 
@@ -611,7 +615,7 @@ void preAlps_dstats_display(MPI_Comm comm, double d, char *str){
   MPI_Reduce(&d, &dSum, 1, MPI_DOUBLE, MPI_SUM, root, comm);
 
   if(my_rank==0){
-	  printf("%s:  min: %.6f , max: %.6f , avg: %.6f\n", str, dMin, dMax, (double) dSum/nbprocs);
+	  printf("%s:  min: %.2f , max: %.2f , avg: %.2f\n", str, dMin, dMax, (double) dSum/nbprocs);
   }
 }
 

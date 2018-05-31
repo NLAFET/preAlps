@@ -239,6 +239,9 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
 
     preAlps_solver_triangsolve(Agg_sv, Aggloc->info.m, Aggloc->val, Aggloc->rowPtr, Aggloc->colInd, nrhs, NULL, dwork2);
 
+    #ifdef DEBUG
+    if(masterGroup_myrank==root) preAlps_doubleVector_printSynchronized(dwork2, m, "Y", " Y proc 0 after matvec", MPI_COMM_SELF);
+    #endif
     //centralized solution, scatter Y to each procs
     MPI_Scatterv(dwork2, mcounts, mdispls, MPI_DOUBLE, Y, mloc, MPI_DOUBLE, root, comm_masterGroup);
 

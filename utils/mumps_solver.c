@@ -35,6 +35,8 @@ int mumps_solver_init(mumps_solver_t *solver, MPI_Comm comm){
   solver->irn = NULL;
   solver->jcn = NULL;
 
+  solver->error_reporting_triangular_solve = 0;
+
   dmumps_c(&solver->id);
 
   if (solver->id.infog[0] < 0) {
@@ -186,6 +188,17 @@ int mumps_solver_partial_factorize(mumps_solver_t *solver, int n, double *a, int
   solver->id.job=4;
   dmumps_c(&solver->id);
 
+  if (solver->id.infog[0] == -9) {
+    printf("[MUMPS] Factorization:  increasing internal required memory  by infog[1]:%d and restarting the factorization.\n ", solver->id.infog[1]);
+    //Increase required memory
+
+    solver->id.ICNTL(14) = solver->id.ICNTL(14) + solver->id.infog[1];
+
+    //restart the numerical factorization
+    solver->id.job=2;
+    dmumps_c(&solver->id);
+  }
+
   if (solver->id.infog[0] < 0) {
     printf("[MUMPS] Factorization error. infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
     //preAlps_abort("");
@@ -284,7 +297,13 @@ int mumps_solver_triangsolve(mumps_solver_t *solver, int n, double *a, int *ia, 
   dmumps_c(&solver->id);
 
   if (solver->id.infog[0] < 0) {
-    printf("[MUMPS] *** Triangular solve error: infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
+
+    solver->error_reporting_triangular_solve++;
+
+    if(solver->error_reporting_triangular_solve<MAX_ERROR_REPORTING_TRIANGULAR_SOLVE)
+      printf("[MUMPS] *** Triangular solve error: infog[0]:%d,  infog[1]:%d\n ", solver->id.infog[0], solver->id.infog[1]);
+    else if(solver->error_reporting_triangular_solve==MAX_ERROR_REPORTING_TRIANGULAR_SOLVE)
+      printf("[MUMPS] *** Triangular solve error: infog[0]:%d,  infog[1]:%d. (Max reporting of this error reached)\n ", solver->id.infog[0], solver->id.infog[1]);
     //preAlps_abort("");
   }
 

@@ -18,6 +18,8 @@ Date        : July 8, 2017
 
 #define ICNTL(I) icntl[(I)-1] /* macro s.t. indices match documentation */
 
+#define MAX_ERROR_REPORTING_TRIANGULAR_SOLVE 5
+
 typedef struct
 {
 
@@ -32,6 +34,10 @@ typedef struct
   int nrhs;       //The number of rhs for the analysis and the solve phase
 
   DMUMPS_STRUC_C id;
+
+  // The number of times a triangular solve error is reported,
+  //this is useful to prevent huge log file when using triangular solve several times
+  int error_reporting_triangular_solve;
 
 } mumps_solver_t;
 

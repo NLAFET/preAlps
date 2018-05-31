@@ -9,7 +9,7 @@
 
 /* Print only the lines of a matrix or vector which satisfies "line%PRINT_MOD==0" */
 #ifndef PRINT_MOD
-#define PRINT_MOD 250
+#define PRINT_MOD 100
 #endif
 
 #endif

@@ -20,6 +20,8 @@ void preAlps_doubleVector_gathervDump(double *v_in, int mloc, char *fileName, MP
  */
 void preAlps_doubleVector_load(char *filename, double **v, int *vlen);
 
+/*Compute the norm of a vector*/
+double preAlps_doubleVector_norm2(double *v, int vlen);
 
 /* x = b(p), for dense vectors x and b; p=NULL denotes identity */
 void preAlps_doubleVector_permute(const int *p, const double *b_in, double *x_out, int n);
