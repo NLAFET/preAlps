@@ -7,7 +7,7 @@
  * \details This works only if the preconditioner set in PETSc is BJACOBI and
  * the number of blocks is the same as the number of MPI processes
  */
- 
+
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
@@ -63,7 +63,7 @@ void _print_help() {
           " A must be symmetric positive definite.\n");
   printf("USAGE\n");
   printf("\tmpirun -n nb_proc"
-         " ./ecg_bench_petsc_pcg"
+         " ./test_ecg_bench_petsc_pcg"
          " -e/--enlarging-factor int"
          " [-h/--help]"
          " [-i/--iteration-maximum int]"
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF,	PETSC_VIEWER_ASCII_INFO);
+  PetscViewerPushFormat(PETSC_VIEWER_STDOUT_SELF, PETSC_VIEWER_ASCII_INFO);
   // Force sequential execution on each MPI process
   // OT: I tested and it still works with OpenMP activated
   // MKL_Set_Num_Threads(1);

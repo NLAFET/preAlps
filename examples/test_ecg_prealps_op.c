@@ -41,7 +41,7 @@ void _print_help() {
           " A must be symmetric positive definite.\n");
   printf("USAGE\n");
   printf("\tmpirun -n nb_proc"
-         " ./ecg_prealps_op"
+         " ./test_ecg_prealps_op"
          " -e/--enlarging-factor int"
          " [-h/--help]"
          " [-i/--iteration-maximum int]"

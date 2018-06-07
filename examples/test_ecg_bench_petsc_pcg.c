@@ -49,7 +49,7 @@ void _print_help() {
           " A must be symmetric positive definite.\n");
   printf("USAGE\n");
   printf("\tmpirun -n nb_proc"
-         " ./ecg_bench_petsc_pcg"
+         " ./test_ecg_bench_petsc_pcg"
          " -e/--enlarging-factor int"
          " [-h/--help]"
          " [-i/--iteration-maximum int]"
