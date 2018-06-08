@@ -197,7 +197,7 @@ CPLM_PUSH
   int size;
   MPI_Comm_size(comm_g,&size);
   int algMatMult = 2;
-  int ierr = CPLM_MatCSRMatMult(&A_g,
+  int ierr = CPLM_MatCSRMatMult_v2(&A_g,
                                 X,
                                 &dep_g,
                                 dep_g.nval,
