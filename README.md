@@ -40,13 +40,13 @@ correction. In submission.
 
    5.1 for a test on a provided elasticity 3D matrix (see [1,3]):
 
-   mpirun -np 8 ./bin/test_ecgsolve matrix/elasticity3d_12x10x10_var.mtx
+   mpirun -np 8 ./bin/test_prealp_op -m matrix/elasticity3d_12x10x10_var.mtx -o 0 -r 0 -e 4
 
    mpirun -np 8 ./bin/test_lorasc -m matrix/elasticity3d_12x10x10_var.mtx
 
    5.2 for a general case:
 
-   mpirun -np <nb_processors> ./bin/test_ecgsolve <matrix_file.mtx>
+   mpirun -np <nb_processors> mpirun ./test_ecg_prealps_op -e/--enlarging-factor <int> [-h/--help] [-i/--iteration-maximum <int>] -m/--matrix <matrix_file.mtx> -o/--ortho-alg <int> -r/--search-dir-red <int> [-t/--tolerance <double>]
 
    mpirun -np <nb_processors> ./bin/test_lorasc -m <matrix_file.mtx>
 
