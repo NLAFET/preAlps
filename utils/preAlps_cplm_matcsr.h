@@ -95,6 +95,8 @@ int CPLM_MatCSRConvertFromDenseDVectorPtr(CPLM_Mat_CSR_t *m_out, double *v_in, i
 /* Create a MatCSRNULL matrix, same as A = CPLM_MatCSRNULL() but for a matrix referenced as pointer. */
 int CPLM_MatCSRCreateNULL(CPLM_Mat_CSR_t **A);
 
+/* Broadcast the matrix dimension from the root to the other procs*/
+int CPLM_MatCSRDimensions_Bcast(CPLM_Mat_CSR_t *A, int root, int *m, int *n, int *nnz, MPI_Comm comm);
 
 /*
  * Matrix matrix product, C := alpha*A*B + beta*C

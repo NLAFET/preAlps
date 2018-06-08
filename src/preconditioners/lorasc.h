@@ -38,6 +38,21 @@ typedef struct{
 
   /* */
   MPI_Comm comm;            /* The MPI communicator used to build the preconditioner. Should be the same to apply it. */
+
+  /* Multilevel algorithms */
+  MPI_Comm comm_masterGroup;  /* The MPI communicator for the master group of processors */
+  MPI_Comm comm_localGroup;  /* The MPI communicator for the local group of processors */
+  int npLevel1; //For multilevel algorithms, the number of processors at the first level
+  int npLevel2; //For multilevel algorithms, the number of processors at the second level
+
+  int *Aii_mcounts;
+  int *Aii_moffsets;
+  int *Aig_mcounts;
+  int *Aig_moffsets;
+  int *Agi_mcounts;
+  int *Agi_moffsets;
+
+
   int nev;                  /* Number of eigenvalues computed */
 
 
@@ -51,6 +66,8 @@ typedef struct{
   preAlps_solver_t *Aii_sv;
   preAlps_solver_t *Agg_sv;
 
+  /* eigenvalues workspace */
+  double *sigma;   /* Array of the same size as the number of eigenvalues computed */
 
 
   /* workspace */
@@ -59,7 +76,9 @@ typedef struct{
   double *dwork1;
   double *dwork2;
   double *eigWork; //a buffer with the same as the number of eigenvalues computed * nrhs
-  double *sigma;   /* Array of the same size as the number of eigenvalues computed */
+
+  double tPartition;
+
 } preAlps_Lorasc_t;
 
 

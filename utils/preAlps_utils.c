@@ -713,30 +713,6 @@ void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, in
   preAlps_matrix_colIndex_sort(n, xa1, asub1, a1);
 }
 
-/* Broadcast the matrix dimension from the root to the other procs*/
-int preAlps_matrixDim_Bcast(MPI_Comm comm, CPLM_Mat_CSR_t *A, int root, int *m, int *n, int *nnz){
-
-  int ierr = 0, nbprocs, my_rank, matrixDim[3];
-
-  MPI_Comm_size(comm, &nbprocs);
-  MPI_Comm_rank(comm, &my_rank);
-
-  /* Prepare the matrix dimensions for the broadcast */
-  if(my_rank==root){
-    matrixDim[0] = A->info.m;
-    matrixDim[1] = A->info.n;
-    matrixDim[2] = A->info.nnz;
-  }
-
-  /* Broadcast the global matrix dimension among all procs */
-  ierr = MPI_Bcast(&matrixDim, 3, MPI_INT, root, comm);
-  *m   = matrixDim[0];
-  *n   = matrixDim[1];
-  *nnz = matrixDim[2];
-
-  return ierr;
-}
-
 /*
  * We consider one binary tree A and two array part_in and part_out.
  * part_in stores the nodes of A as follows: first all the children at the last level n,
@@ -1134,5 +1110,22 @@ int preAlps_loadDistributeFromFile(MPI_Comm comm, char *fileName, int *mcounts, 
   free(xtmp);
 
   *x = xvals;
+  return ierr;
+}
+
+/* Create two MPI typeVector which can be use to assemble a local vector to a global one */
+int preAlps_multiColumnTypeVectorCreate(int ncols, int local_nrows, int global_nrows, MPI_Datatype *localType, MPI_Datatype *globalType){
+  int ierr = 0;
+
+  MPI_Datatype tmpType;
+
+  MPI_Type_vector(ncols, 1, local_nrows, MPI_DOUBLE, &tmpType);
+  MPI_Type_create_resized(tmpType, 0, 1 * sizeof(double), localType);
+  MPI_Type_commit(localType);
+
+  MPI_Type_vector(ncols, 1, global_nrows, MPI_DOUBLE, &tmpType);
+  MPI_Type_create_resized(tmpType, 0, 1 * sizeof(double), globalType);
+  MPI_Type_commit(globalType);
+
   return ierr;
 }

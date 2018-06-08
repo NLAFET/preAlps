@@ -141,7 +141,7 @@ void preAlps_doubleVector_printSynchronized(double *v, int vlen, char *varname, 
       CPLM_DVectorRecv(&vbuffer, i, TAG_PRINT, comm);
 
       //printf("[%d] %s\n", i, s);
-      printf("[%d] %s, norm:%f\n", i, s, preAlps_doubleVector_norm2(v, vlen));
+      printf("[%d] %s, norm:%f\n", i, s, preAlps_doubleVector_norm2(vbuffer.val, vbuffer.nval));
       mark = 0;
       for(j=0;j<vbuffer.nval;j++) {
 

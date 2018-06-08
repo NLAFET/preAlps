@@ -96,26 +96,26 @@ int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_C
     CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
 
 
-    /*
-     *
-     * First permute the matrix using kway partitioning
-     * Permute each block row such as any row with zeros outside the diagonal move
-     * to the bottom on the matrix (ODB)
-     *
-     * comm:
-     *     input: the communicator for all the processors calling the routine
-     * A:
-     *     input: the input matrix
-     * locA:
-     *     output: the matrix permuted into a block arrow structure on each procs
-     * perm:
-     *     output: the permutation vector
-     * partBegin:
-     *     output: the begining rows of each part.
-     * nbDiagRows:
-     *     output: the number of rows in the diag of each Row block
-    */
-    int preAlps_blockDiagODBStructCreate(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locA, int *perm, int **partBegin, int *nbDiagRows);
+/*
+ *
+ * First permute the matrix using kway partitioning
+ * Permute each block row such as any row with zeros outside the diagonal move
+ * to the bottom on the matrix (ODB)
+ *
+ * comm:
+ *     input: the communicator for all the processors calling the routine
+ * A:
+ *     input: the input matrix
+ * locA:
+ *     output: the matrix permuted into a block arrow structure on each procs
+ * perm:
+ *     output: the permutation vector
+ * partBegin:
+ *     output: the begining rows of each part.
+ * nbDiagRows:
+ *     output: the number of rows in the diag of each Row block
+*/
+int preAlps_blockDiagODBStructCreate(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locA, int *perm, int **partBegin, int *nbDiagRows);
 
 /*
  * Check errors
@@ -149,10 +149,6 @@ void preAlps_matrix_colIndex_sort(int m, int *xa, int *asub, double *a);
  * if pinv or q is NULL it is considered as the identity
  */
 void preAlps_matrix_permute (int n, int *xa, int *asub, double *a, int *pinv, int *q,int *xa1, int *asub1,double *a1);
-
-/* Broadcast the matrix dimension from the root to the other procs*/
-int preAlps_matrixDim_Bcast(MPI_Comm comm, CPLM_Mat_CSR_t *A, int root, int *m, int *n, int *nnz);
-
 
 /*
  * We consider one binary tree A and two array part_in and part_out.
@@ -247,4 +243,7 @@ void preAlps_sleep(int my_rank, int nbseconds);
 
 /* Load a vector from a file and distribute the other procs */
 int preAlps_loadDistributeFromFile(MPI_Comm comm, char *fileName, int *mcounts, double **x);
+
+/* Create two MPI typeVector which can be use to assemble a local vector to a global one */
+int preAlps_multiColumnTypeVectorCreate(int ncols, int local_nrows, int global_nrows, MPI_Datatype *localType, MPI_Datatype *globalType);
 #endif

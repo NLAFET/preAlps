@@ -510,6 +510,30 @@ int CPLM_MatCSRCreateNULL(CPLM_Mat_CSR_t **A){
 }
 
 
+/* Broadcast the matrix dimension from the root to the other procs*/
+int CPLM_MatCSRDimensions_Bcast(CPLM_Mat_CSR_t *A, int root, int *m, int *n, int *nnz, MPI_Comm comm){
+
+  int ierr = 0, nbprocs, my_rank, matrixDim[3];
+
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+  /* Prepare the matrix dimensions for the broadcast */
+  if(my_rank==root){
+    matrixDim[0] = A->info.m;
+    matrixDim[1] = A->info.n;
+    matrixDim[2] = A->info.nnz;
+  }
+
+  /* Broadcast the global matrix dimension among all procs */
+  ierr = MPI_Bcast(&matrixDim, 3, MPI_INT, root, comm);
+  *m   = matrixDim[0];
+  *n   = matrixDim[1];
+  *nnz = matrixDim[2];
+
+  return ierr;
+}
+
 /*
  * Matrix matrix product, C := alpha*A*B + beta*C
  * where A is a CSR matrix, B and C is are dense Matrices stored in column major layout/
