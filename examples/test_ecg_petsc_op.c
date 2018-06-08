@@ -39,6 +39,8 @@
 /******************************************************************************/
 /*                            AUXILIARY FUNCTIONS                             */
 /******************************************************************************/
+
+#ifdef PETSC
 /** \brief Simple wrapper to PETSc MatMatMult */
 void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
   Mat V_petsc, AV_petsc;
@@ -55,6 +57,7 @@ void petsc_precond_apply(Mat P, double* V, double* W, int M, int m, int n) {
   MatMatSolve(P,V_petsc,W_petsc);
   MatDestroy(&V_petsc);MatDestroy(&W_petsc);
 }
+#endif
 
 /* Private function to print the help message */
 void _print_help() {
