@@ -6,6 +6,7 @@
 */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <mpi.h>
 
 #include <preAlps_cplm_utils.h>
@@ -125,6 +126,10 @@ void CPLM_stdFErr(const char  *fun,
                       const int   ierr)
 {
 
+  //Quick printing the error --Sim
+  printf("ERROR from %s: Error in %s, line %d\tcode : %d\n", fun, file, line, ierr); 
+
+  //TODO: fix this function
   CPLM_esprintf(CPALAMEMSIGERR, fun, "Error in %s, line %d\tcode : %d\n",
       file,
       line,

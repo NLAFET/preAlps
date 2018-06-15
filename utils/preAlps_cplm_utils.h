@@ -3,6 +3,8 @@
 *
 * Authors : Sebastien Cayrols
 * Email   : sebastien.cayrols@[(gmail.com) | (inria.fr)]
+* Initial file: Sebastien Cayrols
+* Simplified version: Simplice Donfack
 */
 #ifndef PREALPS_CPLM_H
 #define PREALPS_CPLM_H
@@ -25,7 +27,10 @@
 #define CPALAMEMSIGWRN  "WARNING"
 #define CPALAMEMSIGABRT "ABORTING"
 
-#define CPLM_CHKERR(_e) CPLM_stdFErr(__FUNCTION__, __FILE__, __LINE__, (_e))
+/* Simplified version of CPLM_CHKERR */
+#define CPLM_CHKERR(_e) if((_e) != 0)\
+{CPLM_stdFErr(__FUNCTION__, __FILE__, __LINE__, (_e));}
+
 #define CPLM_Abort(_format, _args...) CPLM_FAbort((__FUNCTION__),(_format),##_args)
 #define CPLM_ASSERT(_t)  if(!(_t))\
     { CPLM_Abort(" wrong test '" #_t "' line %d", __LINE__);}
