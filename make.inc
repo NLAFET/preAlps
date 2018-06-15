@@ -22,7 +22,7 @@ EXAMPLES  = examples
 
 CC           = mpicc
 CFLAGS       = -Wall -funroll-loops -std=c99 -fPIC
-OPT          = -O3 -march=native -mtune=native
+OPT          = -O3 -march=native -mtune=native -lm
 LOADER       = mpicc
 LOADOPTS     = -lgfortran
 LD_FLAGS     =
@@ -87,14 +87,14 @@ SPARSE_SOLVER_CHOICE = 0
 
 # Provide the path for cpalamem
 
-  CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
- # CPALAMEM_DIR        = ${CPALAMEM_ROOT}
-  CPALAMEM_INC         = ${CPALAMEM_DIR}/include
-  CPALAMEM_LIB         = ${CPALAMEM_DIR}/lib
-  INCLUDE_FLAGS       += $(addprefix -I,$(CPALAMEM_INC))
-  LD_FLAGS            += -L$(CPALAMEM_LIB) -lcpalamem_core
-  ADDITIONAL_FLAGS    += -DMPIACTIVATE -DMETISACTIVATE -DCPALAMEM_BENCHMARK
-  CPALAMEM_TAR        := $(shell ls -t $(HOME_DIR)/utils/CPALAMEM_*.tar.gz | head -1)
+#  CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
+# # CPALAMEM_DIR        = ${CPALAMEM_ROOT}
+#  CPALAMEM_INC         = ${CPALAMEM_DIR}/include
+#  CPALAMEM_LIB         = ${CPALAMEM_DIR}/lib
+#  INCLUDE_FLAGS       += $(addprefix -I,$(CPALAMEM_INC))
+#  LD_FLAGS            += -L$(CPALAMEM_LIB) -lcpalamem_core
+#  ADDITIONAL_FLAGS    += -DMPIACTIVATE -DMETISACTIVATE -DCPALAMEM_BENCHMARK
+#  CPALAMEM_TAR        := $(shell ls -t $(HOME_DIR)/utils/CPALAMEM_*.tar.gz | head -1)
 
 # Provide the path for METIS
 
@@ -156,7 +156,7 @@ endif
 #     To use one of the following library, set the variable USE_* to 1
 #
 
-USE_SOLVER_MUMPS=1
+USE_SOLVER_MUMPS=0
 ifeq ($(USE_SOLVER_MUMPS), 1)
   MUMPS_DIR            = $(MUMPS_ROOT)
   MUMPS_INC            = $(MUMPS_DIR)/include
