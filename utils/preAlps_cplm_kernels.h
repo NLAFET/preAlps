@@ -180,6 +180,8 @@ int CPLM_MatCSRKernelGenMatDenseMult(double      *val_in,
 
 int CPLM_MatDenseNorm(CPLM_Mat_Dense_t *A_in, const char type, double *norm);
 
+int CPLM_MatDenseMatDotProd(CPLM_Mat_Dense_t* A, CPLM_Mat_Dense_t* B, CPLM_Mat_Dense_t* C, MPI_Comm comm);
+
 /******************************************************************************/
 /**************************    HANDLER      ***********************************/
 /******************************************************************************/

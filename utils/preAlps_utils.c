@@ -14,9 +14,10 @@ Date        : Mai 15, 2017
 #include <string.h>
 #include <unistd.h>
 #include <stdarg.h>
-#include <mat_csr.h>
-#include <metis_interface.h>
-#include <ivector.h>
+//#include <metis_interface.h>
+#include <preAlps_cplm_ivector.h>
+#include "preAlps_cplm_utils.h"
+#include "preAlps_cplm_matcsr.h"
 #include "preAlps_intvector.h"
 #include "preAlps_doublevector.h"
 #include "preAlps_utils.h"

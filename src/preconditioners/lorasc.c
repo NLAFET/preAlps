@@ -11,7 +11,7 @@ Date        : Sept 20, 2017
 #include <stdlib.h>
 #include <string.h>
 #include <mpi.h>
-#include <metis_interface.h>
+//#include <metis_interface.h>
 #include "preAlps_utils.h"
 #include "preAlps_solver.h"
 #include "lorasc.h"

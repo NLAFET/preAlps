@@ -15,9 +15,9 @@ Date        : Mai 15, 2017
 #ifdef USE_MKL
 #include <mkl.h>
 #endif
-#include <mat_csr.h>
-#include <ivector.h>
 
+#include "preAlps_cplm_ivector.h"
+#include "preAlps_cplm_matcsr.h"
 #include "preAlps_intvector.h"
 #include "preAlps_doublevector.h"
 #include "preAlps_cplm_matcsr.h"

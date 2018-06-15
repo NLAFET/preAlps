@@ -21,15 +21,17 @@
 /* MKL */
 #include<mkl.h>
 /* CPaLAMeM */
-#include <cpalamem_macro.h>
-#include <mat_csr.h>
-#include <mat_dense.h>
-#include <ivector.h>
-#include <dvector.h>
+//#include <cpalamem_macro.h>
+#include <preAlps_cplm_utils.h>
+#include <preAlps_cplm_timing.h>
+#include <preAlps_cplm_matcsr.h>
+#include <preAlps_cplm_matdense.h>
+#include <preAlps_cplm_ivector.h>
+#include <preAlps_cplm_dvector.h>
 #include <cholqr.h>
-#include <matmult.h>
-#include <kernels.h>
-#include <cpalamem_instrumentation.h>
+//#include <matmult.h>
+#include <preAlps_cplm_kernels.h>
+//#include <cpalamem_instrumentation.h>
 /* preAlps */
 #include "ecg.h"
 /******************************************************************************/

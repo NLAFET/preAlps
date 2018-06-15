@@ -9,6 +9,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <preAlps_cplm_utils.h>
 #include <preAlps_cplm_timing.h>
 #include <preAlps_cplm_matdense.h>
@@ -323,20 +324,7 @@ void CPLM_MatDensePrintInfo(CPLM_Mat_Dense_t* A)
           A->info.nval);
 }
 
-int CPLM_MatDenseMatDotProd(CPLM_Mat_Dense_t* A, CPLM_Mat_Dense_t* B, CPLM_Mat_Dense_t* C, MPI_Comm comm)
-{
-CPLM_PUSH
-CPLM_BEGIN_TIME
-  int ierr = 0;
-  // Do local dot product
-  ierr = CPLM_MatDenseKernelMatDotProd(A, B, C);
 
-  // Sum local dot products in place (no mem alloc needed)
-  ierr = MPI_Allreduce(MPI_IN_PLACE, C->val, C->info.nval, MPI_DOUBLE, MPI_SUM, comm);CPLM_checkMPIERR(ierr,"MatDenseMatDotProd::MPI_Allreduce");
-CPLM_END_TIME
-CPLM_POP
-  return ierr;
-}
 
 int CPLM_MatDenseGetRInplace(CPLM_Mat_Dense_t* A_io)
 {
@@ -524,4 +512,38 @@ int CPLM_MatDenseIsSameLocalInfo(CPLM_Mat_Dense_t *A_in, CPLM_Mat_Dense_t *B_in)
           f1.lda        == f2.lda   &&
           f1.stor_type  == f2.stor_type) ? ok : !ok ;
 
+}
+
+
+int CPLM_MatDenseCopy(CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+
+  int ierr = 0;
+
+	if(A_in->info.stor_type == COL_MAJOR)
+	{
+		CPLM_ASSERT(A_in->info.lda == A_in->info.m);
+	}
+	else
+	{
+		CPLM_ASSERT(A_in->info.lda == A_in->info.n);
+	}
+	if (B_out->val == NULL)
+  {
+    B_out->info = A_in->info;
+    ierr = CPLM_MatDenseMalloc(B_out);CPLM_CHKERR(ierr);
+  }
+  else if (!CPLM_MatDenseIsSameLocalInfo(A_in,B_out))
+  {
+    B_out->info = A_in->info;
+    ierr = CPLM_MatDenseRealloc(B_out);CPLM_CHKERR(ierr);
+  }
+
+  memcpy(B_out->val, A_in->val, B_out->info.m * B_out->info.n * sizeof(double));
+
+CPLM_END_TIME
+CPLM_POP
+  return ierr;
 }

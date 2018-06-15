@@ -21,8 +21,8 @@
 #include <mkl.h>
 
 /* CPaLAMeM */
-#include <cpalamem_macro.h>
-#include <cpalamem_instrumentation.h>
+//#include <cpalamem_macro.h>
+//#include <cpalamem_instrumentation.h>
 
 #ifdef PETSC
 #include <petsc_interface.h>

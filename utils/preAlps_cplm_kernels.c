@@ -1049,6 +1049,22 @@ int CPLM_MatDenseNorm(CPLM_Mat_Dense_t *A_in, const char type, double *norm)
   CPLM_POP
   return ierr;
 }
+
+int CPLM_MatDenseMatDotProd(CPLM_Mat_Dense_t* A, CPLM_Mat_Dense_t* B, CPLM_Mat_Dense_t* C, MPI_Comm comm)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+  int ierr = 0;
+  // Do local dot product
+  ierr = CPLM_MatDenseKernelMatDotProd(A, B, C);
+
+  // Sum local dot products in place (no mem alloc needed)
+  ierr = MPI_Allreduce(MPI_IN_PLACE, C->val, C->info.nval, MPI_DOUBLE, MPI_SUM, comm);CPLM_checkMPIERR(ierr,"MatDenseMatDotProd::MPI_Allreduce");
+CPLM_END_TIME
+CPLM_POP
+  return ierr;
+}
+
 /******************************************************************************/
 /******************************************************************************/
 /******************************************************************************/

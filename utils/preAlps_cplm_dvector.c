@@ -10,6 +10,7 @@ Date        : jun 13, 2018
 */
 #include <stdlib.h>
 #include <stdio.h>
+#include <preAlps_cplm_utils.h>
 #include <preAlps_cplm_timing.h>
 #include <preAlps_cplm_dvector.h>
 
@@ -214,4 +215,21 @@ CPLM_POP
 CPLM_END_TIME
 CPLM_POP
   return ierr;
+}
+
+int CPLM_DVectorRealloc( CPLM_DVector_t   *v_io,
+                    int         length)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+
+  CPLM_ASSERT(v_io      != NULL);
+  CPLM_ASSERT(v_io->val != NULL);
+
+  v_io->nval = length;
+  v_io->val  = (double*)realloc(v_io->val, v_io->nval * sizeof(double));
+
+CPLM_END_TIME
+CPLM_POP
+  return !(v_io->val != NULL);
 }

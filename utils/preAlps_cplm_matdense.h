@@ -74,7 +74,7 @@ int CPLM_MatDenseIRecvData(CPLM_Mat_Dense_t* A_in, int source, int tag, MPI_Comm
 
 void CPLM_MatDensePrintInfo(CPLM_Mat_Dense_t* A);
 
-int CPLM_MatDenseMatDotProd(CPLM_Mat_Dense_t* A, CPLM_Mat_Dense_t* B, CPLM_Mat_Dense_t* C, MPI_Comm comm);
+
 
 int CPLM_MatDenseGetRInplace(CPLM_Mat_Dense_t* A_io);
 int CPLM_MatDenseConstant(CPLM_Mat_Dense_t* A, double value);
@@ -94,4 +94,6 @@ int CPLM_MatDenseBlockFill(CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_io, int i
 int CPLM_MatDenseRealloc(CPLM_Mat_Dense_t  *A_io);
 
 int CPLM_MatDenseIsSameLocalInfo(CPLM_Mat_Dense_t *A_in, CPLM_Mat_Dense_t *B_in);
+
+int CPLM_MatDenseCopy(CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out);
 #endif

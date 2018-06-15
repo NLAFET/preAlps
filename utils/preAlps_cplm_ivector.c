@@ -376,6 +376,26 @@ CPLM_POP
 }
 
 
+//compute the sum of all elements of v
+int CPLM_IVectorReduce(CPLM_IVector_t *v, int *sum)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+
+  int ierr  = 0;
+  int lsum  = 0;
+
+  for(int i = 0; i < v->nval; i++)
+  {
+    lsum += v->val[i];
+  }
+
+  *sum = lsum;
+
+CPLM_END_TIME
+CPLM_POP
+  return ierr;
+}
 
 /**
   *

@@ -17,10 +17,10 @@
 /* MPI */
 #include <mpi.h>
 /* MatCSR */
-#include <cpalamem_macro.h>
-#include <cpalamem_instrumentation.h>
-#include <mat_csr.h>
-#include <mat_dense.h>
+//#include <cpalamem_macro.h>
+//#include <cpalamem_instrumentation.h>
+#include <preAlps_cplm_matcsr.h>
+#include <preAlps_cplm_matdense.h>
 
 #include <preAlps_preconditioner_struct.h>
 

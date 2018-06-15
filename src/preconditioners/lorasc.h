@@ -11,8 +11,8 @@ Date        : Sept 20, 2017
 #define LORASC_H
 
 #include <mpi.h>
-#include <mat_csr.h>
-#include <mat_dense.h>
+#include <preAlps_cplm_matcsr.h>
+#include <preAlps_cplm_matdense.h>
 
 #include "preAlps_solver.h"
 

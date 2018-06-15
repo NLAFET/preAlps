@@ -88,6 +88,9 @@ int CPLM_IVectorRealloc( CPLM_IVector_t *v_io, int length);
 int CPLM_IVectorLoad(const char *fileName, CPLM_IVector_t *buf, int size);
 
 
+//compute the sum of all elements of v
+int CPLM_IVectorReduce(CPLM_IVector_t *v, int *sum);
+
 /**
   *
   *

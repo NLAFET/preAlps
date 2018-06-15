@@ -8,10 +8,15 @@
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
+
 #ifdef PETSC
 #include <petsc_interface.h>
 #endif
-
+#include <preAlps_cplm_utils.h>
+#include <preAlps_cplm_timing.h>
+#include <preAlps_cplm_ivector.h>
+#include <preAlps_cplm_matcsr.h>
+#include <preAlps_matmult_v2.h>
 #include "operator.h"
 /******************************************************************************/
 
@@ -19,10 +24,10 @@
 /*                              GLOBAL VARIABLES                              */
 /******************************************************************************/
 static CPLM_Mat_CSR_t A_g = CPLM_MatCSRNULL();
-static CPLM_IVector_t rowPos_g = CPLM_DVectorNULL();
-static CPLM_IVector_t colPos_g = CPLM_DVectorNULL();
-static CPLM_IVector_t rowPtr_g = CPLM_DVectorNULL();
-static CPLM_IVector_t dep_g    = CPLM_DVectorNULL();
+static CPLM_IVector_t rowPos_g = CPLM_IVectorNULL();
+static CPLM_IVector_t colPos_g = CPLM_IVectorNULL();
+static CPLM_IVector_t rowPtr_g = CPLM_IVectorNULL();
+static CPLM_IVector_t dep_g    = CPLM_IVectorNULL();
 static MPI_Comm comm_g;
 /******************************************************************************/
 

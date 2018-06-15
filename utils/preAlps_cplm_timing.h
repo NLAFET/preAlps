@@ -1,8 +1,8 @@
-/* Disable timings macros when preAlps is compiled without cpalamem */
 #ifndef PREALPS_CPLM_TIMING_H
 #define PREALPS_CPLM_TIMING_H
 
 #ifndef USE_CPALAMEM
+/* Disable timing and instrumentation macro and functions when preAlps is compiled without cpalamem */
   #define CPLM_PUSH
   #define CPLM_POP
   #define CPLM_BEGIN_TIME
@@ -11,6 +11,8 @@
   #define CPLM_CLOSE_TIMER
   #define CPLM_TIC(a, b)
   #define CPLM_TAC(a)
+  #define CPLM_SetEnv()
+  #define CPLM_printTimer(a)
   enum {
   step1 = 1,
   step2,

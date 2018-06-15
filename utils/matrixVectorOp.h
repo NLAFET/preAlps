@@ -11,7 +11,7 @@ Date        : Sept 15, 2017
 #ifndef MATRIXVECTOROP_H
 #define MATRIXVECTOROP_H
 
-#include "mat_csr.h"
+#include "preAlps_cplm_matcsr.h"
 #include "solverStats.h"
 #include "preAlps_solver.h"
 
@@ -44,7 +44,7 @@ int matrixVectorOp_AggInvxS(MPI_Comm comm, int mloc, int m, int *mcounts, int *m
                               int *Aig_mcounts, int *Aig_moffsets,
                               int *Agi_mcounts, int *Agi_moffsets,
                               SolverStats_t *tstats);
-                              
+
 /* Compute the matrix vector product y = A*x
  * where A = A_{loc}^{-1}*S, S = Aggloc - Agi*Aii^{-1}*Aig.
 */

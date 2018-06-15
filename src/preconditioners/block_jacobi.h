@@ -17,12 +17,13 @@
 /* MPI */
 #include <mpi.h>
 /* CPaLAMeM */
-#include <cpalamem_macro.h>
-#include <cpalamem_instrumentation.h>
-#include <mat_csr.h>
-#include <mat_dense.h>
-#include <kernels.h>
-#include <ivector.h>
+//#include <cpalamem_macro.h>
+//#include <cpalamem_instrumentation.h>
+#include <preAlps_cplm_timing.h>
+#include <preAlps_cplm_matcsr.h>
+#include <preAlps_cplm_matdense.h>
+#include <preAlps_cplm_kernels.h>
+#include <preAlps_cplm_ivector.h>
 /* MKL */
 #include <mkl_pardiso.h>
 /* ParBCG */

@@ -41,4 +41,6 @@ int CPLM_DVectorSave(CPLM_DVector_t *v,const char *fileName, const char *header)
 **/
 int CPLM_DVectorLoad(const char *fileName, CPLM_DVector_t *buf, int size);
 
+int CPLM_DVectorRealloc( CPLM_DVector_t   *v_io,
+                    int         length);
 #endif
