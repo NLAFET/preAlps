@@ -80,12 +80,12 @@ int CPLM_MatDenseDtrmm(CPLM_Mat_Dense_t *A_in ,
 
   // y = beta*y + alpha*A*x
   int CPLM_MatDenseKernelMatVec(CPLM_Mat_Dense_t* A,
-                           CPLM_DVector_t*   x,
-                           CPLM_DVector_t*   y,
-                           double       alpha,
-                           double       beta);
+                                double*   x,
+                                double**   y,
+                                double       alpha,
+                                double       beta);
   // sumCol = sum_i A^(i)
-  int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, CPLM_DVector_t* sumCol_out);
+  int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, double** sumCol_out);
 
   // Function computes Q factor of Matrix A and returns it in place, the factor
   // R can be copied to another matrix H starting from H(index_i,index_j) when
@@ -130,7 +130,7 @@ int CPLM_MatCSRKernelGenMatDenseMult(double      *val_in,
   void CPLM_MatCSRPARDISOSetParameters(int* iparam_io);
 
   int CPLM_MatCSRPARDISOFactorization(CPLM_Mat_CSR_t* A_in,
-                                 _MKL_DSS_HANDLE_t			pardisoHandle_out,
+                                 _MKL_DSS_HANDLE_t      pardisoHandle_out,
                                  MKL_INT*   iparam_in,
                                  MKL_INT    mtype_in,
                                  MKL_INT*   perm_out);
@@ -139,7 +139,7 @@ int CPLM_MatCSRKernelGenMatDenseMult(double      *val_in,
                                 CPLM_Mat_Dense_t*  B_in,
                                 CPLM_Mat_Dense_t*  X_out,
                                 MKL_INT       phase,
-                                _MKL_DSS_HANDLE_t					pardisoHandle_out,
+                                _MKL_DSS_HANDLE_t         pardisoHandle_out,
                                 MKL_INT*      iparam_in,
                                 MKL_INT       mtype_in,
                                 MKL_INT*      perm_in);
@@ -147,7 +147,7 @@ int CPLM_MatCSRKernelGenMatDenseMult(double      *val_in,
   int CPLM_MatCSRPARDISOSolve(CPLM_Mat_CSR_t*     A_in,
                          CPLM_Mat_Dense_t*   B_in,
                          CPLM_Mat_Dense_t*   X_out,
-                         _MKL_DSS_HANDLE_t					pardisoHandle_in,
+                         _MKL_DSS_HANDLE_t          pardisoHandle_in,
                          MKL_INT*       param_in,
                          MKL_INT        mtype_in,
                          MKL_INT*       perm_in);
@@ -155,7 +155,7 @@ int CPLM_MatCSRKernelGenMatDenseMult(double      *val_in,
   int CPLM_MatCSRPARDISOSolveForward(CPLM_Mat_CSR_t*    A_in,
                                 CPLM_Mat_Dense_t*  B_in,
                                 CPLM_Mat_Dense_t*  X_out,
-                                _MKL_DSS_HANDLE_t					pardisoHandle_in,
+                                _MKL_DSS_HANDLE_t         pardisoHandle_in,
                                 MKL_INT*      param_in,
                                 MKL_INT       mtype_in,
                                 MKL_INT*      perm_in);
@@ -163,13 +163,13 @@ int CPLM_MatCSRKernelGenMatDenseMult(double      *val_in,
   int CPLM_MatCSRPARDISOSolveBackward(CPLM_Mat_CSR_t*   A_in,
                                  CPLM_Mat_Dense_t* B_in,
                                  CPLM_Mat_Dense_t* X_in,
-                                 _MKL_DSS_HANDLE_t				pardisoHandle_out,
+                                 _MKL_DSS_HANDLE_t        pardisoHandle_out,
                                  MKL_INT*     param_in,
                                  MKL_INT      mtype_in,
                                  MKL_INT*     perm_in);
 
   int CPLM_MatCSRPARDISOFree(CPLM_Mat_CSR_t*  A_in,
-                        _MKL_DSS_HANDLE_t				pardisoHandle_io,
+                        _MKL_DSS_HANDLE_t       pardisoHandle_io,
                         MKL_INT*    iparam_in,
                         MKL_INT     mtype_in);
   // End of PARDISO interface

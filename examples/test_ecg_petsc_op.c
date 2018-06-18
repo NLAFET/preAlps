@@ -1,5 +1,5 @@
 /**
- * \file    ecg_petsc_op.c
+ * \file    test_ecg_petsc_op.c
  * \author  Olivier Tissot
  * \date    2016/06/23
  * \brief   Example of usage of ECG with PETSc MatMatMult and MatMatSolve
@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <math.h>
 /* MPI */
 #include <mpi.h>
 /* MKL */
@@ -341,7 +342,7 @@ CPLM_TIC(step4,"ECGSolve")
   }
   // Retrieve solution and free memory
   CPLM_TIC(step10, "        finalize")
-  preAlps_ECGFinalize(&ecg,sol);
+  preAlps_ECGFinalize(&ecg,&sol);
   CPLM_TAC(step10)
 CPLM_TAC(step4)
 

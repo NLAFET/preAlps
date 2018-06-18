@@ -163,7 +163,7 @@ CPLM_PUSH
   if (size < ecg->enlFac) {
     CPLM_Abort("Enlarging factor must be lower than the number of processors"
                " in the MPI communicator! size: %d ; enlarging factor: %d",
-	       size,ecg->enlFac);
+         size,ecg->enlFac);
   }
 
   // Allocate Memory
@@ -522,7 +522,7 @@ CPLM_POP
   return ierr;
 }
 
-int preAlps_ECGFinalize(preAlps_ECG_t* ecg, double* solution) {
+int preAlps_ECGFinalize(preAlps_ECG_t* ecg, double** solution) {
 CPLM_PUSH
   int ierr = _preAlps_ECGWrapUp(ecg, solution);
   _preAlps_ECGFree(ecg);
@@ -530,16 +530,13 @@ CPLM_POP
   return ierr;
 }
 
-int _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double* solution) {
+int _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double** solution) {
 CPLM_PUSH
   int ierr = 0;
   // Simplify notations
   CPLM_Mat_Dense_t* X = ecg->X;
-  CPLM_DVector_t sol = CPLM_DVectorNULL();
-  sol.nval = X->info.m;
-  sol.val  = solution;
   // Get the solution
-  ierr = CPLM_MatDenseKernelSumColumns(X, &sol);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseKernelSumColumns(X, solution);CPLM_CHKERR(ierr);
 CPLM_POP
   return ierr;
 }

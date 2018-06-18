@@ -1,5 +1,5 @@
 /**
- * \file    ecg_prealps_op.c
+ * \file    test_ecg_prealps_op.c
  * \author  Olivier Tissot
  * \date    2016/06/23
  * \brief   Example of usage of E(nlarged) C(onjugate) G(radient)
@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <math.h>
 /* MPI */
 #include <mpi.h>
 /* MKL */
@@ -219,7 +220,7 @@ CPLM_TIC(step1,"ECGSolve")
     }
   }
   // Retrieve solution and free memory
-  preAlps_ECGFinalize(&ecg,sol);
+  preAlps_ECGFinalize(&ecg,&sol);
 CPLM_TAC(step1)
 
   if (rank == 0) {

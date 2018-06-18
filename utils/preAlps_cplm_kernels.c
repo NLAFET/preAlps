@@ -492,10 +492,10 @@ CPLM_POP
 
 // y = beta*y + alpha*A*x
 int CPLM_MatDenseKernelMatVec(CPLM_Mat_Dense_t* A_in,
-                         CPLM_DVector_t*   x_in,
-                         CPLM_DVector_t*   y_io,
-                         double       alpha,
-                         double       beta)
+                              double*           x_in,
+                              double**          y_io,
+                              double            alpha,
+                              double            beta)
 {
 CPLM_PUSH
 CPLM_BEGIN_TIME
@@ -504,17 +504,13 @@ CPLM_BEGIN_TIME
 
   CPLM_ASSERT(A_in       !=  NULL);
   CPLM_ASSERT(x_in       !=  NULL);
-  CPLM_ASSERT(y_io       !=  NULL);
+  CPLM_ASSERT(*y_io       !=  NULL);
   CPLM_ASSERT(A_in->val  !=  NULL);
-  CPLM_ASSERT(x_in->val  !=  NULL);
 
-  if (y_io->val == NULL)
-  {
-    ierr = CPLM_DVectorMalloc(y_io,A_in->info.m);CPLM_CHKERR(ierr);
-  }
-
-  CPLM_ASSERT(y_io->nval == A_in->info.m);
-  CPLM_ASSERT(x_in->nval == A_in->info.n);
+  /* if (*y_io == NULL) */
+  /* { */
+  /*   y_io = malloc(A_in->info.m*sizeof(double)); */
+  /* } */
 
   // BLAS parameters
   layout = (A_in->info.stor_type == ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
@@ -526,10 +522,10 @@ CPLM_BEGIN_TIME
               alpha,
               A_in->val,
               A_in->info.lda,
-              x_in->val,
+              x_in,
               1,             // increment for the elements of x
               beta,
-              y_io->val,
+              *y_io,
               1);            // increment of the elements of y
 CPLM_END_TIME
 CPLM_POP
@@ -540,19 +536,21 @@ CPLM_POP
 
 
 
-int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, CPLM_DVector_t* sumCol)
+int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, double** sumCol)
 {
 CPLM_PUSH
 CPLM_BEGIN_TIME
   int ierr = 0;
   CPLM_DVector_t ones = CPLM_DVectorNULL();
-
+  CPLM_DVector_t sumCol_s = CPLM_DVectorNULL();
+  sumCol_s.val  = *sumCol;
+  sumCol_s.nval = A_in->info.m;
   CPLM_ASSERT(A_in->val != NULL);
 
   ierr = CPLM_DVectorMalloc(&ones, A_in->info.n);CPLM_CHKERR(ierr);
   ierr = CPLM_DVectorConstant(&ones, 1.0);CPLM_CHKERR(ierr);
 
-  ierr = CPLM_MatDenseKernelMatVec(A_in, &ones, sumCol, 1.0, 0.0);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseKernelMatVec(A_in, &ones, &sumCol_s, 1.0, 0.0);CPLM_CHKERR(ierr);
 
   CPLM_DVectorFree(&ones);
 CPLM_END_TIME
@@ -787,7 +785,7 @@ CPLM_POP
 
 
 int CPLM_MatCSRPARDISOFree(CPLM_Mat_CSR_t*  A_in,
-                      _MKL_DSS_HANDLE_t				pardisoHandle_io,
+                      _MKL_DSS_HANDLE_t       pardisoHandle_io,
                       MKL_INT*    iparam_in,
                       MKL_INT     mtype_in)
 {
@@ -828,7 +826,7 @@ CPLM_POP
 
 
 int CPLM_MatCSRPARDISOFactorization( CPLM_Mat_CSR_t*  A_in,
-                                _MKL_DSS_HANDLE_t				pardisoHandle_out,
+                                _MKL_DSS_HANDLE_t       pardisoHandle_out,
                                 MKL_INT*    iparam_in,
                                 MKL_INT     mtype_in,
                                 MKL_INT*    perm_out)
@@ -880,7 +878,7 @@ int CPLM_MatCSRPARDISOGeneralSolve(CPLM_Mat_CSR_t*    A_in,
                               CPLM_Mat_Dense_t*  B_in,
                               CPLM_Mat_Dense_t*  X_out,
                               MKL_INT       phase,
-                              _MKL_DSS_HANDLE_t					pardisoHandle_in,
+                              _MKL_DSS_HANDLE_t         pardisoHandle_in,
                               MKL_INT*      iparam_in,
                               MKL_INT       mtype_in,
                               MKL_INT*      perm_in)
@@ -948,7 +946,7 @@ CPLM_POP
 int CPLM_MatCSRPARDISOSolve( CPLM_Mat_CSR_t*    A_in,
                         CPLM_Mat_Dense_t*  B_in,
                         CPLM_Mat_Dense_t*  X_out,
-                        _MKL_DSS_HANDLE_t					pardisoHandle_in,
+                        _MKL_DSS_HANDLE_t         pardisoHandle_in,
                         MKL_INT*      iparam_in,
                         MKL_INT       mtype_in,
                         MKL_INT*      perm_in)
@@ -974,7 +972,7 @@ CPLM_POP
 int CPLM_MatCSRPARDISOSolveForward(CPLM_Mat_CSR_t*    A_in,
                               CPLM_Mat_Dense_t*  B_in,
                               CPLM_Mat_Dense_t*  X_out,
-                              _MKL_DSS_HANDLE_t					pardisoHandle_in,
+                              _MKL_DSS_HANDLE_t         pardisoHandle_in,
                               MKL_INT*      iparam_in,
                               MKL_INT       mtype_in,
                               MKL_INT*      perm_in)
@@ -1004,7 +1002,7 @@ CPLM_POP
 int CPLM_MatCSRPARDISOSolveBackward( CPLM_Mat_CSR_t*    A_in,
                                 CPLM_Mat_Dense_t*  B_in,
                                 CPLM_Mat_Dense_t*  X_out,
-                                _MKL_DSS_HANDLE_t					pardisoHandle_in,
+                                _MKL_DSS_HANDLE_t         pardisoHandle_in,
                                 MKL_INT*      iparam_in,
                                 MKL_INT       mtype_in,
                                 MKL_INT*      perm_in)
@@ -1036,7 +1034,7 @@ int CPLM_MatDenseNorm(CPLM_Mat_Dense_t *A_in, const char type, double *norm)
 {
   CPLM_PUSH
   int ierr = 0;
-	int major  = (A_in->info.stor_type == COL_MAJOR) ? LAPACK_COL_MAJOR
+  int major  = (A_in->info.stor_type == COL_MAJOR) ? LAPACK_COL_MAJOR
     : LAPACK_ROW_MAJOR;
 
   *norm = LAPACKE_dlange(major,

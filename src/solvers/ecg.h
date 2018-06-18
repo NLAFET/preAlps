@@ -130,7 +130,7 @@ int  preAlps_ECGStoppingCriterion(preAlps_ECG_t* ecg, int* stop);
  * \return 0 if the execution succeeded
  * \return 1 if the execution failed
  */
-int  preAlps_ECGFinalize(preAlps_ECG_t* ecg, double* solution);
+int  preAlps_ECGFinalize(preAlps_ECG_t* ecg, double** solution);
 
 /**
  * \brief Print informations on the solver
@@ -174,7 +174,7 @@ int  _preAlps_ECGReset(preAlps_ECG_t* ecg, double* rhs, int* rci_request);
  * \return 0 if the execution succeeded
  * \return 1 if the execution failed
  */
-int  _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double* solution);
+int  _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double** solution);
 
 /**
  * \brief Private function
