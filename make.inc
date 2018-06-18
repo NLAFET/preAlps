@@ -85,17 +85,6 @@ SPARSE_SOLVER_CHOICE = 0
 #   REQUIRED : Provide paths for the libraries
 #
 
-# Provide the path for cpalamem
-
-#  CPALAMEM_DIR         = ${HOME_DIR}/utils/cpalamem
-# # CPALAMEM_DIR        = ${CPALAMEM_ROOT}
-#  CPALAMEM_INC         = ${CPALAMEM_DIR}/include
-#  CPALAMEM_LIB         = ${CPALAMEM_DIR}/lib
-#  INCLUDE_FLAGS       += $(addprefix -I,$(CPALAMEM_INC))
-#  LD_FLAGS            += -L$(CPALAMEM_LIB) -lcpalamem_core
-#  ADDITIONAL_FLAGS    += -DMPIACTIVATE -DMETISACTIVATE -DCPALAMEM_BENCHMARK
-#  CPALAMEM_TAR        := $(shell ls -t $(HOME_DIR)/utils/CPALAMEM_*.tar.gz | head -1)
-
 # Provide the path for METIS
 
   METIS_DIR            = ${METIS_ROOT}
@@ -104,7 +93,7 @@ SPARSE_SOLVER_CHOICE = 0
   INCLUDE_FLAGS       += $(addprefix -I,$(METIS_INC))
   LD_FLAGS            += -L$(METIS_LIB) -lmetis
   ADDITIONAL_FLAGS    +=
-  ADDITIONAL_LD_FLAGS += -lcpalamem_metis -lmetis
+  ADDITIONAL_LD_FLAGS += -lmetis
 # Provide the path for ParMetis
 
 USE_PARMETIS=1
@@ -177,7 +166,7 @@ ifeq ($(USE_MKL), 1)
 # LD_FLAGS          += -L$(MKL_DIR)/lib/intel64 -Wl,-rpath,$(MKL_ROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
   # LD_FLAGS          += -Wl,--no-as-needed -L$(MKL_DIR)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lgomp -lm -ldl -lpthread -DMKL_LP64
   ADDITIONAL_FLAGS    += -DMKLACTIVATE -DUSE_MKL
-  ADDITIONAL_LD_FLAGS += -lcpalamem_mkl
+  ADDITIONAL_LD_FLAGS +=
 endif
 
 
@@ -209,7 +198,7 @@ ifeq ($(USE_PETSC), 1)
   INCLUDE_FLAGS       += $(addprefix -I,$(PETSC_INC))
   LD_FLAGS            += -L$(PETSC_LIB) -L$(PETSC_DIR)/${PETSC_ARCH}/lib -lpetsc
   ADDITIONAL_FLAGS    += -DPETSC
-  ADDITIONAL_LD_FLAGS += -lcpalamem_petsc
+  ADDITIONAL_LD_FLAGS +=  
 endif
 
 #
