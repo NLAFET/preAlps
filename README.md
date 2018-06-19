@@ -24,58 +24,70 @@ ECG can be used as an iterative solver and can be combined with block Jacobi, LO
     3.1 PETSc ( can be downloaded from https://www.mcs.anl.gov/petsc/download/index.html )  
 
   4. Get the latest version of preAlps.  
+    ```
     git clone git@github.com:NLAFET/preAlps.git preAlps  
-
+    ```
   5. Edit the make.inc file at the top level of the root directory, check compiler directives and flags.  
 
   7. Copy an example of make.lib.inc from the directory MAKES.  
 
-      In order to use ECG Solver only:  
-      Type 'cp MAKES/make.lib.inc-ecg make.lib.inc'  
-
-      For the full installation of preAlps:  
-      Type 'cp MAKES/make.lib.inc make.lib.inc'  
-
+      In order to use ECG Solver only, type:  
+      ```
+      cp MAKES/make.lib.inc-ecg make.lib.inc
+      ```
+      For the full installation of preAlps, type:
+      ```
+      cp MAKES/make.lib.inc make.lib.inc  
+      ```
   8. Edit the make.lib.inc file to enable the libraries used and installed in 1,2 and 3. Make sure the LD_FLAGS of these libraries are correctly set. Disable unused libraries.  
 
   9. Copy the file MAKES/make.sourcedir to make.sourcedir  
 
-      In order to use ECG Solver only:  
-      Type 'cp MAKES/make.sourcedir-ecg make.sourcedir'  
-
-      For the full installation of preAlps:  
-      Type 'cp MAKES/make.sourcedir make.sourcedir'  
-
+      In order to use ECG Solver only, type:  
+      ```
+      cp MAKES/make.sourcedir-ecg make.sourcedir
+      ```
+      For the full installation of preAlps, type:
+      ```
+      cp MAKES/make.sourcedir make.sourcedir  
+      ```
   10. Edit the file make.sourcedir in order to set the path of all libraries installed in 1, 2, and 3.  
 
-  11. Load the libraries path in your environment  
-    Type 'source make.sourcedir'  
-
+  11. Load the libraries path in your environment, type
+      ```
+      source make.sourcedir  
+      ```
   12. Type 'make' to compile the library.  
-
+      ```
+      make
+      ```
   13. To run the example program  
 
-     13.1 Make sure you load the libraries path in your environment  
-       Type 'source make.sourcedir'  
-
+     13.1 Make sure you load the libraries path in your environment, type
+     ```
+       source make.sourcedir
+     ```
      13.2 for a test on a provided elasticity 3D matrix (see [1,3]):  
 
-       13.2.1 run ECG + Block Jacobi with 8 processors with an enlarging factor of 4.  
+        13.2.1 run ECG + Block Jacobi with 8 processors with an enlarging factor of 4.  
+         ```
          mpirun -np 8 ./bin/test_ecg_prealps_op -m matrix/elasticity3d_12x10x10_var.mtx -o 0 -r 0 -e 4  
-
-       13.2.1 run ECG + Lorasc Multilevel with 8 processors with enlarging factor of 2, use 4 domains at the first level of the parallelism for LORASC.  
+         ```
+        13.2.1 run ECG + Lorasc Multilevel with 8 processors with enlarging factor of 2, use 4 domains at the first level of the parallelism for LORASC.  
+         ```
          mpirun -np 8 bin/test_lorasc -m matrix/elasticity3d_12x10x10_var.mtx  -t 2 -p 2 -npLevel1 4  
-
-     13.3 for obtaining the help about all the options provided with the test programs.  
+         ```
+     13.3 for obtaining the help about all the options provided with the test programs.
+       ```
        ./bin/test_ecg_prealps_op -h  
        ./bin/test_lorasc -h  
-
+       ```
      13.4 for a general case:  
-
+       ```
        mpirun -np <nb_processors> mpirun ./test_ecg_prealps_op -e/--enlarging-factor <int> [-h/--help] [-i/--iteration-maximum <int>] -m/--matrix <matrix_file.mtx> -o/--ortho-alg <int> -r/--search-dir-red <int> [-t/--tolerance <double>]  
 
        mpirun -np <nb_processors> ./bin/test_lorasc -m <matrix_file.mtx> -t <enlarging factor> -p <preconditionner_number> -npLevel1 <number_domains_first_level>  
-
+       ```
 # References
 
   1. Laura Grigori, Sophie Moufawad, and Frederic Nataf. Enlarged Krylov subspace conjugate gradient methods for reducing communication. SIAM J. Matrix Anal. Appl., 2016.

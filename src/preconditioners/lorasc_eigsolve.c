@@ -19,7 +19,7 @@ Date        : oct 1, 2017
 #include "matrixVectorOp.h"
 #include "lorasc_eigsolve.h"
 
-#define EIGVALUES_PRINT 1
+#define EIGVALUES_PRINT 0
 
 #define EIGSOLVE_DISPLAY_STATS 0
 
