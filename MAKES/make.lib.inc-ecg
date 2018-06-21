@@ -1,8 +1,18 @@
 #
-#   REQUIRED : Provide paths for the libraries
+# Provide the path for the libraires
 #
 
-# Provide the path for METIS
+MKL_ROOT=/opt/intel/mkl
+METIS_ROOT=/opt/soft/metis
+
+
+
+
+#
+#   REQUIRED : Provide the compiler directives for the libraries
+#
+
+# Provide the compiler directives for METIS
 
   METIS_DIR            = ${METIS_ROOT}
   METIS_INC            = $(METIS_DIR)/include
@@ -17,6 +27,8 @@
 #     To use one of the following library, set the variable USE_* to 1
 #
 
+# Provide the compiler directives for MKL
+
 USE_MKL=1
 ifeq ($(USE_MKL), 1)
   MKL_DIR              = ${MKL_ROOT}
@@ -30,7 +42,7 @@ ifeq ($(USE_MKL), 1)
   ADDITIONAL_LD_FLAGS +=
 endif
 
-# Provide the path for ParMetis
+# Provide the compiler directives for ParMetis
 
 USE_PARMETIS=0
 ifeq ($(USE_PARMETIS), 1)
@@ -42,7 +54,7 @@ ifeq ($(USE_PARMETIS), 1)
   ADDITIONAL_FLAGS    += -DUSE_PARMETIS
 endif
 
-# Provide the path for MUMPS
+# Provide the compiler directives for MUMPS
 
 USE_SOLVER_MUMPS=0
 ifeq ($(USE_SOLVER_MUMPS), 1)
@@ -54,7 +66,7 @@ ifeq ($(USE_SOLVER_MUMPS), 1)
   ADDITIONAL_FLAGS    += -DUSE_SOLVER_MUMPS
 endif
 
-# Provide the path for PARPACK
+# Provide the compiler directives for PARPACK
 
 USE_PARPACK=0
 ifeq ($(USE_PARPACK), 1)
@@ -65,7 +77,7 @@ ifeq ($(USE_PARPACK), 1)
   ADDITIONAL_FLAGS    += -DUSE_PARPACK
 endif
 
-# Provide the path for PARDISO
+# Provide the compiler directives for PARDISO
 USE_SOLVER_PARDISO=0
 ifeq ($(USE_SOLVER_PARDISO), 1)
   # Pardiso will be used (not the one from Intel)
@@ -77,7 +89,7 @@ ifeq ($(USE_SOLVER_PARDISO), 1)
   #-DPARDISO_SCHUR_COMPLEMENT_PATCH
 endif
 
-# Provide the path for LAPACK
+# Provide the compiler directives for LAPACK
 USE_LAPACK=0
 ifeq ($(USE_LAPACK), 1)
   LAPACK_DIR           = $(LAPACK_ROOT)
@@ -88,7 +100,7 @@ ifeq ($(USE_LAPACK), 1)
   LD_FLAGS            += -L$(LAPACK_LIB) -llapacke -llapack -lrefblas -lgfortran -lm
 endif
 
-# Provide the path for SUITESPARSE
+# Provide the compiler directives for SUITESPARSE
 USE_SUITESPARSE=0
 ifeq ($(USE_SUITESPARSE), 1)
   SUITESPARSE_DIR      = ${SUITESPARSE_ROOT}
@@ -98,7 +110,7 @@ ifeq ($(USE_SUITESPARSE), 1)
   LD_FLAGS            += -L$(SUITESPARSE_LIB) -lspqr -lcholmod -lcolamd -lcamd -lsuitesparseconfig -lamd -lccolamd -lmetis
 endif
 
-# Provide the path for PETSC
+# Provide the compiler directives for PETSC
 
 USE_PETSC=0
 ifeq ($(USE_PETSC), 1)

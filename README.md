@@ -41,48 +41,29 @@ ECG can be used as an iterative solver and can be combined with block Jacobi, LO
     ```
   7. Edit the make.lib.inc file to enable the libraries used and installed in 1,2 and 3. Make sure the LD_FLAGS of these libraries are correctly set. Disable unused libraries.  
 
-  8. Copy the file MAKES/make.sourcedir to make.sourcedir  
 
-    In order to use ECG Solver only, type:  
-    ```
-    $ cp MAKES/make.sourcedir-ecg make.sourcedir
-    ```
-    For the full installation of preAlps, type:
-    ```
-    $ cp MAKES/make.sourcedir make.sourcedir  
-    ```
-  9. Edit the file make.sourcedir in order to set the path of all libraries installed in 1, 2, and 3.  
-
-  10. Load the libraries path in your environment, type
-    ```
-    $ source make.sourcedir  
-    ```
-  11. Type 'make' to compile the library.  
+  8. Type 'make' to compile the library.  
     ```
     $ make
     ```
-  12. To run the example program  
+  9. To run the example program  
 
-    12.1 Make sure you load the libraries path in your environment, type
-    ```
-      $ source make.sourcedir
-    ```
-    12.2 for a test on a provided elasticity 3D matrix (see [1,3]):  
+    9.1 for a test on a provided elasticity 3D matrix (see [1,3]):  
 
-      12.2.1 run ECG + Block Jacobi with 8 processors with an enlarging factor of 4.  
+      9.1.1 run ECG + Block Jacobi with 8 processors with an enlarging factor of 4.  
       ```
       $ mpirun -np 8 ./bin/test_ecg_prealps_op -m matrix/elasticity3d_12x10x10_var.mtx -o 0 -r 0 -e 4  
       ```
-      12.2.1 run ECG + Lorasc Multilevel with 8 processors with enlarging factor of 2, use 4 domains at the first level of the parallelism for LORASC.  
+      9.1.1 run ECG + Lorasc Multilevel with 8 processors with enlarging factor of 2, use 4 domains at the first level of the parallelism for LORASC.  
       ```
       $ mpirun -np 8 bin/test_lorasc -m matrix/elasticity3d_12x10x10_var.mtx  -t 2 -p 2 -npLevel1 4  
       ```
-     12.3 for obtaining the help about all the options provided with the test programs.
+     9.2 for obtaining the help about all the options provided with the test programs.
        ```
        $ ./bin/test_ecg_prealps_op -h  
        $ ./bin/test_lorasc -h  
        ```
-     12.4 for a general case:  
+     9.3 for a general case:  
        ```
        $ mpirun -np <nb_processors> mpirun ./test_ecg_prealps_op -e/--enlarging-factor <int> [-h/--help] [-i/--iteration-maximum <int>] -m/--matrix <matrix_file.mtx> -o/--ortho-alg <int> -r/--search-dir-red <int> [-t/--tolerance <double>]  
 
