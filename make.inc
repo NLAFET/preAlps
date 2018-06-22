@@ -12,6 +12,7 @@ BINDIR    = bin
 LIBDIR    = lib
 INCDIR    = include
 UTILS     = utils
+CPLMDIR   = utils/cplm_light
 SRC       = src
 EXAMPLES  = examples
 
@@ -85,9 +86,6 @@ PLAT        = release
 #=====================================================================
 
 # Include librairies path
-
-SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
-include $(SELF_DIR)make.sourcedir
 
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 include $(SELF_DIR)make.lib.inc
