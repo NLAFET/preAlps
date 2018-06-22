@@ -58,17 +58,17 @@ ECG can be used as an iterative solver and can be combined with block Jacobi, LO
       ```
       $ mpirun -np 8 bin/test_lorasc -m matrix/elasticity3d_12x10x10_var.mtx  -t 2 -p 2 -npLevel1 4  
       ```
-     9.2 for obtaining the help about all the options provided with the test programs.
-       ```
-       $ ./bin/test_ecg_prealps_op -h  
-       $ ./bin/test_lorasc -h  
-       ```
-     9.3 for a general case:  
-       ```
-       $ mpirun -np <nb_processors> mpirun ./test_ecg_prealps_op -e/--enlarging-factor <int> [-h/--help] [-i/--iteration-maximum <int>] -m/--matrix <matrix_file.mtx> -o/--ortho-alg <int> -r/--search-dir-red <int> [-t/--tolerance <double>]  
+    9.2 for obtaining the help about all the options provided with the test programs.
+      ```
+      $ ./bin/test_ecg_prealps_op -h  
+      $ ./bin/test_lorasc -h  
+      ```
+    9.3 for a general case:  
+      ```
+      $ mpirun -np <nb_processors> mpirun ./test_ecg_prealps_op -e/--enlarging-factor <int> [-h/--help] [-i/--iteration-maximum <int>] -m/--matrix <matrix_file.mtx> -o/--ortho-alg <int> -r/--search-dir-red <int> [-t/--tolerance <double>]  
 
-       $ mpirun -np <nb_processors> ./bin/test_lorasc -m <matrix_file.mtx> -t <enlarging factor> -p <preconditionner_number> -npLevel1 <number_domains_first_level>  
-       ```
+      $ mpirun -np <nb_processors> ./bin/test_lorasc -m <matrix_file.mtx> -t <enlarging factor> -p <preconditionner_number> -npLevel1 <number_domains_first_level>  
+      ```
 
 # License
 
