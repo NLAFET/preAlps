@@ -69,6 +69,11 @@ ECG can be used as an iterative solver and can be combined with block Jacobi, LO
 
        $ mpirun -np <nb_processors> ./bin/test_lorasc -m <matrix_file.mtx> -t <enlarging factor> -p <preconditionner_number> -npLevel1 <number_domains_first_level>  
        ```
+
+# License
+
+  PreAlps is free software licensed under the [BSD-3 License](https://opensource.org/licenses/BSD-3-Clause).
+
 # References
 
   1. Laura Grigori, Sophie Moufawad, and Frederic Nataf. Enlarged Krylov subspace conjugate gradient methods for reducing communication. SIAM J. Matrix Anal. Appl., 2016.
@@ -79,6 +84,13 @@ ECG can be used as an iterative solver and can be combined with block Jacobi, LO
 
   4. Laura Grigori , Frederic Nataf, Soleiman Yousef, Simplice Donfack, Remi Lacroix. Robust algebraic schur complement based on low rank correction. In submission.
 
+# Contributors
+  Simplice Donfack
+  Olivier Tissot
+  Laura Grigori
+  Sebastien Cayrols
+  Alan Ayala Obregon
+
 # Contact
 
-For any question, please contact {simplice.donfack, olivier.tissot, laura.grigori}@inria.fr .
+  For any question, please contact {simplice.donfack, olivier.tissot, laura.grigori}@inria.fr .

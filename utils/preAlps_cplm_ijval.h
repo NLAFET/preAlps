@@ -1,5 +1,3 @@
-#ifndef PREALPS_CPLM_IJVAL_H
-#define PREALPS_CPLM_IJVAL_H
 /*
 * This file contains functions used to manipulate ij val tuple
 *
@@ -7,6 +5,10 @@
 *         : Remi Lacroix
 * Email   : sebastien.cayrols@[(gmail.com) | (inria.fr)]
 */
+
+#ifndef PREALPS_CPLM_IJVAL_H
+#define PREALPS_CPLM_IJVAL_H
+
 
 #include <mpi.h>
 
