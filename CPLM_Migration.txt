@@ -6,8 +6,8 @@ CPaLAMeM Migration into preAlps TODOLIST
 2. [Done] Copy all CPaLAMeM MatDense_ routines required by preAlps in preAlps_cplm_matdense.{h/c}
 3. [Done] Copy all CPaLAMeM IVector_/Dvector_ routines required by preAlps in preAlps_{ivector/dvector}.{h/c}
 4. [Done] Remove CPaLAMeM.tar.gz from preAlps
-5. Create a directory utils/cpalamem_light which will contain routines of CPaLAMeM which does not use ivector/dvector
-5. Create preAlps_{iarray/darray}.{h/c} in order to store vector routines based on int* and double*
+5. [Done] Create a directory utils/cpalamem_light which will contain routines of CPaLAMeM which does not use ivector/dvector
+5. [Done] Create preAlps_{iarray/darray}.{h/c} in order to store vector routines based on int* and double*
 6. Convert IVector_/Dvector_ routines to IArray_/DArray routines and update preAlps routines.
 7. Remove preAlps_{ivector/dvector}.{h/c} from preAlps
 8. When CPaLAMeM lib is ready, move all inexistent MatCSR_/MatDense_/IArray_/DArray_ routines from preAlps to CPaLAMeM lib.
