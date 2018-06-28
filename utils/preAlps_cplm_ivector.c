@@ -483,3 +483,83 @@ CPLM_END_TIME
 CPLM_POP
   return ierr;
 }
+
+
+/**
+ * \fn void send_IVector(CPLM_IVector_t *vec, int dest, int tag, MPI_Comm comm)
+ * \brief Method which sends a CPLM_IVector_t to a process
+ * \param *vec    The CPLM_IVector_t sent to dest
+ * \param dest    The number of the process which will receive the IVector
+ * \param tag     The tag of the communication
+ * \param comm    The communicator for MPI
+ * \return        0 if the CPLM_IVector_t is sent
+ */
+/*Function sends a CPLM_IVector_t to send_to*/
+int CPLM_IVectorSend(CPLM_IVector_t *v, int dest, int tag, MPI_Comm comm)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+	int ierr=0;
+	//send length of the IVector
+	ierr = MPI_Send(&v->nval,
+      1,
+      MPI_INT,
+      dest,
+      tag,
+      comm);CPLM_checkMPIERR(ierr,"send_length");
+	//send data of the IVector
+	ierr = MPI_Send(v->val,
+      v->nval,
+      MPI_INT,
+      dest,
+      tag,
+      comm);CPLM_checkMPIERR(ierr,"send_vec");
+CPLM_END_TIME
+CPLM_POP
+  return ierr;
+}
+
+/**
+ * \fn CPLM_IVector_t recv_Vect(int recv_from, int tag, MPI_Comm comm)
+ * \brief Function which manage the reception of a CPLM_IVector_t and return it
+ * \param recv_from The number of the process sending the IVector
+ * \param tag The tag of the communication
+ * \param comm The communicator for MPI
+ * \return The CPLM_IVector_t received
+ */
+/*Function returns a CPLM_IVector_t received from recv_from*/
+int CPLM_IVectorRecv(CPLM_IVector_t *v, int source, int tag, MPI_Comm comm)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+
+	MPI_Status status;
+	int ierr    = 0;
+  int length  = 0;
+
+	//receive length of the IVector
+	ierr = MPI_Recv(&length,
+                  1,
+                  MPI_INT,
+                  source,
+                  tag,
+                  comm,
+                  &status);CPLM_checkMPIERR(ierr,"recv_length");
+
+  ierr = handleMRealloc(v, length);CPLM_CHKERR(ierr);
+
+	//receive data of the IVector
+	ierr = MPI_Recv(v->val,
+                  v->size,
+                  MPI_INT,
+                  source,
+                  tag,
+                  comm,
+                  &status);CPLM_checkMPIERR(ierr,"recv_vec");
+
+  MPI_Get_count(&status, MPI_INT, &v->nval);
+
+CPLM_END_TIME
+CPLM_POP
+	return ierr;
+}

@@ -547,3 +547,73 @@ CPLM_END_TIME
 CPLM_POP
   return ierr;
 }
+
+//ADD a test to call it if nnz > cst i.e. here cst = limit*limit
+//Cons : in that case, we can remove MINI() tests
+void CPLM_MatDensePrintPartial2D(CPLM_Mat_Dense_t* A)
+{
+  int loop_index_1 = 0;
+  int loop_index_2 = 0;
+
+  if (A->info.stor_type == ROW_MAJOR)
+  {
+    loop_index_1 = A->info.n;
+    loop_index_2 = 1;
+  }
+  else
+  {
+    loop_index_1 = 1;
+    loop_index_2 = A->info.m;
+  }
+  for (int i = 0; i < CPLM_MIN(A->info.m,PRINT_PARTIAL_M); i++)
+  {
+    printf("[ ");
+    for (int j = 0; j < CPLM_MIN(A->info.n-1,PRINT_PARTIAL_N); j++)
+      printf("%.10f\t", A->val[i*loop_index_1 + j*loop_index_2]);
+    if(A->info.n>2*PRINT_PARTIAL_N)
+    {
+      printf("...");
+      for (int j = A->info.n-1-PRINT_PARTIAL_N; j < A->info.n-1 ; j++)
+        printf("%.10f\t", A->val[i*loop_index_1 + j*loop_index_2]);
+    }
+    printf("%.10f ]\n", A->val[i*loop_index_1 + (A->info.n - 1)*loop_index_2]);
+  }
+
+  printf("...\n");
+
+  if(A->info.m>2*PRINT_PARTIAL_M)
+  {
+    for (int i = A->info.m-PRINT_PARTIAL_M; i < A->info.m; i++) {
+      printf("[ ");
+      for (int j = 0; j < CPLM_MIN(A->info.n-1,PRINT_PARTIAL_N); j++)
+        printf("%.10f\t", A->val[i*loop_index_1 + j*loop_index_2]);
+      if(A->info.n>2*PRINT_PARTIAL_N)
+      {
+        printf("...");
+        for (int j = A->info.n-1-PRINT_PARTIAL_N; j < A->info.n-1 ; j++)
+          printf("%.10f\t", A->val[i*loop_index_1 + j*loop_index_2]);
+      }
+      printf("%.10f ]\n", A->val[i*loop_index_1 + (A->info.n - 1)*loop_index_2]);
+    }
+  }
+}
+
+void CPLM_MatDensePrint2D(CPLM_Mat_Dense_t* A) {
+  int loop_index_1 = 0;
+  int loop_index_2 = 0;
+
+  if (A->info.stor_type == ROW_MAJOR) {
+    loop_index_1 = A->info.lda;
+    loop_index_2 = 1;
+  }
+  else {
+    loop_index_1 = 1;
+    loop_index_2 = A->info.lda;
+  }
+  for (int i = 0; i < A->info.m; i++) {
+    printf("[ ");
+    for (int j = 0; j < A->info.n - 1; j++)
+      printf("%.10f\t", A->val[i*loop_index_1 + j*loop_index_2]);
+    printf("%.10f ]\n", A->val[i*loop_index_1 + (A->info.n - 1)*loop_index_2]);
+  }
+}

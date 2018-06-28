@@ -102,4 +102,26 @@ int CPLM_IVectorSave(CPLM_IVector_t *v,const char *fileName, const char *header)
 
 int CPLM_IVectorSum(CPLM_IVector_t *u_in, CPLM_IVector_t *v_in, CPLM_IVector_t *w_out, int op);
 
+/**
+ * \fn void send_IVector(CPLM_IVector_t *vec, int dest, int tag, MPI_Comm comm)
+ * \brief Method which sends a CPLM_IVector_t to a process
+ * \param *vec    The CPLM_IVector_t sent to dest
+ * \param dest    The number of the process which will receive the IVector
+ * \param tag     The tag of the communication
+ * \param comm    The communicator for MPI
+ * \return        0 if the CPLM_IVector_t is sent
+ */
+/*Function sends a CPLM_IVector_t to send_to*/
+int CPLM_IVectorSend(CPLM_IVector_t *v, int dest, int tag, MPI_Comm comm);
+
+/**
+ * \fn CPLM_IVector_t recv_Vect(int recv_from, int tag, MPI_Comm comm)
+ * \brief Function which manage the reception of a CPLM_IVector_t and return it
+ * \param recv_from The number of the process sending the IVector
+ * \param tag The tag of the communication
+ * \param comm The communicator for MPI
+ * \return The CPLM_IVector_t received
+ */
+/*Function returns a CPLM_IVector_t received from recv_from*/
+int CPLM_IVectorRecv(CPLM_IVector_t *v, int source, int tag, MPI_Comm comm);
 #endif

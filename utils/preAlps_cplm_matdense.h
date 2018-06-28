@@ -96,4 +96,11 @@ int CPLM_MatDenseRealloc(CPLM_Mat_Dense_t  *A_io);
 int CPLM_MatDenseIsSameLocalInfo(CPLM_Mat_Dense_t *A_in, CPLM_Mat_Dense_t *B_in);
 
 int CPLM_MatDenseCopy(CPLM_Mat_Dense_t* A_in, CPLM_Mat_Dense_t* B_out);
+
+//ADD a test to call it if nnz > cst i.e. here cst = limit*limit
+//Cons : in that case, we can remove MINI() tests
+void CPLM_MatDensePrintPartial2D(CPLM_Mat_Dense_t* A);
+
+void CPLM_MatDensePrint2D(CPLM_Mat_Dense_t* A) ;
+
 #endif
