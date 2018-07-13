@@ -291,7 +291,7 @@ CPLM_TIC(step2,"ECGSolve")
   }
   // Retrieve solution and free memory
   CPLM_TIC(step8, "        finalize")
-  preAlps_ECGFinalize(&ecg,&sol);
+  preAlps_ECGFinalize(&ecg,sol);
   CPLM_TAC(step8)
 CPLM_TAC(step2)
 

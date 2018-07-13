@@ -220,7 +220,7 @@ CPLM_TIC(step1,"ECGSolve")
     }
   }
   // Retrieve solution and free memory
-  preAlps_ECGFinalize(&ecg,&sol);
+  preAlps_ECGFinalize(&ecg,sol);
 CPLM_TAC(step1)
 
   if (rank == 0) {

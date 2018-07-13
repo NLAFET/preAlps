@@ -22,7 +22,8 @@
  */
 typedef enum {
   ORTHOMIN,
-  ORTHODIR
+  ORTHODIR,
+  ORTHODIR_FUSED
 } preAlps_ECG_Ortho_Alg_t;
 /**
  * \enum preAlps_ECG_Block_Size_Red_t
@@ -130,7 +131,7 @@ int  preAlps_ECGStoppingCriterion(preAlps_ECG_t* ecg, int* stop);
  * \return 0 if the execution succeeded
  * \return 1 if the execution failed
  */
-int  preAlps_ECGFinalize(preAlps_ECG_t* ecg, double** solution);
+int  preAlps_ECGFinalize(preAlps_ECG_t* ecg, double* solution);
 
 /**
  * \brief Print informations on the solver
@@ -174,7 +175,7 @@ int  _preAlps_ECGReset(preAlps_ECG_t* ecg, double* rhs, int* rci_request);
  * \return 0 if the execution succeeded
  * \return 1 if the execution failed
  */
-int  _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double** solution);
+int  _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double* solution);
 
 /**
  * \brief Private function
@@ -220,6 +221,16 @@ int  _preAlps_ECGIterateOmin(preAlps_ECG_t* ecg, int* rci_request);
  */
 int  _preAlps_ECGIterateOdir(preAlps_ECG_t* ecg, int* rci_request);
 
+/**
+ * \brief Private function
+ * \detail Orthodir fused iteration (1 MPI_Allreduce per iteration)
+ *
+ * \param[in, out] ecg solver structure
+ * \param[in, out] rci_request the RCI flag
+ * \return 0 if the execution succeeded
+ * \return 1 if the execution failed
+ */
+int  _preAlps_ECGIterateOdirFused(preAlps_ECG_t* ecg, int* rci_request);
 /******************************************************************************/
 
 #endif

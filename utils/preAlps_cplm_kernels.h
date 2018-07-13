@@ -81,11 +81,11 @@ int CPLM_MatDenseDtrmm(CPLM_Mat_Dense_t *A_in ,
   // y = beta*y + alpha*A*x
   int CPLM_MatDenseKernelMatVec(CPLM_Mat_Dense_t* A,
                                 double*   x,
-                                double**   y,
+                                double*   y,
                                 double       alpha,
                                 double       beta);
   // sumCol = sum_i A^(i)
-  int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, double** sumCol_out);
+  int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, double* sumCol_out);
 
   // Function computes Q factor of Matrix A and returns it in place, the factor
   // R can be copied to another matrix H starting from H(index_i,index_j) when

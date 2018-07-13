@@ -44,7 +44,7 @@ int _preAlps_ECGMalloc(preAlps_ECG_t* ecg) {
 CPLM_PUSH
   int ierr = 0;
   int allocatedSize = 0;
-  int M = ecg->globPbSize, m = ecg->locPbSize, t = ecg->enlFac;
+  int m = ecg->locPbSize, t = ecg->enlFac;
   // Malloc the pointers
   ecg->X     = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
   ecg->R     = (CPLM_Mat_Dense_t*) malloc(sizeof(CPLM_Mat_Dense_t));
@@ -58,6 +58,8 @@ CPLM_PUSH
     allocatedSize = 5*m*t + 2*t*t;
   else if (ecg->ortho_alg == ORTHODIR)
     allocatedSize = 7*m*t + 3*t*t;
+  else if (ecg->ortho_alg == ORTHODIR_FUSED)
+    allocatedSize = 7*m*t + 5*t*t;
   // Allocate the whole memory
   ecg->work  = (double*) mkl_calloc(allocatedSize,sizeof(double),64);
   ecg->iwork = (int*) mkl_calloc(ecg->enlFac,sizeof(int),32);
@@ -71,7 +73,7 @@ CPLM_PUSH
     ecg->alpha->val = ecg->work + 5*m*t;
     ecg->beta->val  = ecg->work + 5*m*t + t*t;
   }
-  else if (ecg->ortho_alg == ORTHODIR) {
+  else if (ecg->ortho_alg == ORTHODIR || ecg->ortho_alg == ORTHODIR_FUSED) {
     ecg->V->val     = ecg->work;
     ecg->AV->val    = ecg->work + 2*m*t;
     ecg->Z->val     = ecg->work + 4*m*t;
@@ -97,7 +99,7 @@ CPLM_POP
 
 int _preAlps_ECGReset(preAlps_ECG_t* ecg, double* rhs, int* rci_request) {
 CPLM_PUSH
-  int rank, size, ierr = 0;
+  int rank, ierr = 0;
   int nCol = 0;
   // Set sizes
   int M = ecg->globPbSize, m = ecg->locPbSize, t = ecg->enlFac;
@@ -110,7 +112,7 @@ CPLM_PUSH
     CPLM_MatDenseSetInfo(ecg->alpha, t, t, t, t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->beta , t, t, t, t, COL_MAJOR);
   }
-  else if (ecg->ortho_alg == ORTHODIR) {
+  else if (ecg->ortho_alg == ORTHODIR || ecg->ortho_alg == ORTHODIR_FUSED) {
     CPLM_MatDenseSetInfo(ecg->X    ,   M,   t,   m,   t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->R    ,   M,   t,   m,   t, COL_MAJOR);
     CPLM_MatDenseSetInfo(ecg->V    ,   M, 2*t,   m, 2*t, COL_MAJOR);
@@ -139,7 +141,7 @@ CPLM_PUSH
                   ecg->comm);
   *normb_p = sqrt(*normb_p);
   // Initialize res, iter and bs
-  ecg->res  = *normb_p;
+  ecg->res  = 1.E0;
   ecg->iter = 0;
   ecg->bs   = t;
   ecg->kbs  = ecg->V->info.n;
@@ -155,15 +157,14 @@ CPLM_POP
 
 int preAlps_ECGInitialize(preAlps_ECG_t* ecg, double* rhs, int* rci_request) {
 CPLM_PUSH
-  int rank, size, ierr = 0;
-  int nCol = 0;
+  int size, ierr = 0;
 
   // Firstly check that nrhs < size
   MPI_Comm_size(ecg->comm,&size);
   if (size < ecg->enlFac) {
     CPLM_Abort("Enlarging factor must be lower than the number of processors"
                " in the MPI communicator! size: %d ; enlarging factor: %d",
-         size,ecg->enlFac);
+               size,ecg->enlFac);
   }
 
   // Allocate Memory
@@ -171,7 +172,7 @@ CPLM_PUSH
   // Set to zero the parameters and split rhs
   ierr = _preAlps_ECGReset(ecg,rhs,rci_request);
   // Warm-up some MKL kernels in order to speed-up the iterations
-  if (ecg->ortho_alg == ORTHODIR) {
+  if ((ecg->ortho_alg == ORTHODIR || ecg->ortho_alg == ORTHODIR_FUSED) && ecg->bs_red == ADAPT_BS) {
     int nrhs = ecg->enlFac;
     ierr = LAPACKE_dgeqrf(LAPACK_COL_MAJOR,nrhs,nrhs,ecg->beta->val,
                           nrhs,ecg->beta->val + nrhs*nrhs);
@@ -244,6 +245,7 @@ int ierr = 0;
     *stop = 0; // we continue
   else
     *stop = 1; // we stop
+
 CPLM_POP
   return ierr;
 }
@@ -255,6 +257,8 @@ CPLM_PUSH
     _preAlps_ECGIterateOmin(ecg, rci_request);
   else if (ecg->ortho_alg == ORTHODIR)
     _preAlps_ECGIterateOdir(ecg, rci_request);
+  else if (ecg->ortho_alg == ORTHODIR_FUSED)
+    _preAlps_ECGIterateOdirFused(ecg, rci_request);
 CPLM_POP
   return ierr;
 }
@@ -395,7 +399,6 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t* beta  = ecg->beta;
   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
-  int*    iwork = ecg->iwork;
   int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
   int t = P->info.n, t1 = 0; // Reduced size
   double tol = ecg->tol*ecg->normb/sqrt(nrhs);
@@ -522,7 +525,84 @@ CPLM_POP
   return ierr;
 }
 
-int preAlps_ECGFinalize(preAlps_ECG_t* ecg, double** solution) {
+int _preAlps_ECGIterateOdirFused(preAlps_ECG_t* ecg, int* rci_request) {
+CPLM_PUSH
+CPLM_OPEN_TIMER
+  int ierr = 0;
+  // Simplify notations
+  MPI_Comm          comm  = ecg->comm;
+  CPLM_Mat_Dense_t* V     = ecg->V;
+  CPLM_Mat_Dense_t* AV    = ecg->AV;
+  CPLM_Mat_Dense_t* P     = ecg->P;
+  CPLM_Mat_Dense_t* AP    = ecg->AP;
+  CPLM_Mat_Dense_t* X     = ecg->X;
+  CPLM_Mat_Dense_t* R     = ecg->R;
+  CPLM_Mat_Dense_t* Z     = ecg->Z;
+  CPLM_Mat_Dense_t* alpha = ecg->alpha;
+  CPLM_Mat_Dense_t* beta  = ecg->beta;
+  CPLM_Mat_Dense_t mu_s   = CPLM_MatDenseNULL();
+  CPLM_Mat_Dense_t rtr_s  = CPLM_MatDenseNULL();
+  int m = ecg->locPbSize, nrhs = ecg->enlFac;
+  int t = P->info.n;
+  int rank; MPI_Comm_rank(comm,&rank);
+  ierr = CPLM_MatDenseSetInfo(&mu_s,t,t,t,t,COL_MAJOR);
+  ierr = CPLM_MatDenseSetInfo(&rtr_s,nrhs,nrhs,nrhs,nrhs,COL_MAJOR);
+  mu_s.val  = alpha->val + 3*nrhs*nrhs;
+  rtr_s.val = alpha->val + 4*nrhs*nrhs;
+
+  ierr = CPLM_MatDenseKernelMatDotProd(P, R, alpha);
+  ierr = CPLM_MatDenseKernelMatDotProd(AV, Z, beta);
+  ierr = CPLM_MatDenseKernelMatDotProd(AP, P, &mu_s);
+  ierr = CPLM_MatDenseKernelMatDotProd(R, R, &rtr_s);
+
+  ierr = MPI_Allreduce(MPI_IN_PLACE, alpha->val, 5*nrhs*nrhs,
+                       MPI_DOUBLE, MPI_SUM, comm);
+
+  ecg->res = 0.E0;
+  for (int i = 0; i < nrhs; ++i)
+    ecg->res += rtr_s.val[i + rtr_s.info.lda*i];
+  ecg->res = sqrt(ecg->res);
+  if (ecg->res < ecg->tol*ecg->normb || ecg->iter > ecg->maxIter)
+    *rci_request = 1; // The method has converged
+  else
+    *rci_request = 0; // We need to continue
+
+  ierr = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', t, mu_s.val, t);
+
+  ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, P);
+  ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, AP);
+  ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, beta);
+  ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, Z);
+
+  cblas_dtrsm(CblasColMajor, CblasLeft, CblasUpper, CblasTrans, CblasNonUnit,
+              t, nrhs, 1.E0, mu_s.val, mu_s.info.lda, alpha->val, t);
+  cblas_dtrsm(CblasColMajor, CblasLeft, CblasUpper, CblasTrans, CblasNonUnit,
+              t, t, 1.E0, mu_s.val, mu_s.info.lda, beta->val, 2*t);
+
+  CPLM_TIC(step15,"X = X + P*alpha")
+  ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
+  CPLM_TAC(step15)
+  CPLM_TIC(step16,"R = R - AP*alpha")
+  ierr = CPLM_MatDenseKernelMatMult(AP,'N',alpha,'N',R,-1.E0,1.E0);
+  CPLM_TAC(step16)
+  // Iteration finished
+  ecg->iter++;
+  CPLM_TIC(step19, "Z = Z - V*beta")
+  ierr = CPLM_MatDenseKernelMatMult(V,'N',beta,'N',Z,-1.E0,1.E0);
+  CPLM_TAC(step19)
+  // Swapping time
+  CPLM_TIC(step20, "domatcopy")
+  mkl_domatcopy('C','N',m,t,1.E0,V->val,m,V->val+m*nrhs,m);
+  mkl_domatcopy('C','N',m,t,1.E0,AV->val,m,AV->val+m*nrhs,m);
+  mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,V->val,m);
+  CPLM_TAC(step20)
+
+CPLM_CLOSE_TIMER
+CPLM_POP
+  return ierr;
+}
+
+int preAlps_ECGFinalize(preAlps_ECG_t* ecg, double* solution) {
 CPLM_PUSH
   int ierr = _preAlps_ECGWrapUp(ecg, solution);
   _preAlps_ECGFree(ecg);
@@ -530,7 +610,7 @@ CPLM_POP
   return ierr;
 }
 
-int _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double** solution) {
+int _preAlps_ECGWrapUp(preAlps_ECG_t* ecg, double* solution) {
 CPLM_PUSH
   int ierr = 0;
   // Simplify notations
