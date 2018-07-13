@@ -1,6 +1,0 @@
-# Load librairies (if your environment provide module load)
-module load INTEL-Mpi/5.0.1 ifort gcc
-
-# Set the path for the libraires
-export MKL_ROOT=/opt/intel/mkl
-export METIS_ROOT=/opt/soft/metis

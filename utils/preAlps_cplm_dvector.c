@@ -233,3 +233,96 @@ CPLM_END_TIME
 CPLM_POP
   return !(v_io->val != NULL);
 }
+
+int CPLM_DVectorAddSpace(CPLM_DVector_t *v_out, int length)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+
+  CPLM_ASSERT(v_out      != NULL);
+  CPLM_ASSERT(v_out->val != NULL);
+
+  v_out->nval  += length;
+  v_out->val    = (double*)realloc(v_out->val,v_out->nval*sizeof(double));
+
+CPLM_END_TIME
+CPLM_POP
+  return !(v_out->val != NULL);
+}
+
+/**
+ * \fn void send_DVect(double *vec, int length, int send_to, int tag, MPI_Comm comm)
+ * \brief Method which sends a CPLM_IVector_t to a process
+ * \param *vec The value array of the vector
+ * \param length The size of the vector
+ * \param send_to The number of the process which will receive the vector
+ * \param tag The tag of the communication
+ * \param comm The communicator for MPI
+ */
+/*Function sends a CPLM_IVector_t to send_to*/
+
+int CPLM_DVectorSend(CPLM_DVector_t *v, int dest, int tag, MPI_Comm comm){
+CPLM_PUSH
+CPLM_BEGIN_TIME
+	int cr;
+	//send length of the vector
+	cr=MPI_Send(&(v->nval),1,MPI_INT,dest,tag,comm);CPLM_checkMPIERR(cr,"send_length");
+	//send data of the vector
+	cr=MPI_Send(v->val,v->nval,MPI_DOUBLE,dest,tag,comm);CPLM_checkMPIERR(cr,"send_vec");
+CPLM_END_TIME
+CPLM_POP
+  return cr;
+}
+
+
+/**
+ * \fn CPLM_DVector_t recv_DVect(int recv_from, int tag, MPI_Comm comm)
+ * \brief Function which manage the reception of a CPLM_IVector_t and return it
+ * \param recv_from The number of the process sending the vector
+ * \param tag The tag of the communication
+ * \param comm The communicator for MPI
+ * \return The CPLM_IVector_t received
+ */
+/*Function returns a CPLM_IVector_t received from recv_from*/
+int CPLM_DVectorRecv(CPLM_DVector_t *v, int source, int tag, MPI_Comm comm)
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+
+	MPI_Status status;
+	int ierr    = 0;
+  int length  = 0;
+
+	//receive length of the vector
+	ierr = MPI_Recv(&length,
+      1,
+      MPI_INT,
+      source,
+      tag,
+      comm,
+      &status);CPLM_checkMPIERR(ierr,"recv_length");
+
+  if(v->val == NULL)
+  {
+    ierr = CPLM_DVectorMalloc(v, length);CPLM_CHKERR(ierr);
+  }
+  else if(v->nval < length)
+  {
+    ierr = CPLM_DVectorAddSpace(v, length);CPLM_CHKERR(ierr);
+  }
+
+	//receive data of the vector
+	ierr  = MPI_Recv(v->val,
+      v->nval,
+      MPI_DOUBLE,
+      source,
+      tag,
+      comm,
+      &status);CPLM_checkMPIERR(ierr,"recv_vec");
+
+  v->nval = length;
+
+CPLM_END_TIME
+CPLM_POP
+	return ierr;
+}

@@ -96,13 +96,7 @@ void preAlps_intVector_save(int *v, int vlen, char *filename, char *header){
 
 }
 
-/*
- * Initialize a vector of integers with a value.
- */
-void preAlps_intVector_setValue(int *v, int vlen, int a){
- int i;
- for(i=0;i<vlen;i++) v[i] = a;
-}
+
 
 
 /*

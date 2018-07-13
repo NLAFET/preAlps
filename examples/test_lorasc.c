@@ -83,7 +83,7 @@ static void help_show(){
   printf(" -r: the right hand side file\n");
   printf("     the right hand side stored in a text file\n");
   printf(" -t: the enlarged factor (default :1)\n");
-  printf(" -npLevel: the number of processors at the first level if greater then 0 (default : 0 = <all processors>)\n");
+  printf(" -npLevel1: the number of processors at the first level if greater then 0 (default : 0 = <all processors>)\n");
   printf(" -p: preconditioner \n");
   printf("     0: no prec, 1: blockJacobi, 2: Lorasc\n");
 }

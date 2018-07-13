@@ -1896,7 +1896,107 @@ CPLM_POP
 
 
 
+/**
+ * \fn void CPLM_MatCSRPrint2D(CPLM_Mat_CSR_t *m)
+ * \brief Method which prints the CSR matrix into standard format
+ * \param *matCSR The matrix which has to be printed
+ */
+/*Print original matrix */
+void CPLM_MatCSRPrintPartial2D(CPLM_Mat_CSR_t *m)
+{
+	int zero=0;
+	if(m->val==NULL)
+  {
+		for(int i=0;i<m->info.m;i++){
+			printf("[ ");
+			for(int j=m->rowPtr[i], indCol=0; indCol < m->info.n ;indCol++){
+				if(j<m->rowPtr[i+1] && indCol==m->colInd[j]){
+					printf("X ");
+					j++;
+				}
+				else
+					printf(". ");
+			}
+			printf("]\n");
+		}
+	}
+  else
+  {
+		for(int i = 0; i < m->info.m; i++)
+    {
+			printf("[ ");
+			//for each case of the line
+			for(int j = m->rowPtr[i], indCol = 0; indCol < m->info.n ;indCol++)
+      {
+				//if this case is in colInd
+				if(j < m->rowPtr[i+1] && indCol == m->colInd[j])
+        {
+					printf("%2.*f\t",_PRECISION,m->val[j]);
+					j++;
+				}
+				else
+					printf("%7d\t",zero);
 
+        //Jump if needed to the end of the line
+        if(indCol == PRINT_PARTIAL_N)
+        {
+          indCol = CPLM_MAX(m->info.n - PRINT_PARTIAL_N - 1, indCol);
+          printf("...");
+        }
+			}
+			printf("]\n");
+      if(i == PRINT_PARTIAL_M)
+      {
+        i = CPLM_MAX(m->info.m - PRINT_PARTIAL_M - 1, i);
+        printf("...\n");
+      }
+		}
+  }
+}
+
+
+/**
+ * \fn void CPLM_MatCSRPrint2D(CPLM_Mat_CSR_t *m)
+ * \brief Method which prints the CSR matrix into standard format
+ * \param *matCSR The matrix which has to be printed
+ */
+/*Print original matrix */
+void CPLM_MatCSRPrint2D(CPLM_Mat_CSR_t *m)
+{
+	int zero=0;
+	if(m->val==NULL)
+  {
+		for(int i=0;i<m->info.m;i++){
+			printf("[ ");
+			for(int j=m->rowPtr[i], indCol=0; indCol < m->info.n ;indCol++){
+				if(j<m->rowPtr[i+1] && indCol==m->colInd[j]){
+					printf("X ");
+					j++;
+				}
+				else
+					printf(". ");
+			}
+			printf("]\n");
+		}
+	}
+  else
+  {
+		for(int i=0;i<m->info.m;i++){
+			printf("[ ");
+			//for each case of the line
+			for(int j=m->rowPtr[i], indCol=0; indCol < m->info.n ;indCol++){
+				//if this case is in colInd
+				if(j<m->rowPtr[i+1] && indCol==m->colInd[j]){
+					printf("%2.*f\t",_PRECISION,m->val[j]);
+					j++;
+				}
+				else
+					printf("%7d\t",zero);
+			}
+			printf("]\n");
+		}
+  }
+}
 
 
 

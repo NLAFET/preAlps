@@ -57,11 +57,6 @@ void preAlps_intVector_permute(const int *p, const int *b_in, int *x_out, int n)
  */
 void preAlps_intVector_save(int *v, int vlen, char *filename, char *header);
 
-/*
- * Initialize a vector of integers with a value.
- */
-void preAlps_intVector_setValue(int *v, int vlen, int a);
-
 
 
 /*

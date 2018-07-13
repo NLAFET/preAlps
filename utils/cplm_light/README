@@ -1,0 +1,9 @@
+CPaLAMeM transition from Ivector/Dvector to Iarray/Darray.
+
+The directory cpml_light contains CPaLAMeM files where the class Dvector and Ivector have been replaced by Iarray and Darray.
+The routines in this directory does not contain any reference to the old class Dvector and Ivector.
+
+# Contributors
+  Sebastien Cayrols
+  Olivier Tissot
+  Simplice Donfack

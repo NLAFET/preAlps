@@ -1,9 +1,0 @@
-# Load librairies (if your environment provide module load)
-module load INTEL-Mpi/5.0.1 ifort gcc
-
-# Set the path for the libraires
-export MKL_ROOT=/opt/intel/mkl
-export METIS_ROOT=/opt/soft/metis
-export PARMETIS_ROOT=/opt/soft/ParMETIS
-export MUMPS_ROOT=/opt/soft/MUMPS_5.1.1
-export PARPACK_ROOT=/opt/soft/PARPACK

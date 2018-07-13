@@ -83,11 +83,22 @@ typedef struct {
   double* val; //A pointer to an array of size nnz or lnnz
 } CPLM_Mat_CSR_t;
 
+
+/* Constantes */
+#define PRINT_PARTIAL_M 10
+#define PRINT_PARTIAL_N 10
+#define _PRECISION 4
+
 /* Macros */
 #define CPLM_MatCSRNULL() {\
   .info={ .M=0, .N=0, .nnz=0, .m=0, .n=0, .lnnz=0, .blockSize=0, .format=FORMAT_CSR, .structure=UNSYMMETRIC },\
   .rowPtr=NULL, .colInd=NULL, .val=NULL\
 }\
+
+#define CPLM_MatCSRPrintf2D(_msg,_A) { printf("%s\n",(_msg));                                              \
+                                  ( ((_A)->info.m<PRINT_PARTIAL_M && (_A)->info.n<PRINT_PARTIAL_N) ?  \
+                                      CPLM_MatCSRPrint2D((_A))     :                                       \
+                                      CPLM_MatCSRPrintPartial2D((_A))  ); }
 
 /* MPI Utils */
 MPI_Datatype initMPI_StructCSR();
@@ -325,6 +336,23 @@ int CPLM_MatCSRSymStruct(CPLM_Mat_CSR_t *m1, CPLM_Mat_CSR_t *m2);
  */
 /*Function symmetrizes a CPLM_Mat_CSR_t matrix*/
 int CPLM_MatCSRUnsymStruct(CPLM_Mat_CSR_t *m1, CPLM_Mat_CSR_t *m2);
+
+/**
+ * \fn void CPLM_MatCSRPrint2D(CPLM_Mat_CSR_t *m)
+ * \brief Method which prints the CSR matrix into standard format
+ * \param *matCSR The matrix which has to be printed
+ */
+/*Print original matrix */
+void CPLM_MatCSRPrintPartial2D(CPLM_Mat_CSR_t *m);
+
+
+/**
+ * \fn void CPLM_MatCSRPrint2D(CPLM_Mat_CSR_t *m)
+ * \brief Method which prints the CSR matrix into standard format
+ * \param *matCSR The matrix which has to be printed
+ */
+/*Print original matrix */
+void CPLM_MatCSRPrint2D(CPLM_Mat_CSR_t *m);
 
 
 /*

@@ -14,7 +14,9 @@ Date        : Mai 15, 2017
 #include <string.h>
 #include <unistd.h>
 #include <stdarg.h>
-//#include <metis_interface.h>
+
+#include <cplm_iarray.h>
+
 #include <preAlps_cplm_ivector.h>
 #include "preAlps_cplm_utils.h"
 #include "preAlps_cplm_matcsr.h"
@@ -170,8 +172,7 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
   if ( !(order = (int *)  malloc((mloc*sizeof(int)))) ) preAlps_abort("Malloc fails for order[].");///mloc
   if ( !(sizes = (int *)  malloc((nparts*sizeof(int)))) ) preAlps_abort("Malloc fails for sizes[]."); //2*Ptilde
 
-
-  preAlps_intVector_setValue(sizes, nparts, -1);
+  CPLM_IArray_setValue(sizes, nparts, -1);
 
 #ifdef MAT_CUSTOM_PARTITIONING
   /* Custom partitioning */
