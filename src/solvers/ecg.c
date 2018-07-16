@@ -483,7 +483,7 @@ CPLM_OPEN_TIMER
         ecg->bs   = t1;
         ecg->kbs  = t + nrhs;
       }
-      CPLM_MatDenseSetInfo(beta, ecg->kbs, nrhs, ecg->kbs, nrhs, COL_MAJOR);
+      CPLM_MatDenseSetInfo(beta, ecg->kbs, t1, ecg->kbs, t1, COL_MAJOR);
       CPLM_MatDenseSetInfo(V, M, ecg->kbs, m, ecg->kbs, COL_MAJOR);
       CPLM_MatDenseSetInfo(AV, M, ecg->kbs, m, ecg->kbs, COL_MAJOR);
     }
@@ -542,8 +542,9 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t* beta  = ecg->beta;
   CPLM_Mat_Dense_t mu_s   = CPLM_MatDenseNULL();
   CPLM_Mat_Dense_t rtr_s  = CPLM_MatDenseNULL();
-  int m = ecg->locPbSize, nrhs = ecg->enlFac;
-  int t = P->info.n;
+  int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
+  int t = P->info.n, t1 = 0; // Reduced size
+  double tol = ecg->tol*ecg->normb/sqrt(nrhs);
   int rank; MPI_Comm_rank(comm,&rank);
   ierr = CPLM_MatDenseSetInfo(&mu_s,t,t,t,t,COL_MAJOR);
   ierr = CPLM_MatDenseSetInfo(&rtr_s,nrhs,nrhs,nrhs,nrhs,COL_MAJOR);
@@ -585,8 +586,71 @@ CPLM_OPEN_TIMER
   cblas_dtrsm(CblasColMajor, CblasLeft, CblasUpper, CblasTrans, CblasNonUnit,
               t, nrhs, 1.E0, mu_s.val, mu_s.info.lda, alpha->val, t);
   cblas_dtrsm(CblasColMajor, CblasLeft, CblasUpper, CblasTrans, CblasNonUnit,
-              t, t, 1.E0, mu_s.val, mu_s.info.lda, beta->val, 2*t);
+              t, t, 1.E0, mu_s.val, mu_s.info.lda, beta->val, ecg->kbs);
   CPLM_TAC(step5)
+
+  CPLM_TIC(step8, "Z = Z - V*beta")
+  ierr = CPLM_MatDenseKernelMatMult(V,'N',beta,'N',Z,-1.E0,1.E0);
+  CPLM_TAC(step8)
+
+  /**************** Reduction of the search directions **********************/
+  if (ecg->bs_red == ADAPT_BS) {
+    double* tau_p  = (double*) malloc(2*nrhs*sizeof(double)); // Householder
+    CPLM_TIC(step8, "ADAPT_BS: preparation")
+    memcpy(mu_s.val,alpha->val,sizeof(double)*alpha->info.nval);
+    // 1) SVD on alpha
+    CPLM_TAC(step8)
+    CPLM_TIC(step9, "ADAPT_BS: dgesvd")
+    ierr = LAPACKE_dgesvd(LAPACK_COL_MAJOR,'O','N',t,nrhs,mu_s.val,
+                          alpha->info.lda,tau_p,NULL,1,NULL,1,tau_p+t);
+    for (int i = 0; i < t; i++) {
+      if (tau_p[i] > tol) t1++;
+      else break;
+    }
+    CPLM_TAC(step9)
+
+    // 2) reduction of the search directions
+    if (t1 > 0 && t1 < nrhs && t1 < t) {
+      // For in-place update
+      CPLM_TIC(step10, "ADAPT_BS: dgeqrf")
+      ierr = LAPACKE_dgeqrf(LAPACK_COL_MAJOR,t,t,mu_s.val,t,tau_p);
+      CPLM_TAC(step10)
+      // Update alpha, P, AP
+      CPLM_TIC(step11, "ADAPT_BS: dormqr(alpha)")
+      LAPACKE_dormqr(LAPACK_COL_MAJOR,'L','T',t,nrhs,t,mu_s.val,
+                    t,tau_p,alpha->val,t);
+      CPLM_TAC(step11)
+      CPLM_TIC(step12, "ADAPT_BS: dormqr(P)")
+      LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,mu_s.val,
+                    t,tau_p,P->val,m);
+      CPLM_TAC(step12)
+      CPLM_TIC(step13, "ADAPT_BS: dormqr(AP)")
+      LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,mu_s.val,
+                    t,tau_p,AP->val,m);
+      CPLM_TAC(step13)
+      CPLM_TIC(step14, "ADAPT_BS: dormqr(Z)")
+      LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,mu_s.val,
+                    t,tau_p,Z->val,m);
+      CPLM_TAC(step14)
+      // Reduce sizes
+      CPLM_TIC(step15, "ADAPT_BS: dimatcopy(alpha)")
+      mkl_dimatcopy('C','N',t,nrhs,1.E0,alpha->val,t,t1);
+      CPLM_TAC(step15)
+      CPLM_MatDenseSetInfo(alpha,t1,nrhs,t1,nrhs,COL_MAJOR);
+      CPLM_MatDenseSetInfo(P ,M,t1,m,t1,COL_MAJOR);
+      CPLM_MatDenseSetInfo(AP,M,t1,m,t1,COL_MAJOR);
+      // Update the other variables
+      CPLM_MatDenseSetInfo(Z, M, t1, m, t1, COL_MAJOR);
+      // Update sizes
+      ecg->bs   = t1;
+      ecg->kbs  = t + nrhs;
+    }
+    CPLM_MatDenseSetInfo(beta, ecg->kbs, t1, ecg->kbs, t1, COL_MAJOR);
+    CPLM_MatDenseSetInfo(V, M, ecg->kbs, m, ecg->kbs, COL_MAJOR);
+    CPLM_MatDenseSetInfo(AV, M, ecg->kbs, m, ecg->kbs, COL_MAJOR);
+    if (tau_p != NULL) free(tau_p);
+  }
+  /**************************************************************************/
 
   CPLM_TIC(step6,"X = X + P*alpha")
   ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
@@ -596,14 +660,12 @@ CPLM_OPEN_TIMER
   CPLM_TAC(step7)
   // Iteration finished
   ecg->iter++;
-  CPLM_TIC(step8, "Z = Z - V*beta")
-  ierr = CPLM_MatDenseKernelMatMult(V,'N',beta,'N',Z,-1.E0,1.E0);
-  CPLM_TAC(step8)
+
   // Swapping time
   CPLM_TIC(step9, "domatcopy")
-  mkl_domatcopy('C','N',m,t,1.E0,V->val,m,V->val+m*nrhs,m);
-  mkl_domatcopy('C','N',m,t,1.E0,AV->val,m,AV->val+m*nrhs,m);
-  mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,V->val,m);
+  mkl_domatcopy('C','N',m,ecg->bs,1.E0,V->val,m,V->val+m*nrhs,m);
+  mkl_domatcopy('C','N',m,ecg->bs,1.E0,AV->val,m,AV->val+m*nrhs,m);
+  mkl_domatcopy('C','N',m,ecg->bs,1.E0,Z->val,m,V->val,m);
   CPLM_TAC(step9)
 
 CPLM_CLOSE_TIMER
