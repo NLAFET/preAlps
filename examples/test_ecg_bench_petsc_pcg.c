@@ -21,11 +21,10 @@
 #include <mkl.h>
 
 /* CPaLAMeM */
-//#include <cpalamem_macro.h>
-//#include <cpalamem_instrumentation.h>
+#include <preAlps_cplm_timing.h>
 
 #ifdef PETSC
-#include <petsc_interface.h>
+#include <preAlps_cplm_petsc_interface.h>
 /* Petsc */
 #include <petscksp.h>
 #endif

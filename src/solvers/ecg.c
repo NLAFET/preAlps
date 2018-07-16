@@ -550,14 +550,19 @@ CPLM_OPEN_TIMER
   mu_s.val  = alpha->val + 3*nrhs*nrhs;
   rtr_s.val = alpha->val + 4*nrhs*nrhs;
 
+  CPLM_TIC(step1,"FUSED: dot prods")
   ierr = CPLM_MatDenseKernelMatDotProd(P, R, alpha);
   ierr = CPLM_MatDenseKernelMatDotProd(AV, Z, beta);
   ierr = CPLM_MatDenseKernelMatDotProd(AP, P, &mu_s);
   ierr = CPLM_MatDenseKernelMatDotProd(R, R, &rtr_s);
+  CPLM_TAC(step1)
 
+  CPLM_TIC(step2,"FUSED: MPI_Allreduce")
   ierr = MPI_Allreduce(MPI_IN_PLACE, alpha->val, 5*nrhs*nrhs,
                        MPI_DOUBLE, MPI_SUM, comm);
+  CPLM_TAC(step2)
 
+  CPLM_TIC(step3, "Convergence test")
   ecg->res = 0.E0;
   for (int i = 0; i < nrhs; ++i)
     ecg->res += rtr_s.val[i + rtr_s.info.lda*i];
@@ -566,36 +571,40 @@ CPLM_OPEN_TIMER
     *rci_request = 1; // The method has converged
   else
     *rci_request = 0; // We need to continue
+  CPLM_TAC(step3)
 
+  CPLM_TIC(step4,"FUSED: dpotrf")
   ierr = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', t, mu_s.val, t);
+  CPLM_TAC(step4)
 
+  CPLM_TIC(step5,"FUSED: updates")
   ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, P);
   ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, AP);
   ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, beta);
   ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, Z);
-
   cblas_dtrsm(CblasColMajor, CblasLeft, CblasUpper, CblasTrans, CblasNonUnit,
               t, nrhs, 1.E0, mu_s.val, mu_s.info.lda, alpha->val, t);
   cblas_dtrsm(CblasColMajor, CblasLeft, CblasUpper, CblasTrans, CblasNonUnit,
               t, t, 1.E0, mu_s.val, mu_s.info.lda, beta->val, 2*t);
+  CPLM_TAC(step5)
 
-  CPLM_TIC(step15,"X = X + P*alpha")
+  CPLM_TIC(step6,"X = X + P*alpha")
   ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
-  CPLM_TAC(step15)
-  CPLM_TIC(step16,"R = R - AP*alpha")
+  CPLM_TAC(step6)
+  CPLM_TIC(step7,"R = R - AP*alpha")
   ierr = CPLM_MatDenseKernelMatMult(AP,'N',alpha,'N',R,-1.E0,1.E0);
-  CPLM_TAC(step16)
+  CPLM_TAC(step7)
   // Iteration finished
   ecg->iter++;
-  CPLM_TIC(step19, "Z = Z - V*beta")
+  CPLM_TIC(step8, "Z = Z - V*beta")
   ierr = CPLM_MatDenseKernelMatMult(V,'N',beta,'N',Z,-1.E0,1.E0);
-  CPLM_TAC(step19)
+  CPLM_TAC(step8)
   // Swapping time
-  CPLM_TIC(step20, "domatcopy")
+  CPLM_TIC(step9, "domatcopy")
   mkl_domatcopy('C','N',m,t,1.E0,V->val,m,V->val+m*nrhs,m);
   mkl_domatcopy('C','N',m,t,1.E0,AV->val,m,AV->val+m*nrhs,m);
   mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,V->val,m);
-  CPLM_TAC(step20)
+  CPLM_TAC(step9)
 
 CPLM_CLOSE_TIMER
 CPLM_POP

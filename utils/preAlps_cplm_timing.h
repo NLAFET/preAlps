@@ -13,6 +13,7 @@
   #define CPLM_TAC(a)
   #define CPLM_SetEnv()
   #define CPLM_printTimer(a)
+  #define CPLM_resetTimer()
   enum {
   step1 = 1,
   step2,

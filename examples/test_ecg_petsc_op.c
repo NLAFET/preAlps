@@ -26,7 +26,7 @@
 //#include <cpalamem_instrumentation.h>
 
 #ifdef PETSC
-#include <petsc_interface.h>
+#include <preAlps_cplm_petsc_interface.h>
 /* Petsc */
 #include <petscksp.h>
 #endif

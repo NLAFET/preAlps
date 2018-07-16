@@ -14,7 +14,7 @@ Date        : Mai 15, 2017
 
 #ifdef PETSC
 /* Petsc */
-#include <petsc_interface.h>
+#include <preAlps_cplm_petsc_interface.h>
 #include <petscksp.h>
 #endif
 

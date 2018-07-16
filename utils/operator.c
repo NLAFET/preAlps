@@ -10,7 +10,7 @@
 /******************************************************************************/
 
 #ifdef PETSC
-#include <petsc_interface.h>
+#include <preAlps_cplm_petsc_interface.h>
 #endif
 #include <preAlps_cplm_utils.h>
 #include <preAlps_cplm_timing.h>
