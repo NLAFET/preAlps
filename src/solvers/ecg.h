@@ -83,6 +83,18 @@ typedef struct {
   preAlps_ECG_Ortho_Alg_t      ortho_alg;  /**< A-orthonormalization algorithm */
   preAlps_ECG_Block_Size_Red_t bs_red;     /**< Block size reduction */
   MPI_Comm             comm;               /**< MPI communicator */
+
+  /* Timings */
+  double tot_t ;  /* Total */
+  double comm_t;  /* Communication */
+  double trsm_t;  /* trsm  */
+  double gemm_t;  /* gemm  */
+  double potrf_t; /* potrf */
+  double gesvd_t; /* gesvd */
+  double geqrf_t; /* geqrf */
+  double ormqr_t; /* ormqr */
+  double copy_t;  /* copy */
+
 } preAlps_ECG_t;
 /******************************************************************************/
 

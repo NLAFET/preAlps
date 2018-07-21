@@ -59,7 +59,7 @@ CPLM_PUSH
   else if (ecg->ortho_alg == ORTHODIR)
     allocatedSize = 7*m*t + 3*t*t;
   else if (ecg->ortho_alg == ORTHODIR_FUSED)
-    allocatedSize = 7*m*t + 5*t*t;
+    allocatedSize = 7*m*t + 5*t*t + 2*t;
   // Allocate the whole memory
   ecg->work  = (double*) mkl_calloc(allocatedSize,sizeof(double),64);
   ecg->iwork = (int*) mkl_calloc(ecg->enlFac,sizeof(int),32);
@@ -101,6 +101,17 @@ int _preAlps_ECGReset(preAlps_ECG_t* ecg, double* rhs, int* rci_request) {
 CPLM_PUSH
   int rank, ierr = 0;
   int nCol = 0;
+  double trash_t;
+  // Reset timings
+  ecg->tot_t  = 0.E0;
+  ecg->comm_t  = 0.E0;
+  ecg->trsm_t  = 0.E0;
+  ecg->gemm_t  = 0.E0;
+  ecg->potrf_t = 0.E0;
+  ecg->gesvd_t = 0.E0;
+  ecg->geqrf_t = 0.E0;
+  ecg->ormqr_t = 0.E0;
+  ecg->copy_t  = 0.E0;
   // Set sizes
   int M = ecg->globPbSize, m = ecg->locPbSize, t = ecg->enlFac;
   if (ecg->ortho_alg == ORTHOMIN) {
@@ -133,12 +144,14 @@ CPLM_PUSH
   for (int i = 0; i < ecg->locPbSize; ++i)
     *normb_p += pow(rhs[i],2);
   // Sum over all processes
+  trash_t = MPI_Wtime();
   MPI_Allreduce(MPI_IN_PLACE,
                   normb_p,
                   1,
                   MPI_DOUBLE,
                   MPI_SUM,
                   ecg->comm);
+  ecg->comm_t += MPI_Wtime() - trash_t;
   *normb_p = sqrt(*normb_p);
   // Initialize res, iter and bs
   ecg->res  = 1.E0;
@@ -207,7 +220,8 @@ CPLM_POP
 
 int preAlps_ECGStoppingCriterion(preAlps_ECG_t* ecg, int* stop) {
 CPLM_PUSH
-int ierr = 0;
+  int ierr = 0;
+  double trash_t, trash_tg = MPI_Wtime();
   // Simplify notations
   MPI_Comm comm       = ecg->comm;
   CPLM_Mat_Dense_t* R = ecg->R;
@@ -230,10 +244,14 @@ int ierr = 0;
     RtR_s.val = work + 7*m*t + 2*t*t;
   }
   // Do local dot product
+  trash_t = MPI_Wtime();
   CPLM_MatDenseKernelMatDotProd(R,R,&RtR_s);
+  ecg->gemm_t += MPI_Wtime() - trash_t;
   // Sum local dot products in place (no mem alloc needed)
+  trash_t = MPI_Wtime();
   ierr = MPI_Allreduce(MPI_IN_PLACE, RtR_s.val, RtR_s.info.nval,
                        MPI_DOUBLE, MPI_SUM, comm);
+  ecg->comm_t += MPI_Wtime() - trash_t;
   // Compute trace of RtR
   *res_p = 0.E0;
   for (int i = 0; i < RtR_s.info.n; ++i)
@@ -245,13 +263,14 @@ int ierr = 0;
     *stop = 0; // we continue
   else
     *stop = 1; // we stop
-
+  ecg->tot_t += MPI_Wtime() - trash_tg;
 CPLM_POP
   return ierr;
 }
 
 int preAlps_ECGIterate(preAlps_ECG_t* ecg, int* rci_request) {
 CPLM_PUSH
+  double trash_t = MPI_Wtime();
   int ierr = 0;
   if (ecg->ortho_alg == ORTHOMIN)
     _preAlps_ECGIterateOmin(ecg, rci_request);
@@ -259,13 +278,14 @@ CPLM_PUSH
     _preAlps_ECGIterateOdir(ecg, rci_request);
   else if (ecg->ortho_alg == ORTHODIR_FUSED)
     _preAlps_ECGIterateOdirFused(ecg, rci_request);
+  ecg->tot_t += MPI_Wtime() - trash_t;
 CPLM_POP
   return ierr;
 }
 
+// TODO finish timing
 int _preAlps_ECGIterateOmin(preAlps_ECG_t* ecg, int* rci_request) {
 CPLM_PUSH
-CPLM_OPEN_TIMER
   int ierr = 0;
   // Simplify notations
   MPI_Comm          comm  = ecg->comm;
@@ -279,93 +299,78 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t work_s = CPLM_MatDenseNULL();
   double*  work = ecg->work;
   int*    iwork = ecg->iwork;
-  double tol = -1.E0;
+  double tol = -1.E0, trash_t;
   int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
   int t = P->info.n;
   if (*rci_request == 0) {
     ierr = CPLM_MatDenseSetInfo(&work_s,t,t,t,t,COL_MAJOR);
     work_s.val = work + 5*m*nrhs + nrhs*nrhs;
-    CPLM_TIC(step1, "ACHQR: AP^t P")
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatDotProd(AP, P, &work_s);
-    CPLM_TAC(step1)
-    CPLM_TIC(step2, "ACHQR: Allreduce")
+    ecg->gemm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = MPI_Allreduce(MPI_IN_PLACE, work_s.val, work_s.info.nval,
                          MPI_DOUBLE, MPI_SUM, comm);
-    CPLM_TAC(step2)
-    CPLM_TIC(step3, "ACHQR: dpotrf")
+    ecg->comm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', t, work_s.val, t);
-    CPLM_TAC(step3)
+    ecg->potrf_t += MPI_Wtime() - trash_t;
     if ( ierr != 0) {
       CPLM_Abort("ACHQR: dpotrf:\n ERROR: P^tAP is not spd!");
     }
-    CPLM_TIC(step4, "ACHQR: P / (P^t AP)^(-1/2)")
+    trash_t = MPI_Wtime();
     cblas_dtrsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans,
                 CblasNonUnit, m, t, 1.E0, work_s.val, t, P->val, m);
-    CPLM_TAC(step4)
-    CPLM_TIC(step5, "ACHQR: AP / (P^t AP)^(-1/2)")
     cblas_dtrsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans,
                 CblasNonUnit, m, t, 1.E0, work_s.val, t, AP->val, m);
-    CPLM_TAC(step5)
-    CPLM_TIC(step6, "alpha: P^t R")
+    ecg->trsm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatDotProd(P,R,alpha);
-    CPLM_TAC(step6)
-    CPLM_TIC(step7,"alpha: Allreduce")
+    ecg->gemm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = MPI_Allreduce(MPI_IN_PLACE, alpha->val, alpha->info.nval,
                          MPI_DOUBLE, MPI_SUM, comm);
-    CPLM_TAC(step7)
-    CPLM_TIC(step8,"X = X + P*alpha")
+    ecg->comm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
-    CPLM_TAC(step8)
-    CPLM_TIC(step9,"R = R - AP*alpha")
     ierr = CPLM_MatDenseKernelMatMult(AP,'N',alpha,'N',R,-1.E0,1.E0);
-    CPLM_TAC(step9)
+    ecg->gemm_t += MPI_Wtime() - trash_t;
     // Iteration finished
     ecg->iter++;
     // Now we need the preconditioner
     *rci_request = 1;
   }
   else if (*rci_request == 1) {
-    CPLM_TIC(step10, "beta : AP^t Z")
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatDotProd(AP,Z,beta);
-    CPLM_TAC(step10)
-    CPLM_TIC(step11, "beta : Allreduce")
+    trash_t = MPI_Wtime();
     ierr = MPI_Allreduce(MPI_IN_PLACE, beta->val, beta->info.nval,
                          MPI_DOUBLE, MPI_SUM, comm);
-    CPLM_TAC(step11)
-    CPLM_TIC(step12, "Z = Z - P*beta")
+                         trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatMult(P,'N',beta,'N',Z,-1.E0,1.E0);
-    CPLM_TAC(step12)
     // Swapping time
-    CPLM_TIC(step13, "P = Z")
+    trash_t = MPI_Wtime();
     mkl_domatcopy('C','N',m,nrhs,1.E0,Z->val,m,P->val,m);
-    CPLM_TAC(step13)
     /**************** RR-QR with Cholesky-like algorithm **********************/
     if (ecg->bs_red == ADAPT_BS) {
       ierr = CPLM_MatDenseSetInfo(&work_s,nrhs,nrhs,nrhs,nrhs,COL_MAJOR);
       work_s.val = work + 5*m*nrhs + nrhs*nrhs;
       // Do local dot product
-      CPLM_TIC(step14, "BF   : P^t P")
+      trash_t = MPI_Wtime();
       ierr = CPLM_MatDenseKernelMatDotProd(P, P, &work_s);
-      CPLM_TAC(step14)
       // Sum local dot products in place (no mem alloc needed)
-      CPLM_TIC(step15, "BF   : Allreduce")
+      trash_t = MPI_Wtime();
       ierr = MPI_Allreduce(MPI_IN_PLACE, work_s.val, work_s.info.nval,
                            MPI_DOUBLE, MPI_SUM, comm);
-      CPLM_TAC(step15)
       // Cholesky with pivoting of C := P^tP
-      CPLM_TIC(step16, "BF   : dpstrf")
+      trash_t = MPI_Wtime();
       ierr = LAPACKE_dpstrf(LAPACK_COL_MAJOR,'U',nrhs,work_s.val,nrhs,
                             iwork,&t,tol);
-      CPLM_TAC(step16)
       // Permute P
-      CPLM_TIC(step17, "BF   : dlapmt(P)")
       LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,nrhs,P->val,m,iwork);
-      CPLM_TAC(step17)
       // Solve triangular right system for P
-      CPLM_TIC(step18, "BF   : P / (P^t P)^(-1/2)")
       cblas_dtrsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans,
                   CblasNonUnit, m, t, 1.E0, work_s.val, nrhs, P->val, m);
-      CPLM_TAC(step18)
       // Update the sizes
       CPLM_MatDenseSetInfo(P,M,t,m,t,COL_MAJOR);
       CPLM_MatDenseSetInfo(AP,M,t,m,t,COL_MAJOR);
@@ -377,14 +382,12 @@ CPLM_OPEN_TIMER
     /**************************************************************************/// Now we need A*P to continue
     *rci_request = 0;
   }
-CPLM_CLOSE_TIMER
 CPLM_POP
   return ierr;
 }
 
 int _preAlps_ECGIterateOdir(preAlps_ECG_t* ecg, int* rci_request) {
 CPLM_PUSH
-CPLM_OPEN_TIMER
   int ierr = 0;
   // Simplify notations
   MPI_Comm          comm  = ecg->comm;
@@ -401,47 +404,44 @@ CPLM_OPEN_TIMER
   double*  work = ecg->work;
   int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
   int t = P->info.n, t1 = 0; // Reduced size
-  double tol = ecg->tol*ecg->normb/sqrt(nrhs);
+  double tol = ecg->tol*ecg->normb/sqrt(nrhs), trash_t;
   if (*rci_request == 0) {
     ierr = CPLM_MatDenseSetInfo(&work_s,t,t,t,t,COL_MAJOR);
     // work_s.val = work + 7*m*nrhs + 2*nrhs*nrhs;
     work_s.val = work + 7*m*nrhs + nrhs*nrhs;
-    CPLM_TIC(step1, "ACHQR   : AP^t P")
     ierr = CPLM_MatDenseKernelMatDotProd(AP, P, &work_s);
-    CPLM_TAC(step1)
-    CPLM_TIC(step2, "ACHQR   : Allreduce")
+    trash_t = MPI_Wtime();
     ierr = MPI_Allreduce(MPI_IN_PLACE, work_s.val, work_s.info.nval,
                          MPI_DOUBLE, MPI_SUM, comm);
-    CPLM_TAC(step2)
-    CPLM_TIC(step3, "ACHQR   : dpotrf")
+    ecg->comm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', t, work_s.val, t);
-    CPLM_TAC(step3)
-    CPLM_TIC(step4, "ACHQR   : P / (P^t AP)^(-1/2)")
+    ecg->potrf_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&work_s, P);
-    CPLM_TAC(step4)
-    CPLM_TIC(step5, "ACHQR   : AP / (P^t AP)^(-1/2)")
     ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&work_s, AP);
-    CPLM_TAC(step5)
-    CPLM_TIC(step6, "alpha   : P^t R")
+    ecg->trsm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatDotProd(P,R,alpha);
-    CPLM_TAC(step6)
-    CPLM_TIC(step7,"alpha   : Allreduce")
+    ecg->gemm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = MPI_Allreduce(MPI_IN_PLACE, alpha->val, alpha->info.nval,
                          MPI_DOUBLE, MPI_SUM, comm);
-    CPLM_TAC(step7)
+    ecg->comm_t += MPI_Wtime() - trash_t;
     /**************** Reduction of the search directions **********************/
     if (ecg->bs_red == ADAPT_BS) {
       double* tau_p  = NULL; // Householder reflectors
-      CPLM_TIC(step8, "ADAPT_BS: preparation")
+      trash_t = MPI_Wtime();
       memcpy(work_s.val,alpha->val,sizeof(double)*alpha->info.nval);
+      ecg->copy_t += MPI_Wtime() - trash_t;
       // 1) SVD on alpha
 //      memset(iwork,0,nrhs*sizeof(int)); // Very important: memset iwork to 0
-      CPLM_TAC(step8)
       // Reuse work for storing Householder reflectors
       tau_p = work_s.val + nrhs*t;
-      CPLM_TIC(step9, "ADAPT_BS: dgesvd")
+      trash_t = MPI_Wtime();
       ierr = LAPACKE_dgesvd(LAPACK_COL_MAJOR,'O','N',t,nrhs,work_s.val,alpha->info.lda,
                             tau_p,NULL,1,NULL,1,tau_p+t);
+      ecg->gesvd_t += MPI_Wtime() - trash_t;
 //      ierr = LAPACKE_dgeqp3(LAPACK_COL_MAJOR,t,nrhs,work_s.val,
 //                            nrhs,iwork,tau_p);
       for (int i = 0; i < t; i++) {
@@ -449,31 +449,26 @@ CPLM_OPEN_TIMER
         if (tau_p[i] > tol) t1++;
         else break;
       }
-      CPLM_TAC(step9)
 
       // 2) reduction of the search directions
       if (t1 > 0 && t1 < nrhs && t1 < t) {
         // For in-place update
-        CPLM_TIC(step10, "ADAPT_BS: dgeqrf")
+        trash_t = MPI_Wtime();
         ierr = LAPACKE_dgeqrf(LAPACK_COL_MAJOR,t,t,work_s.val,t,tau_p);
-        CPLM_TAC(step10)
+        ecg->geqrf_t += MPI_Wtime() - trash_t;
         // Update alpha, P, AP
-        CPLM_TIC(step11, "ADAPT_BS: dormqr(alpha)")
+        trash_t = MPI_Wtime();
         LAPACKE_dormqr(LAPACK_COL_MAJOR,'L','T',t,nrhs,t,work_s.val,
                       t,tau_p,alpha->val,t);
-        CPLM_TAC(step11)
-        CPLM_TIC(step12, "ADAPT_BS: dormqr(P)")
         LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,work_s.val,
                       t,tau_p,P->val,m);
-        CPLM_TAC(step12)
-        CPLM_TIC(step13, "ADAPT_BS: dormqr(AP)")
         LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,work_s.val,
                       t,tau_p,AP->val,m);
-        CPLM_TAC(step13)
+        ecg->ormqr_t += MPI_Wtime() - trash_t;
         // Reduce sizes
-        CPLM_TIC(step14, "ADAPT_BS: dimatcopy(alpha)")
+        trash_t = MPI_Wtime();
         mkl_dimatcopy('C','N',t,nrhs,1.E0,alpha->val,t,t1);
-        CPLM_TAC(step14)
+        ecg->copy_t += MPI_Wtime() - trash_t;
         CPLM_MatDenseSetInfo(alpha,t1,nrhs,t1,nrhs,COL_MAJOR);
         CPLM_MatDenseSetInfo(P ,M,t1,m,t1,COL_MAJOR);
         CPLM_MatDenseSetInfo(AP,M,t1,m,t1,COL_MAJOR);
@@ -488,46 +483,41 @@ CPLM_OPEN_TIMER
       CPLM_MatDenseSetInfo(AV, M, ecg->kbs, m, ecg->kbs, COL_MAJOR);
     }
     /**************************************************************************/
-
-    CPLM_TIC(step15,"X = X + P*alpha")
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
-    CPLM_TAC(step15)
-    CPLM_TIC(step16,"R = R - AP*alpha")
     ierr = CPLM_MatDenseKernelMatMult(AP,'N',alpha,'N',R,-1.E0,1.E0);
-    CPLM_TAC(step16)
+    ecg->gemm_t += MPI_Wtime() - trash_t;
     // Iteration finished
     ecg->iter++;
     // Now we need the preconditioner
     *rci_request = 1;
   }
   else if (*rci_request == 1) {
-    CPLM_TIC(step17, "beta    : AV^t Z")
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatDotProd(AV,Z,beta);
-    CPLM_TAC(step17)
-    CPLM_TIC(step18, "beta    : Allreduce")
+    ecg->gemm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = MPI_Allreduce(MPI_IN_PLACE, beta->val, beta->info.nval,
                          MPI_DOUBLE, MPI_SUM, comm);
-    CPLM_TAC(step18)
-    CPLM_TIC(step19, "Z = Z - V*beta")
+    ecg->comm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatMult(V,'N',beta,'N',Z,-1.E0,1.E0);
-    CPLM_TAC(step19)
+    ecg->gemm_t += MPI_Wtime() - trash_t;
     // Swapping time
-    CPLM_TIC(step20, "domatcopy")
+    trash_t = MPI_Wtime();
     mkl_domatcopy('C','N',m,t,1.E0,V->val,m,V->val+m*nrhs,m);
     mkl_domatcopy('C','N',m,t,1.E0,AV->val,m,AV->val+m*nrhs,m);
     mkl_domatcopy('C','N',m,t,1.E0,Z->val,m,V->val,m);
-    CPLM_TAC(step20)
+    ecg->copy_t += MPI_Wtime() - trash_t;
     // Now we need A*P to continue
     *rci_request = 0;
   }
-CPLM_CLOSE_TIMER
 CPLM_POP
   return ierr;
 }
 
 int _preAlps_ECGIterateOdirFused(preAlps_ECG_t* ecg, int* rci_request) {
 CPLM_PUSH
-CPLM_OPEN_TIMER
   int ierr = 0;
   // Simplify notations
   MPI_Comm          comm  = ecg->comm;
@@ -544,41 +534,36 @@ CPLM_OPEN_TIMER
   CPLM_Mat_Dense_t rtr_s  = CPLM_MatDenseNULL();
   int m = ecg->locPbSize, M = ecg->globPbSize, nrhs = ecg->enlFac;
   int t = P->info.n, t1 = 0; // Reduced size
-  double tol = ecg->tol*ecg->normb/sqrt(nrhs);
+  double tol = ecg->tol*ecg->normb/sqrt(nrhs), trash_t;
   int rank; MPI_Comm_rank(comm,&rank);
   ierr = CPLM_MatDenseSetInfo(&mu_s,t,t,t,t,COL_MAJOR);
   ierr = CPLM_MatDenseSetInfo(&rtr_s,nrhs,nrhs,nrhs,nrhs,COL_MAJOR);
   mu_s.val  = alpha->val + 3*nrhs*nrhs;
   rtr_s.val = alpha->val + 4*nrhs*nrhs;
-
-  CPLM_TIC(step1,"FUSED: dot prods")
+  trash_t = MPI_Wtime();
   ierr = CPLM_MatDenseKernelMatDotProd(P, R, alpha);
   ierr = CPLM_MatDenseKernelMatDotProd(AV, Z, beta);
   ierr = CPLM_MatDenseKernelMatDotProd(AP, P, &mu_s);
   ierr = CPLM_MatDenseKernelMatDotProd(R, R, &rtr_s);
-  CPLM_TAC(step1)
-
-  CPLM_TIC(step2,"FUSED: MPI_Allreduce")
+  ecg->gemm_t += MPI_Wtime() - trash_t;
+  trash_t = MPI_Wtime();
   ierr = MPI_Allreduce(MPI_IN_PLACE, alpha->val, 5*nrhs*nrhs,
                        MPI_DOUBLE, MPI_SUM, comm);
-  CPLM_TAC(step2)
-
-  CPLM_TIC(step3, "Convergence test")
+  ecg->comm_t += MPI_Wtime() - trash_t;
   ecg->res = 0.E0;
   for (int i = 0; i < nrhs; ++i)
     ecg->res += rtr_s.val[i + rtr_s.info.lda*i];
   ecg->res = sqrt(ecg->res);
+
   if (ecg->res < ecg->tol*ecg->normb || ecg->iter > ecg->maxIter)
     *rci_request = 1; // The method has converged
   else
     *rci_request = 0; // We need to continue
-  CPLM_TAC(step3)
 
-  CPLM_TIC(step4,"FUSED: dpotrf")
+  trash_t = MPI_Wtime();
   ierr = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', t, mu_s.val, t);
-  CPLM_TAC(step4)
-
-  CPLM_TIC(step5,"FUSED: updates")
+  ecg->potrf_t += MPI_Wtime() - trash_t;
+  trash_t = MPI_Wtime();
   ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, P);
   ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, AP);
   ierr = CPLM_MatDenseKernelUpperTriangularRightSolve(&mu_s, beta);
@@ -587,55 +572,47 @@ CPLM_OPEN_TIMER
               t, nrhs, 1.E0, mu_s.val, mu_s.info.lda, alpha->val, t);
   cblas_dtrsm(CblasColMajor, CblasLeft, CblasUpper, CblasTrans, CblasNonUnit,
               t, t, 1.E0, mu_s.val, mu_s.info.lda, beta->val, ecg->kbs);
-  CPLM_TAC(step5)
-
-  CPLM_TIC(step8, "Z = Z - V*beta")
+  ecg->trsm_t += MPI_Wtime() - trash_t;
+  trash_t = MPI_Wtime();
   ierr = CPLM_MatDenseKernelMatMult(V,'N',beta,'N',Z,-1.E0,1.E0);
-  CPLM_TAC(step8)
-
+  ecg->gemm_t += MPI_Wtime() - trash_t;
   /**************** Reduction of the search directions **********************/
   if (ecg->bs_red == ADAPT_BS) {
-    double* tau_p  = (double*) malloc(2*nrhs*sizeof(double)); // Householder
-    CPLM_TIC(step8, "ADAPT_BS: preparation")
+    double* tau_p  = alpha->val + 5*nrhs*nrhs; // Householder
+    trash_t = MPI_Wtime();
     memcpy(mu_s.val,alpha->val,sizeof(double)*alpha->info.nval);
+    ecg->copy_t += MPI_Wtime() - trash_t;
     // 1) SVD on alpha
-    CPLM_TAC(step8)
-    CPLM_TIC(step9, "ADAPT_BS: dgesvd")
+    trash_t = MPI_Wtime();
     ierr = LAPACKE_dgesvd(LAPACK_COL_MAJOR,'O','N',t,nrhs,mu_s.val,
                           alpha->info.lda,tau_p,NULL,1,NULL,1,tau_p+t);
+    ecg->gesvd_t += MPI_Wtime() - trash_t;
     for (int i = 0; i < t; i++) {
       if (tau_p[i] > tol) t1++;
       else break;
     }
-    CPLM_TAC(step9)
 
     // 2) reduction of the search directions
     if (t1 > 0 && t1 < nrhs && t1 < t) {
       // For in-place update
-      CPLM_TIC(step10, "ADAPT_BS: dgeqrf")
+      trash_t = MPI_Wtime();
       ierr = LAPACKE_dgeqrf(LAPACK_COL_MAJOR,t,t,mu_s.val,t,tau_p);
-      CPLM_TAC(step10)
+      ecg->geqrf_t += MPI_Wtime() - trash_t;
       // Update alpha, P, AP
-      CPLM_TIC(step11, "ADAPT_BS: dormqr(alpha)")
+      trash_t = MPI_Wtime();
       LAPACKE_dormqr(LAPACK_COL_MAJOR,'L','T',t,nrhs,t,mu_s.val,
                     t,tau_p,alpha->val,t);
-      CPLM_TAC(step11)
-      CPLM_TIC(step12, "ADAPT_BS: dormqr(P)")
       LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,mu_s.val,
                     t,tau_p,P->val,m);
-      CPLM_TAC(step12)
-      CPLM_TIC(step13, "ADAPT_BS: dormqr(AP)")
       LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,mu_s.val,
                     t,tau_p,AP->val,m);
-      CPLM_TAC(step13)
-      CPLM_TIC(step14, "ADAPT_BS: dormqr(Z)")
       LAPACKE_dormqr(LAPACK_COL_MAJOR,'R','N',m,t,t,mu_s.val,
                     t,tau_p,Z->val,m);
-      CPLM_TAC(step14)
+      ecg->ormqr_t += MPI_Wtime() - trash_t;
       // Reduce sizes
-      CPLM_TIC(step15, "ADAPT_BS: dimatcopy(alpha)")
+      trash_t = MPI_Wtime();
       mkl_dimatcopy('C','N',t,nrhs,1.E0,alpha->val,t,t1);
-      CPLM_TAC(step15)
+      ecg->copy_t += MPI_Wtime() - trash_t;
       CPLM_MatDenseSetInfo(alpha,t1,nrhs,t1,nrhs,COL_MAJOR);
       CPLM_MatDenseSetInfo(P ,M,t1,m,t1,COL_MAJOR);
       CPLM_MatDenseSetInfo(AP,M,t1,m,t1,COL_MAJOR);
@@ -648,26 +625,20 @@ CPLM_OPEN_TIMER
     CPLM_MatDenseSetInfo(beta, ecg->kbs, t1, ecg->kbs, t1, COL_MAJOR);
     CPLM_MatDenseSetInfo(V, M, ecg->kbs, m, ecg->kbs, COL_MAJOR);
     CPLM_MatDenseSetInfo(AV, M, ecg->kbs, m, ecg->kbs, COL_MAJOR);
-    if (tau_p != NULL) free(tau_p);
   }
   /**************************************************************************/
 
-  CPLM_TIC(step6,"X = X + P*alpha")
   ierr = CPLM_MatDenseKernelMatMult(P,'N',alpha,'N',X,1.E0,1.E0);
-  CPLM_TAC(step6)
-  CPLM_TIC(step7,"R = R - AP*alpha")
   ierr = CPLM_MatDenseKernelMatMult(AP,'N',alpha,'N',R,-1.E0,1.E0);
-  CPLM_TAC(step7)
   // Iteration finished
   ecg->iter++;
 
   // Swapping time
-  CPLM_TIC(step9, "domatcopy")
+  trash_t = MPI_Wtime();
   mkl_domatcopy('C','N',m,ecg->bs,1.E0,V->val,m,V->val+m*nrhs,m);
   mkl_domatcopy('C','N',m,ecg->bs,1.E0,AV->val,m,AV->val+m*nrhs,m);
   mkl_domatcopy('C','N',m,ecg->bs,1.E0,Z->val,m,V->val,m);
-  CPLM_TAC(step9)
-
+  ecg->copy_t += MPI_Wtime() - trash_t;
 CPLM_CLOSE_TIMER
 CPLM_POP
   return ierr;
@@ -714,6 +685,16 @@ CPLM_PUSH
   printf("[%d] prints ECG_t...\n", rank);
   printf("=== Summary ===\n");
   printf("\titer: %d\n\tres : %e\n\tbs  : %1d\n",ecg->iter,ecg->res,ecg->bs);
+  printf("=== Timings ===\n");
+  printf("\ttot_t  : %e s\n", ecg->tot_t);
+  printf("\tcomm_t : %e s\n", ecg->comm_t);
+  printf("\ttrsm_t : %e s\n", ecg->trsm_t);
+  printf("\tgemm_t : %e s\n", ecg->gemm_t);
+  printf("\tpotrf_t: %e s\n",ecg->potrf_t);
+  printf("\tgesvd_t: %e s\n",ecg->gesvd_t);
+  printf("\tgeqrf_t: %e s\n",ecg->geqrf_t);
+  printf("\tormqr_t: %e s\n", ecg->ormqr_t);
+  printf("\tcopy_t : %e s\n", ecg->copy_t);
   if (verbosity > 1) {
     printf("=== Memory consumption ===\n");
     CPLM_MatDensePrintfInfo("X",    ecg->X);
