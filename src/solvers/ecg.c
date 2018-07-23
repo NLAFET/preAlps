@@ -108,6 +108,8 @@ CPLM_PUSH
   ecg->trsm_t  = 0.E0;
   ecg->gemm_t  = 0.E0;
   ecg->potrf_t = 0.E0;
+  ecg->pstrf_t = 0.E0;
+  ecg->lapmt_t = 0.E0;
   ecg->gesvd_t = 0.E0;
   ecg->geqrf_t = 0.E0;
   ecg->ormqr_t = 0.E0;
@@ -343,14 +345,18 @@ CPLM_PUSH
   else if (*rci_request == 1) {
     trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatDotProd(AP,Z,beta);
+    ecg->gemm_t += MPI_Wtime() - trash_t;
     trash_t = MPI_Wtime();
     ierr = MPI_Allreduce(MPI_IN_PLACE, beta->val, beta->info.nval,
                          MPI_DOUBLE, MPI_SUM, comm);
-                         trash_t = MPI_Wtime();
+    ecg->comm_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
     ierr = CPLM_MatDenseKernelMatMult(P,'N',beta,'N',Z,-1.E0,1.E0);
+    ecg->gemm_t += MPI_Wtime() - trash_t;
     // Swapping time
     trash_t = MPI_Wtime();
     mkl_domatcopy('C','N',m,nrhs,1.E0,Z->val,m,P->val,m);
+    ecg->copy_t += MPI_Wtime() - trash_t;
     /**************** RR-QR with Cholesky-like algorithm **********************/
     if (ecg->bs_red == ADAPT_BS) {
       ierr = CPLM_MatDenseSetInfo(&work_s,nrhs,nrhs,nrhs,nrhs,COL_MAJOR);
@@ -358,19 +364,25 @@ CPLM_PUSH
       // Do local dot product
       trash_t = MPI_Wtime();
       ierr = CPLM_MatDenseKernelMatDotProd(P, P, &work_s);
+      ecg->gemm_t += MPI_Wtime() - trash_t;
       // Sum local dot products in place (no mem alloc needed)
       trash_t = MPI_Wtime();
       ierr = MPI_Allreduce(MPI_IN_PLACE, work_s.val, work_s.info.nval,
                            MPI_DOUBLE, MPI_SUM, comm);
+      ecg->comm_t += MPI_Wtime() - trash_t;
       // Cholesky with pivoting of C := P^tP
       trash_t = MPI_Wtime();
       ierr = LAPACKE_dpstrf(LAPACK_COL_MAJOR,'U',nrhs,work_s.val,nrhs,
                             iwork,&t,tol);
+      ecg->pstrf_t += MPI_Wtime() - trash_t;
       // Permute P
+      trash_t = MPI_Wtime();
       LAPACKE_dlapmt(LAPACK_COL_MAJOR,1,m,nrhs,P->val,m,iwork);
+      ecg->lapmt_t += MPI_Wtime() - trash_t;
       // Solve triangular right system for P
       cblas_dtrsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans,
                   CblasNonUnit, m, t, 1.E0, work_s.val, nrhs, P->val, m);
+      ecg->trsm_t += MPI_Wtime() - trash_t;
       // Update the sizes
       CPLM_MatDenseSetInfo(P,M,t,m,t,COL_MAJOR);
       CPLM_MatDenseSetInfo(AP,M,t,m,t,COL_MAJOR);
@@ -691,6 +703,8 @@ CPLM_PUSH
   printf("\ttrsm_t : %e s\n", ecg->trsm_t);
   printf("\tgemm_t : %e s\n", ecg->gemm_t);
   printf("\tpotrf_t: %e s\n",ecg->potrf_t);
+  printf("\tpstrf_t: %e s\n",ecg->pstrf_t);
+  printf("\tlapmt_t: %e s\n",ecg->lapmt_t);
   printf("\tgesvd_t: %e s\n",ecg->gesvd_t);
   printf("\tgeqrf_t: %e s\n",ecg->geqrf_t);
   printf("\tormqr_t: %e s\n", ecg->ormqr_t);

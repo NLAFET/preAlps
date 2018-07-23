@@ -90,6 +90,8 @@ typedef struct {
   double trsm_t;  /* trsm  */
   double gemm_t;  /* gemm  */
   double potrf_t; /* potrf */
+  double pstrf_t; /* pstrf */
+  double lapmt_t; /* lapmt */
   double gesvd_t; /* gesvd */
   double geqrf_t; /* geqrf */
   double ormqr_t; /* ormqr */
