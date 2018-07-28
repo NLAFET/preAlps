@@ -36,8 +36,6 @@
 #include "operator.h"
 #include "block_jacobi.h"
 #include "ecg.h"
-
-#define SIZE_ARRAY_R 4
 /*****************************************************************************/
 
 /*****************************************************************************/
@@ -211,8 +209,7 @@ PetscErrorCode elem_3d_elast_v_25(PetscScalar* dd)
         4.90740740740740339E-002,  -5.27777777777777637E-002, 5.27777777777777637E-002,  0.18981481481481477,
     };
     PetscFunctionBeginUser;
-    ierr = PetscMemcpy(dd, DD, sizeof(PetscScalar) * 576);
-    CHKERRQ(ierr);
+    ierr = PetscMemcpy(dd, DD, sizeof(PetscScalar) * 576);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
 
@@ -233,8 +230,7 @@ PetscErrorCode AssembleSystem(Mat A, Vec b, PetscScalar soft_alpha, PetscScalar 
     PetscScalar vv[24], v2[24];
     PetscInt i, j, k;
     {
-        ierr = elem_3d_elast_v_25((PetscScalar*)DD1);
-        CHKERRQ(ierr);
+        ierr = elem_3d_elast_v_25((PetscScalar*)DD1);CHKERRQ(ierr);
         for (i = 0; i < 24; i++) {
             for (j = 0; j < 24; j++) {
                 if (i < 12 || j < 12) {
@@ -264,10 +260,8 @@ PetscErrorCode AssembleSystem(Mat A, Vec b, PetscScalar soft_alpha, PetscScalar 
                 v2[i] = 0.0;
         }
     }
-    ierr = MatZeroEntries(A);
-    CHKERRQ(ierr);
-    ierr = VecZeroEntries(b);
-    CHKERRQ(ierr);
+    ierr = MatZeroEntries(A);CHKERRQ(ierr);
+    ierr = VecZeroEntries(b);CHKERRQ(ierr);
     PetscInt ii, jj, kk;
     for (i = Ni0, ii = 0; i < Ni1; i++, ii++) {
         for (j = Nj0, jj = 0; j < Nj1; j++, jj++) {
@@ -277,9 +271,25 @@ PetscErrorCode AssembleSystem(Mat A, Vec b, PetscScalar soft_alpha, PetscScalar 
                 PetscReal z = h * (PetscReal)k;
                 PetscInt id = id0 + ii + NN * jj + NN * NN * kk;
                 if (i < ne && j < ne && k < ne) {
-                    PetscReal radius = PetscSqrtReal((x - 0.5 + h / 2) * (x - 0.5 + h / 2) + (y - 0.5 + h / 2) * (y - 0.5 + h / 2) +
-                                                     (z - 0.5 + h / 2) * (z - 0.5 + h / 2));
-                    PetscReal alpha = 1.0;
+                    // Insert some bubles with differents E coefficients
+                    PetscReal radius1 = PetscSqrtReal((x - 0.25 + h / 2) * (x - 0.25 + h / 2) + (y - 0.25 + h / 2) * (y - 0.25 + h / 2) +
+                                                      (z - 0.25 + h / 2) * (z - 0.25 + h / 2));
+                    PetscReal radius2 = PetscSqrtReal((x - 0.75 + h / 2) * (x - 0.75 + h / 2) + (y - 0.25 + h / 2) * (y - 0.25 + h / 2) +
+                                                      (z - 0.25 + h / 2) * (z - 0.25 + h / 2));
+                    PetscReal radius3 = PetscSqrtReal((x - 0.25 + h / 2) * (x - 0.25 + h / 2) + (y - 0.75 + h / 2) * (y - 0.75 + h / 2) +
+                                                      (z - 0.25 + h / 2) * (z - 0.25 + h / 2));
+                    PetscReal radius4 = PetscSqrtReal((x - 0.75 + h / 2) * (x - 0.75 + h / 2) + (y - 0.75 + h / 2) * (y - 0.75 + h / 2) +
+                                                      (z - 0.25 + h / 2) * (z - 0.25 + h / 2));
+                    PetscReal radius5 = PetscSqrtReal((x - 0.25 + h / 2) * (x - 0.25 + h / 2) + (y - 0.25 + h / 2) * (y - 0.25 + h / 2) +
+                                                      (z - 0.75 + h / 2) * (z - 0.75 + h / 2));
+                    PetscReal radius6 = PetscSqrtReal((x - 0.75 + h / 2) * (x - 0.75 + h / 2) + (y - 0.25 + h / 2) * (y - 0.25 + h / 2) +
+                                                      (z - 0.75 + h / 2) * (z - 0.75 + h / 2));
+                    PetscReal radius7 = PetscSqrtReal((x - 0.25 + h / 2) * (x - 0.25 + h / 2) + (y - 0.75 + h / 2) * (y - 0.75 + h / 2) +
+                                                      (z - 0.75 + h / 2) * (z - 0.75 + h / 2));
+                    PetscReal radius8 = PetscSqrtReal((x - 0.75 + h / 2) * (x - 0.75 + h / 2) + (y - 0.75 + h / 2) * (y - 0.75 + h / 2) +
+                                                      (z - 0.75 + h / 2) * (z - 0.75 + h / 2));
+
+                    PetscReal alpha = 1.E0;
                     PetscInt jx, ix, idx[8];
                     idx[0] = id;
                     idx[1] = id + 1;
@@ -307,38 +317,33 @@ PetscErrorCode AssembleSystem(Mat A, Vec b, PetscScalar soft_alpha, PetscScalar 
                         idx[6] += NN * (nn * nn - NN * NN);
                         idx[7] += NN * (nn * nn - NN * NN);
                     }
-                    if (radius < r) alpha = soft_alpha;
+                    if (radius1 < r || radius5 < r) alpha = 1e-5;
+                    if (radius2 < r || radius6 < r) alpha = 1e5;
+                    if (radius3 < r || radius7 < r) alpha = 1e-5;
+                    if (radius4 < r || radius8 < r) alpha = 1e5;
 
                     for (ix = 0; ix < 24; ix++) {
                         for (jx = 0; jx < 24; jx++) DD[ix][jx] = alpha * DD1[ix][jx];
                     }
                     if (k > 0) {
-                        ierr = MatSetValuesBlocked(A, 8, idx, 8, idx, (const PetscScalar*)DD, ADD_VALUES);
-                        CHKERRQ(ierr);
-                        ierr = VecSetValuesBlocked(b, 8, idx, (const PetscScalar*)vv, ADD_VALUES);
-                        CHKERRQ(ierr);
+                        ierr = MatSetValuesBlocked(A, 8, idx, 8, idx, (const PetscScalar*)DD, ADD_VALUES);CHKERRQ(ierr);
+                        ierr = VecSetValuesBlocked(b, 8, idx, (const PetscScalar*)vv, ADD_VALUES);CHKERRQ(ierr);
                     }
                     else {
                         for (ix = 0; ix < 24; ix++) {
                             for (jx = 0; jx < 24; jx++) DD[ix][jx] = alpha * DD2[ix][jx];
                         }
-                        ierr = MatSetValuesBlocked(A, 8, idx, 8, idx, (const PetscScalar*)DD, ADD_VALUES);
-                        CHKERRQ(ierr);
-                        ierr = VecSetValuesBlocked(b, 8, idx, (const PetscScalar*)v2, ADD_VALUES);
-                        CHKERRQ(ierr);
+                        ierr = MatSetValuesBlocked(A, 8, idx, 8, idx, (const PetscScalar*)DD, ADD_VALUES);CHKERRQ(ierr);
+                        ierr = VecSetValuesBlocked(b, 8, idx, (const PetscScalar*)v2, ADD_VALUES);CHKERRQ(ierr);
                     }
                 }
             }
         }
     }
-    ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
-    CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
-    CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(b);
-    CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(b);
-    CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(b);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(b);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
 #endif
@@ -455,12 +460,13 @@ int main(int argc, char** argv) {
       }
     }
   }
-  PetscReal s_r[SIZE_ARRAY_R] = {1e5, 0.1, 20, 10};
-  PetscReal x_r[SIZE_ARRAY_R] = {0.5, 0.4, 0.4, 0.4};
-  PetscReal y_r[SIZE_ARRAY_R] = {0.5, 0.5, 0.4, 0.4};
-  PetscReal z_r[SIZE_ARRAY_R] = {0.5, 0.45, 0.4, 0.35};
-  PetscReal r[SIZE_ARRAY_R] = {0.5, 0.5, 0.4, 0.4};
-  AssembleSystem(A, rhs, s_r[0], x_r[0], y_r[0], z_r[0], r[0], ne, npe, rank, nn, m);
+  PetscReal s_r =  1e7;
+  PetscReal x_r = 0.5;
+  PetscReal y_r = 0.5;
+  PetscReal z_r = 0.5;
+  PetscReal r   = 0.05;
+  AssembleSystem(A, rhs, s_r, x_r, y_r, z_r, r, ne, npe, rank, nn, m);
+  // MatScale(A, 100000.0);
   ierr = KSPSetOperators(ksp, A, A);CHKERRQ(ierr);
 
   /*================ Petsc solve ================*/
@@ -490,6 +496,7 @@ int main(int argc, char** argv) {
     /* PCFactorSetMatSolverPackage(subpc,MATSOLVERMKL_PARDISO); */
   }
 
+  VecSet(x,0e0);
   trash_t = MPI_Wtime();
   KSPSolve(ksp,rhs,x);
   petsc_t += MPI_Wtime() - trash_t;
