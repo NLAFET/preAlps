@@ -1,7 +1,7 @@
 include ../../make.inc
 
 #The name of the library to create
-LIBCPLM_NAME = cplm_v0
+LIBCPLM_NAME = cplm_light
 
 #The full path for the library
 LIBCPLM = ../../$(LIBDIR)/lib$(LIBCPLM_NAME).a
