@@ -13,7 +13,7 @@ LIBDIR    = lib
 INCDIR    = include
 UTILS     = utils
 CPLMDIR   = utils/cplm_light
-CPLM_VO_DIR   = utils/cplm_v0
+CPLM_V0_DIR   = utils/cplm_v0
 SRC       = src
 EXAMPLES  = examples
 
@@ -41,7 +41,7 @@ endif
 #   Include dir
 #
 
-INCLUDE_FLAGS = -I./ -I../ -I../include -I../$(CPLMDIR) -I../../$(CPLMDIR) -I../$(CPLM_VO_DIR) -I../../$(CPLM_VO_DIR) -I../utils -I../src/preconditioners -I../src/solvers
+INCLUDE_FLAGS = -I./ -I../ -I../include -I../$(CPLMDIR) -I../../$(CPLMDIR) -I../$(CPLM_V0_DIR) -I../../$(CPLM_V0_DIR) -I../utils -I../src/preconditioners -I../src/solvers
 
 #
 #   Directives:
