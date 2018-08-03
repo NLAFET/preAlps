@@ -136,3 +136,23 @@ void CPLM_stdFErr(const char  *fun,
       ierr);
 
 }
+
+/*
+ * Split n in P parts and
+ * returns the number of element, and the data offset for the specified index.
+ */
+void CPLM_nsplit(int n, int P, int index, int *n_i, int *offset_i){
+
+  int r;
+
+  r = n % P;
+
+  *n_i = (int)(n-r)/P;
+
+  *offset_i = index*(*n_i);
+
+  if(index<r) (*n_i)++;
+
+  if(index < r) *offset_i+=index;
+  else *offset_i+=r;
+}

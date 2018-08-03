@@ -18,7 +18,7 @@ Date        : Oct 13, 2017
 #endif
 
 #include "preAlps_param.h"
-#include "preAlps_utils.h"
+//#include "preAlps_utils.h"
 #include "cplm_utils.h"
 #include "cplm_v0_timing.h"
 #include "cplm_ijval.h"
@@ -2045,14 +2045,14 @@ int CPLM_MatCSRBlockColumnExtract(CPLM_Mat_CSR_t *A, int nparts, int *partBegin,
   CPLM_IVector_t colPart = CPLM_IVectorNULL();
 
   //We have only one block Row
-  ierr = CPLM_IVectorMalloc(&rowPart, 2); preAlps_checkError(ierr);
+  ierr = CPLM_IVectorMalloc(&rowPart, 2); CPLM_CHKERR(ierr);
   rowPart.val[0] = 0; rowPart.val[1] = A->info.m; //keep the same number of rows
 
   /* Create a column partitioning */
   CPLM_IVectorCreateFromPtr(&colPart, nparts+1, partBegin);
 
   ierr = CPLM_MatCSRGetSubBlock (A, B_out, &rowPart, &colPart,
-                                  0, numBlock, &work, &workSize); preAlps_checkError(ierr);
+                                  0, numBlock, &work, &workSize); CPLM_CHKERR(ierr);
 
   B_out->info.nnz = A->info.lnnz; //tmp bug fix in CPLM_MatCSRGetSubBlock(); which does not set nnz when the matrix is empty
   if(work!=NULL) free(work);
@@ -2086,7 +2086,7 @@ int CPLM_MatCSRBlockColumnZerosFill(CPLM_Mat_CSR_t *A_in, int *colCount, int num
   /* Sum of the element before the selected block */
   for(i=0;i<numBlock;i++) lpos += colCount[i];
 
-  if ( !(mwork  = (int *) malloc((m+1) * sizeof(int))) ) preAlps_abort("Malloc fails for mwork[].");
+  if ( !(mwork  = (int *) malloc((m+1) * sizeof(int))) ) CPLM_Abort("Malloc fails for mwork[].");
 
 
   //First precompute the number of elements outside the colmun to remove
@@ -2102,7 +2102,7 @@ int CPLM_MatCSRBlockColumnZerosFill(CPLM_Mat_CSR_t *A_in, int *colCount, int num
 
   // Set the matrix infos
   CPLM_MatCSRSetInfo(B_out, A_in->info.m, A_in->info.n, count, A_in->info.m,  A_in->info.n, count, 1);
-  ierr = CPLM_MatCSRMalloc(B_out); preAlps_checkError(ierr);
+  ierr = CPLM_MatCSRMalloc(B_out); CPLM_CHKERR(ierr);
 
   // Fill the output matrix
   count = 0;
@@ -2145,16 +2145,16 @@ int CPLM_MatCSRBlockRowDistribute(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, 
   //Broadcast the matrix size from the root to the other procs
   m = Asend->info.m;
   MPI_Bcast(&m, 1, MPI_INT, root, comm);
-  preAlps_int_printSynchronized(m, "m in rowDistribute", comm);
+  //preAlps_int_printSynchronized(m, "m in rowDistribute", comm);
 
   // Split the number of rows among the processors
   for(i=0;i<nbprocs;i++){
-    preAlps_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
+    CPLM_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
   }
   moffsets[nbprocs] = m;
 
   //distributes the matrix
-  ierr = CPLM_MatCSRBlockRowScatterv(Asend, Arecv, moffsets, root, comm); preAlps_checkError(ierr);
+  ierr = CPLM_MatCSRBlockRowScatterv(Asend, Arecv, moffsets, root, comm); CPLM_CHKERR(ierr);
 
   return ierr;
 }
@@ -2207,11 +2207,11 @@ int CPLM_MatCSRBlockRowGatherv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv,  in
     if(Arecv->val!=NULL)      free(Arecv->val);
 
 
-    if ( !(Arecv->rowPtr = (int *)   malloc((m+1)*sizeof(int))) ) preAlps_abort("Malloc fails for xa[].");
+    if ( !(Arecv->rowPtr = (int *)   malloc((m+1)*sizeof(int))) ) CPLM_Abort("Malloc fails for xa[].");
 
     //buffer
-    if ( !(nxacounts  = (int *) malloc((nbprocs+1)*sizeof(int))) ) preAlps_abort("Malloc fails for nxacounts[].");
-    if ( !(nzcounts  = (int *) malloc(nbprocs*sizeof(int))) ) preAlps_abort("Malloc fails for nzcounts[].");
+    if ( !(nxacounts  = (int *) malloc((nbprocs+1)*sizeof(int))) ) CPLM_Abort("Malloc fails for nxacounts[].");
+    if ( !(nzcounts  = (int *) malloc(nbprocs*sizeof(int))) ) CPLM_Abort("Malloc fails for nzcounts[].");
 
     /* Compute the number of elements to gather  */
 
@@ -2265,7 +2265,7 @@ int CPLM_MatCSRBlockRowGatherv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv,  in
 
   if(my_rank==root){
 
-    if ( !(nzoffsets = (int *) malloc((nbprocs+1)*sizeof(int))) ) preAlps_abort("Malloc fails for nzoffsets[].");
+    if ( !(nzoffsets = (int *) malloc((nbprocs+1)*sizeof(int))) ) CPLM_Abort("Malloc fails for nzoffsets[].");
 
     nzoffsets[0] = 0; nz = 0;
     for(i=0;i<nbprocs;i++){
@@ -2277,8 +2277,8 @@ int CPLM_MatCSRBlockRowGatherv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv,  in
       nz+=nzcounts[i];
     }
 
-    if ( !(Arecv->colInd = (int *)   malloc((nz*sizeof(int)))) ) preAlps_abort("Malloc fails for Arecv->colInd[].");
-    if ( !(Arecv->val = (double *)   malloc((nz*sizeof(double)))) ) preAlps_abort("Malloc fails for Arecv->val[].");
+    if ( !(Arecv->colInd = (int *)   malloc((nz*sizeof(int)))) ) CPLM_Abort("Malloc fails for Arecv->colInd[].");
+    if ( !(Arecv->val = (double *)   malloc((nz*sizeof(double)))) ) CPLM_Abort("Malloc fails for Arecv->val[].");
   }
 
 
@@ -2360,7 +2360,7 @@ int CPLM_MatCSRBlockRowScatterv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, in
    /* Compute the displacements for rowPtr */
    if(my_rank==root){
 
-     if ( !(nxacounts  = (int *) malloc((nbprocs+1)*sizeof(int))) ) preAlps_abort("Malloc fails for nxacounts[].");
+     if ( !(nxacounts  = (int *) malloc((nbprocs+1)*sizeof(int))) ) CPLM_Abort("Malloc fails for nxacounts[].");
    }
 
 
@@ -2387,7 +2387,7 @@ int CPLM_MatCSRBlockRowScatterv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, in
    /* Allocate memory for rowPtr*/
    if(Arecv->rowPtr!=NULL) free(Arecv->rowPtr);
 
-   if ( !(Arecv->rowPtr = (int *)   malloc((mloc+1)*sizeof(int))) ) preAlps_abort("Malloc fails for Arecv->rowPtr[].");
+   if ( !(Arecv->rowPtr = (int *)   malloc((mloc+1)*sizeof(int))) ) CPLM_Abort("Malloc fails for Arecv->rowPtr[].");
 
    /* Distribute xa to each procs. Each proc has mloc+1 elements */
 
@@ -2411,15 +2411,15 @@ int CPLM_MatCSRBlockRowScatterv(CPLM_Mat_CSR_t *Asend, CPLM_Mat_CSR_t *Arecv, in
   /* Allocate memory for colInd and val */
     if(Arecv->colInd!=NULL) free(Arecv->colInd);
     if(Arecv->val!=NULL) free(Arecv->val);
-    if ( !(Arecv->colInd = (int *)   malloc((nzloc*sizeof(int)))) ) preAlps_abort("Malloc fails for Arecv->colInd[].");
-    if ( !(Arecv->val = (double *)   malloc((nzloc*sizeof(double)))) ) preAlps_abort("Malloc fails for Arecv->val[].");
+    if ( !(Arecv->colInd = (int *)   malloc((nzloc*sizeof(int)))) ) CPLM_Abort("Malloc fails for Arecv->colInd[].");
+    if ( !(Arecv->val = (double *)   malloc((nzloc*sizeof(double)))) ) CPLM_Abort("Malloc fails for Arecv->val[].");
 
 
    /* Compute number of non zeros in each rows and the displacement for nnz*/
 
    if(my_rank==root){
-     if ( !(nzcounts  = (int *) malloc(nbprocs*sizeof(int))) ) preAlps_abort("Malloc fails for nzcounts[].");
-     if ( !(nzoffsets = (int *) malloc((nbprocs+1)*sizeof(int))) ) preAlps_abort("Malloc fails for nzoffsets[].");
+     if ( !(nzcounts  = (int *) malloc(nbprocs*sizeof(int))) ) CPLM_Abort("Malloc fails for nzcounts[].");
+     if ( !(nzoffsets = (int *) malloc((nbprocs+1)*sizeof(int))) ) CPLM_Abort("Malloc fails for nzoffsets[].");
      nzoffsets[0] = 0;
      for(i=0;i<nbprocs;i++){
 
@@ -2566,7 +2566,7 @@ int CPLM_MatCSRMatrixCSRDenseMult(CPLM_Mat_CSR_t *A, double alpha, double *B, in
 	  }
 
   #else
-   preAlps_abort("Only MKL is supported so far for the Matrix matrix product. Please compile with MKL\n");
+   CPLM_Abort("Only MKL is supported so far for the Matrix matrix product. Please compile with MKL\n");
   #endif
 
   return ierr;
@@ -2585,7 +2585,7 @@ int CPLM_MatCSRMatrixVector(CPLM_Mat_CSR_t *A, double alpha, double *x, double b
      char matdescra[6] = {'G', ' ', ' ', 'C', ' ', ' '};
      mkl_dcsrmv("N", &A->info.m, &A->info.n, &alpha, matdescra, A->val, A->colInd, A->rowPtr, &A->rowPtr[1], x, &beta, y);
     #else
-     //preAlps_abort("Only MKL is supported so far for the Matrix vector product\n");
+     //CPLM_Abort("Only MKL is supported so far for the Matrix vector product\n");
      int i,j ;
      for (i=0; i<A->info.m; i++ ){
        //y[i]=0;
@@ -2633,11 +2633,11 @@ int CPLM_MatCSROrderingND(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int *or
     nparts = 2*nparts+1;
   }
 
-  if ( !(pmetis_vtdist = (idx_t *)   malloc(((nbprocs+1)*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_order[].");
-  if ( !(pmetis_order  = (idx_t *)   malloc((A->info.m*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_order[].");
-  if ( !(pmetis_sizes  = (idx_t *)   malloc((nparts*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_sizes[].");
-  if ( !(pmetis_rowPtr = (idx_t *)   malloc(((A->info.m+1)*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_order[].");
-  if ( !(pmetis_colInd = (idx_t *)   malloc((A->info.lnnz*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_sizes[].");
+  if ( !(pmetis_vtdist = (idx_t *)   malloc(((nbprocs+1)*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_order[].");
+  if ( !(pmetis_order  = (idx_t *)   malloc((A->info.m*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_order[].");
+  if ( !(pmetis_sizes  = (idx_t *)   malloc((nparts*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_sizes[].");
+  if ( !(pmetis_rowPtr = (idx_t *)   malloc(((A->info.m+1)*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_order[].");
+  if ( !(pmetis_colInd = (idx_t *)   malloc((A->info.lnnz*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_sizes[].");
 
   //convert to idx_t
   if(sizeof(idx_t)!=sizeof(int)) printf("[preAlps parMetis] *** Type missmatch: sizeof(idx_t):%lu, sizeof(int):%lu. Please compile parMetis with appropriate idx_t 32;\n", sizeof(idx_t), sizeof(int));
@@ -2664,10 +2664,10 @@ int CPLM_MatCSROrderingND(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, int *or
   err = ParMETIS_V3_NodeND (vtdist, A->rowPtr, A->colInd, &numflag, options, order, sizes, &comm);
 #endif
 
-  if(err!=METIS_OK) {printf("METIS returned error:%d\n", err); preAlps_abort("ParMetis Ordering Failed.");}
+  if(err!=METIS_OK) {printf("METIS returned error:%d\n", err); CPLM_Abort("ParMetis Ordering Failed.");}
 
 #else
-  preAlps_abort("No other NodeND partitioning tool is supported at the moment. Please Rebuild with ParMetis !");
+  CPLM_Abort("No other NodeND partitioning tool is supported at the moment. Please Rebuild with ParMetis !");
 #endif
 
   return err;
@@ -2696,8 +2696,8 @@ int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, i
   float *tpwgts;
   float *ubvec;
 
-  if ( !(tpwgts = (float *)   malloc((nparts*ncon*sizeof(float)))) ) preAlps_abort("Malloc fails for tpwgts[].");
-  if ( !(ubvec = (float *)    malloc((ncon*sizeof(float)))) ) preAlps_abort("Malloc fails for ubvec[].");
+  if ( !(tpwgts = (float *)   malloc((nparts*ncon*sizeof(float)))) ) CPLM_Abort("Malloc fails for tpwgts[].");
+  if ( !(ubvec = (float *)    malloc((ncon*sizeof(float)))) ) CPLM_Abort("Malloc fails for ubvec[].");
 
   options[0] = 0;
   options[1] = 0;
@@ -2712,10 +2712,10 @@ int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, i
   idx_t *pmetis_vtdist, *pmetis_partloc;
   idx_t *pmetis_rowPtr, *pmetis_colInd;
 
-  if ( !(pmetis_vtdist  = (idx_t *)   malloc(((nbprocs+1)*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_order[].");
-  if ( !(pmetis_partloc = (idx_t *)   malloc((A->info.m*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_order[].");
-  if ( !(pmetis_rowPtr  = (idx_t *)   malloc(((A->info.m+1)*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_order[].");
-  if ( !(pmetis_colInd  = (idx_t *)   malloc((A->info.lnnz*sizeof(idx_t)))) ) preAlps_abort("Malloc fails for pmetis_sizes[].");
+  if ( !(pmetis_vtdist  = (idx_t *)   malloc(((nbprocs+1)*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_order[].");
+  if ( !(pmetis_partloc = (idx_t *)   malloc((A->info.m*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_order[].");
+  if ( !(pmetis_rowPtr  = (idx_t *)   malloc(((A->info.m+1)*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_order[].");
+  if ( !(pmetis_colInd  = (idx_t *)   malloc((A->info.lnnz*sizeof(idx_t)))) ) CPLM_Abort("Malloc fails for pmetis_sizes[].");
 
   //convert to idx_t
   for(i=0;i<nbprocs+1;i++)    pmetis_vtdist[i] = vtdist[i];
@@ -2736,13 +2736,13 @@ int CPLM_MatCSRPartitioningKway(MPI_Comm comm, CPLM_Mat_CSR_t *A, int *vtdist, i
   free(pmetis_partloc);
 
 
-  if(err!=METIS_OK) {printf("METIS returned error:%d\n", err); preAlps_abort("ParMetis Failed.");}
+  if(err!=METIS_OK) {printf("METIS returned error:%d\n", err); CPLM_Abort("ParMetis Failed.");}
 
   free(tpwgts);
   free(ubvec);
 
 #else
-  preAlps_abort("No other Kway partitioning tool is supported at the moment. Please Rebuild with ParMetis !");
+  CPLM_Abort("No other Kway partitioning tool is supported at the moment. Please Rebuild with ParMetis !");
 #endif
   return err;
 }
@@ -2862,7 +2862,7 @@ int CPLM_MatCSRRowsMerge(CPLM_Mat_CSR_t *A_in, CPLM_Mat_CSR_t *B_in, CPLM_Mat_CS
   // Set the matrix infos
   CPLM_MatCSRSetInfo(C_out, C_m, A_in->info.n, C_nnz, C_m,  A_in->info.n, C_nnz, 1);
 
-  ierr = CPLM_MatCSRMalloc(C_out); preAlps_checkError(ierr);
+  ierr = CPLM_MatCSRMalloc(C_out); CPLM_CHKERR(ierr);
 
   //fill the matrix
   count = 0;
@@ -2918,7 +2918,7 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
   for (i = 0; i < A->info.m; i++){
       R[i] = 0.0;
       for (j = A->rowPtr[i]; j < A->rowPtr[i+1]; j++) {
-          R[i] = max( R[i], fabs(A->val[j]) );
+          R[i] = CPLM_MAX( R[i], fabs(A->val[j]) );
       }
   }
 
@@ -2926,8 +2926,8 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
   rcmin = R[0];
   rcmax = R[0];
   for (i = 1; i < A->info.m; ++i) {
-      rcmax = max(rcmax, R[i]);
-      rcmin = min(rcmin, R[i]);
+      rcmax = CPLM_MAX(rcmax, R[i]);
+      rcmin = CPLM_MIN(rcmin, R[i]);
   }
 
 #ifdef DEBUG
@@ -2938,7 +2938,7 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
   //*amax = rcmax;
 
   if (rcmin == 0.) {
-    preAlps_abort("Impossible to scale the matrix, rcmin=0");
+    CPLM_Abort("Impossible to scale the matrix, rcmin=0");
 
   } else {
       /* Invert the scale factors. */
@@ -2968,12 +2968,12 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
   rcmin = C[0];
   rcmax = C[0];
   for (j = 1; j < A->info.n; ++j) {
-      rcmax = MAX(rcmax, C[j]);
-      rcmin = MIN(rcmin, C[j]);
+      rcmax = CPLM_MAX(rcmax, C[j]);
+      rcmin = CPLM_MIN(rcmin, C[j]);
   }
 
   if (rcmin == 0.) {
-    preAlps_abort("Impossible to scale the matrix, rcmin=0");
+    CPLM_Abort("Impossible to scale the matrix, rcmin=0");
   } else {
       /* Invert the scale factors. */
       for (j = 0; j < A->info.n; ++j)
@@ -3014,13 +3014,13 @@ int CPLM_MatCSRTranspose(CPLM_Mat_CSR_t *A_in, CPLM_Mat_CSR_t *B_out){
 
   if(A_in->info.lnnz==0) return ierr; //Quick return
 
-  ierr  = CPLM_MatCSRMalloc(B_out); preAlps_checkError(ierr);
+  ierr  = CPLM_MatCSRMalloc(B_out); CPLM_CHKERR(ierr);
 
   /* Allocate workspace */
 
   work    = (int*) malloc( (A_in->info.n+1)   * sizeof(int));
 
-  if(!work) preAlps_abort("Malloc failed for work");
+  if(!work) CPLM_Abort("Malloc failed for work");
 
 
   for(jcol=0;jcol<A_in->info.n+1;jcol++){

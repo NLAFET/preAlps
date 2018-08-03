@@ -27,6 +27,7 @@
 #define CPALAMEMSIGWRN  "WARNING"
 #define CPALAMEMSIGABRT "ABORTING"
 
+
 /* Simplified version of CPLM_CHKERR */
 #define CPLM_CHKERR(_e) if((_e) != 0)\
 {CPLM_stdFErr(__FUNCTION__, __FILE__, __LINE__, (_e));}
@@ -54,6 +55,11 @@ void CPLM_esprintf( const char *signal,
 void CPLM_FAbort(const char *fun,  const char *format, ...);
 void CPLM_stdFErr(const char *fun, const char *file, const int line, const int ierr);
 
+/*
+ * Split n in P parts and
+ * returns the number of element, and the data offset for the specified index.
+ */
+void CPLM_nsplit(int n, int P, int index, int *n_i, int *offset_i);
 
 
 #endif

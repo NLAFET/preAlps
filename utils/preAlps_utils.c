@@ -144,7 +144,7 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
 
   // Split the number of rows among the processors
   for(i=0;i<nbprocs;i++){
-    preAlps_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
+    CPLM_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
   }
   moffsets[nbprocs] = m;
 
@@ -206,7 +206,7 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
   CPLM_MatCSROrderingND(comm, &locAP, moffsets, order, sizes);
 
   preAlps_intVector_printSynchronized(order, mloc, "order", "Order after ordering", comm);
-  
+
   // Gather the ordering infos from all to all
   ierr = MPI_Allgatherv(order, mloc, MPI_INT, perm, mcounts, moffsets, MPI_INT, comm); preAlps_checkError(ierr);
 #endif
@@ -369,7 +369,7 @@ int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_C
 
   // Split the separator among all the processors
   for(i=0;i<nbprocs;i++){
-    preAlps_nsplit(sep_nrows, nbprocs, i, &sep_mcounts[i], &sep_moffsets[i]);
+    CPLM_nsplit(sep_nrows, nbprocs, i, &sep_mcounts[i], &sep_moffsets[i]);
   }
   sep_moffsets[nbprocs] = sep_nrows;
 
@@ -776,25 +776,7 @@ void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int
     }
 }
 
-/*
- * Split n in P parts.
- * Returns the number of element, and the data offset for the specified index.
- */
-void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i){
 
-  int r;
-
-  r = n % P;
-
-  *n_i = (int)(n-r)/P;
-
-  *offset_i = index*(*n_i);
-
-  if(index<r) (*n_i)++;
-
-  if(index < r) *offset_i+=index;
-  else *offset_i+=r;
-}
 
 /* pinv = p', or p = pinv' */
 int *preAlps_pinv (int const *p, int n){

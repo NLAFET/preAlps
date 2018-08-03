@@ -171,12 +171,6 @@ void preAlps_NodeNDPostOrder(int nparts, int *part_in, int *part_out);
 void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos);
 
 
-/*
- * Split n in P parts.
- * Returns the number of element, and the data offset for the specified index.
- */
-void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i);
-
 /* pinv = p', or p = pinv' */
 int *preAlps_pinv (int const *p, int n);
 
