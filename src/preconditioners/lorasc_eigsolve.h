@@ -11,7 +11,7 @@ Date        : oct 1, 2017
 #define LORASC_EIGSOLVE_H
 
 #include <mpi.h>
-#include <preAlps_cplm_matcsr.h>
+#include <cplm_matcsr.h>
 #include "lorasc.h"
 #include "preAlps_solver.h"
 

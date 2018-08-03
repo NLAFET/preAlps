@@ -19,11 +19,11 @@
 /* CPaLAMeM */
 //#include <cpalamem_macro.h>
 //#include <cpalamem_instrumentation.h>
-#include <preAlps_cplm_timing.h>
-#include <preAlps_cplm_matcsr.h>
-#include <preAlps_cplm_matdense.h>
-#include <preAlps_cplm_kernels.h>
-#include <preAlps_cplm_ivector.h>
+#include <cplm_v0_timing.h>
+#include <cplm_matcsr.h>
+#include <cplm_matdense.h>
+#include <cplm_v0_kernels.h>
+#include <cplm_v0_ivector.h>
 /* MKL */
 #include <mkl_pardiso.h>
 /* ParBCG */

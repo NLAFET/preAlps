@@ -10,7 +10,7 @@ Date        : Sept 27, 2017
 #ifndef PREALPS_PRECONDITIONER_H
 #define PREALPS_PRECONDITIONER_H
 
-#include <preAlps_cplm_matdense.h>
+#include <cplm_matdense.h>
 #include "preAlps_preconditioner_struct.h"
 
 

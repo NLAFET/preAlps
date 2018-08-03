@@ -13,9 +13,9 @@ Date        : jun 13, 2018
 #include <stdlib.h>
 #include <stdio.h>
 #include <preAlps_utils.h>
-#include <preAlps_cplm_utils.h>
-#include <preAlps_cplm_timing.h>
-#include <preAlps_cplm_ivector.h>
+#include <cplm_utils.h>
+#include <cplm_v0_timing.h>
+#include <cplm_v0_ivector.h>
 
 /**
  * \fn bCast_Vect(int *vec, int length, MPI_Comm comm, int root)

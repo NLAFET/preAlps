@@ -1,6 +1,6 @@
 /*
 ============================================================================
-Name        : preAlps_cplm_matcsr.h
+Name        : cplm_matcsr.h
 Author      : Simplice Donfack, Sebastien Cayrols
 Version     : 0.1
 Description : Functions of preAlps which will be part of MatCSR.
@@ -19,13 +19,13 @@ Date        : Oct 13, 2017
 
 #include "preAlps_param.h"
 #include "preAlps_utils.h"
-#include "preAlps_cplm_utils.h"
-#include "preAlps_cplm_timing.h"
-#include "preAlps_cplm_ijval.h"
-#include "preAlps_cplm_QS.h"
-#include "preAlps_cplm_ivector.h"
-#include "preAlps_cplm_dvector.h"
-#include "preAlps_cplm_matcsr.h"
+#include "cplm_utils.h"
+#include "cplm_v0_timing.h"
+#include "cplm_ijval.h"
+#include "cplm_QS.h"
+#include "cplm_v0_ivector.h"
+#include "cplm_v0_dvector.h"
+#include "cplm_matcsr.h"
 
 
 /* For the matmult*/

@@ -137,6 +137,7 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CS
 
   // Check Args
 
+  preAlps_int_printSynchronized(0, "lorasc dbg", comm);
 
   if(lorasc->npLevel1<=0) lorasc->npLevel1 = nbprocs;
 
@@ -194,6 +195,8 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CS
 
   }
 
+  preAlps_int_printSynchronized(1, "lorasc dbg", comm);
+
   /*
    * 1. Create a block arrow structure of the matrix
    */
@@ -207,6 +210,8 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CS
       preAlps_abort("This number of process is not support yet. Please use a multiple of 2. nbprocs (level 1): %d, nparts created:%d\n", masterGroup_nbprocs, nparts-1);
     }
   }
+
+  preAlps_int_printSynchronized(2, "lorasc dbg", comm);
 
   /*
    * 2. Distribute the permuted matrix to all the processors
@@ -236,23 +241,24 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CS
   if ( !(Aig_mcounts  = (int *) malloc((localGroup_nbprocs) * sizeof(int))) ) preAlps_abort("Malloc fails for Aig_mcounts[].");
   if ( !(Aig_moffsets = (int *) malloc((localGroup_nbprocs+1) * sizeof(int))) ) preAlps_abort("Malloc fails for Aig_moffsets[].");
 
-
+  preAlps_int_printSynchronized(3, "lorasc dbg 3.1", comm);
   //Distribute the blocks to the local group
 
   CPLM_MatCSRBlockRowDistribute(Aii, &Aiwork, Aii_mcounts, Aii_moffsets, local_root, comm_localGroup);
   CPLM_MatCSRCopy(&Aiwork, Aii);
 
+  preAlps_int_printSynchronized(3, "lorasc dbg 3.2", comm);
 
   CPLM_MatCSRBlockRowDistribute(Agi, &Aiwork, Agi_mcounts, Agi_moffsets, local_root, comm_localGroup);
   CPLM_MatCSRCopy(&Aiwork, Agi);
-
+  preAlps_int_printSynchronized(3, "lorasc dbg 3.3", comm);
   CPLM_MatCSRBlockRowDistribute(Aig, &Aiwork, Aig_mcounts, Aig_moffsets, local_root, comm_localGroup);
   CPLM_MatCSRCopy(&Aiwork, Aig);
 
   //}
 
 
-
+  preAlps_int_printSynchronized(4, "lorasc dbg", comm);
 
 
   if(!lorasc->OptPermuteOnly){

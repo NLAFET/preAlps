@@ -7,7 +7,7 @@ all: compil_cplm compil_utils  compil_src compil_examples ok
 compil_cplm:
 		@if [ ! -d $(LIBDIR) ]; then mkdir -v $(LIBDIR);fi
 		( cd $(CPLMDIR) ; $(MAKE) )
-
+		( cd $(CPLM_V0_DIR) ; $(MAKE) )
 compil_utils:
 	@if [ ! -d $(LIBDIR) ]; then mkdir -v $(LIBDIR);fi
 	make -C $(UTILS)

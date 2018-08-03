@@ -16,11 +16,11 @@ Date        : Mai 15, 2017
 #include <mkl.h>
 #endif
 
-#include "preAlps_cplm_ivector.h"
-#include "preAlps_cplm_matcsr.h"
+#include "cplm_v0_ivector.h"
+#include "cplm_matcsr.h"
 #include "preAlps_intvector.h"
 #include "preAlps_doublevector.h"
-#include "preAlps_cplm_matcsr.h"
+#include "cplm_matcsr.h"
 
 #ifndef max
 #define max(a,b) ((a) > (b) ? a : b)

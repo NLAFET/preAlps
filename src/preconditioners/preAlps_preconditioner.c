@@ -14,7 +14,7 @@ Date        : Sept 27, 2017
 
 #include "lorasc.h"
 #include "presc.h"
-#include <preAlps_cplm_matdense.h>
+#include <cplm_matdense.h>
 
 /* Create a generic preconditioner object compatible with EcgSolver*/
 int preAlps_PreconditionerCreate(PreAlps_preconditioner_t **precond, Prec_Type_t precond_type, void *data){

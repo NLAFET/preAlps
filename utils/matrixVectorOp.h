@@ -11,7 +11,7 @@ Date        : Sept 15, 2017
 #ifndef MATRIXVECTOROP_H
 #define MATRIXVECTOROP_H
 
-#include "preAlps_cplm_matcsr.h"
+#include "cplm_matcsr.h"
 #include "solverStats.h"
 #include "preAlps_solver.h"
 

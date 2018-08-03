@@ -16,7 +16,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <preAlps_cplm_QS.h>
+#include <cplm_QS.h>
 #include <math.h>
 
 typedef struct{

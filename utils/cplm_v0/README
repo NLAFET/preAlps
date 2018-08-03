@@ -1,0 +1,1 @@
+This directory contains the old version of cpalamem functions being migrated, but still temporally used by preAlps. All files in this folder must migrate to the cplm_light folder. cplm_light should not contain any reference to the classes IVector, Dvector and advanced memory management.

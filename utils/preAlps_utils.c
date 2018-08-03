@@ -17,9 +17,9 @@ Date        : Mai 15, 2017
 
 #include <cplm_iarray.h>
 
-#include <preAlps_cplm_ivector.h>
-#include "preAlps_cplm_utils.h"
-#include "preAlps_cplm_matcsr.h"
+#include <cplm_v0_ivector.h>
+#include "cplm_utils.h"
+#include "cplm_matcsr.h"
 #include "preAlps_intvector.h"
 #include "preAlps_doublevector.h"
 #include "preAlps_utils.h"

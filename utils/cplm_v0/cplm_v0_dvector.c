@@ -10,9 +10,9 @@ Date        : jun 13, 2018
 */
 #include <stdlib.h>
 #include <stdio.h>
-#include <preAlps_cplm_utils.h>
-#include <preAlps_cplm_timing.h>
-#include <preAlps_cplm_dvector.h>
+#include <cplm_utils.h>
+#include <cplm_v0_timing.h>
+#include <cplm_v0_dvector.h>
 
 int CPLM_DVectorMalloc(CPLM_DVector_t   *v_out,
                   int         length)

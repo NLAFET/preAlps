@@ -13,6 +13,7 @@ LIBDIR    = lib
 INCDIR    = include
 UTILS     = utils
 CPLMDIR   = utils/cplm_light
+CPLM_VO_DIR   = utils/cplm_v0
 SRC       = src
 EXAMPLES  = examples
 
@@ -26,7 +27,7 @@ CFLAGS       = -Wall -funroll-loops -std=c99 -fPIC
 OPT          = -O3 -march=native -mtune=native
 LOADER       = mpicc
 LOADOPTS     = -lgfortran -lm
-LD_FLAGS     = -lcplm_light
+LD_FLAGS     = -lcplm_light -lcplm_migration
 
 USE_DEBUG=0
 #possible values: -DDEBUG -DPRINT_MOD=<number>
@@ -40,7 +41,7 @@ endif
 #   Include dir
 #
 
-INCLUDE_FLAGS = -I./ -I../include -I../$(CPLMDIR) -I../utils -I../src/preconditioners -I../src/solvers
+INCLUDE_FLAGS = -I./ -I../ -I../include -I../$(CPLMDIR) -I../../$(CPLMDIR) -I../$(CPLM_VO_DIR) -I../../$(CPLM_VO_DIR) -I../utils -I../src/preconditioners -I../src/solvers
 
 #
 #   Directives:

@@ -12,10 +12,10 @@
 #ifdef PETSC
 #include <petsc_interface.h>
 #endif
-#include <preAlps_cplm_utils.h>
-#include <preAlps_cplm_timing.h>
-#include <preAlps_cplm_ivector.h>
-#include <preAlps_cplm_matcsr.h>
+#include <cplm_utils.h>
+#include <cplm_v0_timing.h>
+#include <cplm_v0_ivector.h>
+#include <cplm_matcsr.h>
 #include <preAlps_matmult_v2.h>
 #include "operator.h"
 /******************************************************************************/
