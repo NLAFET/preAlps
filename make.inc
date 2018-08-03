@@ -27,7 +27,7 @@ CFLAGS       = -Wall -funroll-loops -std=c99 -fPIC
 OPT          = -O3 -march=native -mtune=native
 LOADER       = mpicc
 LOADOPTS     = -lgfortran -lm
-LD_FLAGS     = -lcplm_light -lcplm_migration
+LD_FLAGS     = -lcplm_light -lcplm_v0
 
 USE_DEBUG=0
 #possible values: -DDEBUG -DPRINT_MOD=<number>
