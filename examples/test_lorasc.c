@@ -22,8 +22,8 @@ Date        : Mai 15, 2017
 
 #include "preAlps_utils.h"
 #include "preAlps_doublevector.h"
-#include <preAlps_cplm_utils.h>
-#include "preAlps_cplm_matcsr.h"
+#include <cplm_utils.h>
+#include "cplm_matcsr.h"
 #include "precond.h"
 #include "preAlps_preconditioner.h"
 #include "lorasc.h"
@@ -101,7 +101,7 @@ int main(int argc, char** argv){
   CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int i, ierr = 0;
 
-  double *b = NULL, *rhs = NULL;//*x = NULL,
+  double *b = NULL, *rhs = NULL, *sol = NULL, *x = NULL;
   int m = 0, n, nnz, mloc, offsetloc, rhs_size = 0;
 
   double ttemp, tPartition =0.0, tPrec = 0.0, tSolve = 0.0, tTotal;
@@ -124,7 +124,7 @@ int main(int argc, char** argv){
   preAlps_Lorasc_t *lorascA = NULL;
 
   /* Program default parameters */
-  int doScale = 1, monitorResidual = 0;
+  int doScale = 0, monitorResidual = 0;
   int precond_num = 2; /* 0: no prec, 1: blockJacobi, 2: Lorasc */
   int ecg_enlargedFactor = 1, ecg_maxIter = 30000;
   int ecg_ortho_alg = ORTHOMIN;
@@ -175,16 +175,12 @@ int main(int argc, char** argv){
     break;
   }
 
-  /* Check args */
+  // Check args
   if(npLevel1<=0 || npLevel1>nbprocs) npLevel1 = nbprocs;
-  if(my_rank==root) printf("nbprocs: %d, nbprocs Level 1: %d\n", nbprocs, npLevel1);
 
   checkArgs(comm, precond_num, precond_type, npLevel1);
 
-  /*
-   * Load the matrix on proc 0
-   */
-
+  // Print Summary
   if(my_rank==0){
 
     if(strlen(matrix_filename)==0){
@@ -192,14 +188,16 @@ int main(int argc, char** argv){
     }
 
     printf("Matrix name: %s\nEnlarged factor: %d\n", matrix_filename, ecg_enlargedFactor);
+    printf("nbprocs: %d, nbprocs Level 1: %d\n", nbprocs, npLevel1);
     printf("Reading matrix ...\n");
   }
 
+  // Load the matrix on proc 0
   if(my_rank==root){
 
+    const char* ext = preAlps_get_filename_extension(matrix_filename);
 
-    const char* ftype = matrix_filename + strlen(matrix_filename) - 3;
-    if (strcmp(ftype,"mtx") == 0) {
+    if (strcmp(ext,"mtx") == 0) {
       CPLM_LoadMatrixMarket(matrix_filename, &A);
     }else{
       #ifdef PETSC
@@ -212,13 +210,47 @@ int main(int argc, char** argv){
       #endif
     }
 
+    //CPLM_MatCSRPrintInfo(&A);
+    CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
+  }
 
-    // Get the local dimension of A
-    preAlps_nsplit(A.info.m, nbprocs, my_rank, &mloc, &offsetloc);
+  // Load the Right-hand side on proc 0
+  if(my_rank==root){
+
+    if(strlen(rhs_filename)==0){
+
+      if ( !(rhs  = (double *) malloc(A.info.m*sizeof(double))) ) preAlps_abort("Malloc fails for rhs[].");
+      /*
+      // Generate a random vector
+      srand(11);
+      for(int i=0;i<A.info.m;i++)
+        rhs[i] = ((double) rand() / (double) RAND_MAX);
+      */
+      // Set a rhs
+      double *xTmp;
+      xTmp = (double*) malloc(A.info.m*sizeof(double));
+      for (int k = 0 ; k < A.info.m ; k++) xTmp [k] = 1.0;
+      // rhs = Ax
+
+      CPLM_MatCSRMatrixVector(&A, 1.0, xTmp, 0.0, rhs);
+      free(xTmp);
+    }else{
+      // Read rhs on proc 0
+      preAlps_doubleVector_load(rhs_filename, &rhs, &rhs_size);
+
+      if(rhs_size!=A.info.m){
+        preAlps_abort("Error: the matrix and rhs size does not match. Matrix size: %d x %d, rhs size: %d", A.info.m, A.info.n, rhs_size);
+      }
+      //for(i=0;i<rhs_size;i++) b[i] = rhs[i];
+      //free(rhs);
+    }
+    //preAlps_doubleVector_printSynchronized(b, A.info.m, "b0", "b", MPI_COMM_SELF);
+  }
+
+  // Scale the matrix
+  if(my_rank==root){
 
     if(doScale){
-
-      // Scale the matrix
       double *R, *C;
 
       if ( !(R  = (double *) malloc(A.info.m * sizeof(double))) ) preAlps_abort("Malloc fails for R[].");
@@ -228,42 +260,15 @@ int main(int argc, char** argv){
 
       free(R);
       free(C);
+
+      #ifdef BUILDING_MATRICES_DUMP
+        printf("Dumping the matrix ...\n");
+        CPLM_MatCSRSave(&A, "dump_AScaled.mtx");
+        printf("Dumping the matrix ... done\n");
+      #endif
+
+      CPLM_MatCSRPrintCoords(&A, "Scaled matrix");
     }
-
-    #ifdef BUILDING_MATRICES_DUMP
-      printf("Dumping the matrix ...\n");
-      CPLM_MatCSRSave(&A, "dump_AScaled.mtx");
-      printf("Dumping the matrix ... done\n");
-    #endif
-
-    CPLM_MatCSRPrintCoords(&A, "Scaled matrix");
-
-    //CPLM_MatCSRPrintInfo(&A);
-
-    CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
-  }
-
-  if(my_rank==root){
-
-    // Load the Right-hand side
-    if ( !(b  = (double *) malloc(A.info.m*sizeof(double))) ) preAlps_abort("Malloc fails for b[].");
-
-    if(strlen(rhs_filename)==0){
-      // Generate a random vector
-      srand(11);
-      for(int i=0;i<A.info.m;i++)
-        b[i] = ((double) rand() / (double) RAND_MAX);
-    }else{
-      // Read rhs on proc 0
-      preAlps_doubleVector_load(rhs_filename, &rhs, &rhs_size);
-
-      if(rhs_size!=A.info.m){
-        preAlps_abort("Error: the matrix and rhs size does not match. Matrix size: %d x %d, rhs size: %d", A.info.m, A.info.n, rhs_size);
-      }
-      for(i=0;i<rhs_size;i++) b[i] = rhs[i];
-      free(rhs);
-    }
-    //preAlps_doubleVector_printSynchronized(b, A.info.m, "b0", "b", MPI_COMM_SELF);
   }
 
 
@@ -312,10 +317,13 @@ int main(int argc, char** argv){
   }
 
 
+
   comm_masterGroup = lorascA->comm_masterGroup;
   comm_localGroup  = lorascA->comm_localGroup;
 
   if(comm_masterGroup!=MPI_COMM_NULL){
+
+    CPLM_MatCSRPrintSynchronizedCoords(&locAP, comm_masterGroup, "locAP", "locAP");
 
     // Broadcast the global matrix dimension from the root to the other procs in the master groups
     CPLM_MatCSRDimensions_Bcast(&A, root, &m, &n, &nnz, comm_masterGroup);
@@ -355,16 +363,25 @@ int main(int argc, char** argv){
   //if(my_rank==0) preAlps_doubleVector_gathervDump(b, A.info.m, "dump/b0.txt", MPI_COMM_SELF, "b0");
   if(comm_masterGroup!=MPI_COMM_NULL){
 
-    if(my_rank!=root){
-      if ( !(b  = (double *) malloc(m*sizeof(double))) ) preAlps_abort("Malloc fails for b[].");
+    //if(my_rank!=root){
+    if ( !(b  = (double *) malloc(m*sizeof(double))) ) preAlps_abort("Malloc fails for b[].");
+    //}
+
+    //Apply the permutation on the right hand side
+    if(my_rank==root){
+
+      preAlps_doubleVector_permute(lorascA->perm, rhs, b, m);
+
     }
 
-    // Broadcast the rhs to all the processors
-    MPI_Bcast(b, m, MPI_DOUBLE, root, comm_masterGroup);
+    //Distribute the rhs
+    MPI_Scatterv(b, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, my_rank==0?MPI_IN_PLACE:b, locAP.info.m, MPI_DOUBLE, root, comm_masterGroup);
+    preAlps_doubleVector_printSynchronized(b, locAP.info.m, "b after scatter", "b", comm_masterGroup);
 
   }
 
   /* Solve the system */
+
   preAlps_ECG_t ecg;
   // Set parameters
   ecg.comm       = comm_masterGroup;  /* MPI Communicator */
@@ -466,11 +483,45 @@ int main(int argc, char** argv){
 
   if(comm_masterGroup!=MPI_COMM_NULL){
 
-    double* sol = NULL;
-    sol = (double*) malloc(m*sizeof(double));
+
+    sol = (double*) malloc(locAP.info.m*sizeof(double));
+
+    preAlps_doubleVectorSet_printSynchronized(ecg.X->val, ecg.X->info.m, ecg.X->info.n, ecg.X->info.lda, "X", "X computed", comm_masterGroup);
 
     // Retrieve solution and free memory
     preAlps_ECGFinalize(&ecg, sol);
+
+
+    preAlps_doubleVector_printSynchronized(sol, locAP.info.m, "sol", "solution", comm_masterGroup);
+
+    //Gather the solution
+    if(my_rank==0) x = (double*) malloc(m*sizeof(double));
+    MPI_Gatherv(sol, locAP.info.m, MPI_DOUBLE, x, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, root, comm_masterGroup);
+
+    if(my_rank==0) {
+
+      double *xTmp;
+      xTmp = (double*) malloc(m*sizeof(double));
+
+      preAlps_doubleVector_invpermute(lorascA->perm, x, xTmp, m);
+
+      preAlps_doubleVector_printSynchronized(xTmp, m, "final solution", "xTmp", MPI_COMM_SELF);
+
+      #ifdef DEBUG
+        double *rTmp;
+        rTmp = (double*) malloc(m*sizeof(double));
+        for (int k = 0 ; k < m ; k++) rTmp [ k] = rhs [k] ;
+        // compute Ax-b
+        CPLM_MatCSRMatrixVector(&A, 1.0, xTmp, -1.0, rTmp);
+
+        preAlps_doubleVector_printSynchronized(rTmp, m, "err=b-AX", "err", MPI_COMM_SELF);
+
+        printf("norm b: %e, norm res:%e\n", preAlps_doubleVector_norm2(rhs, m), preAlps_doubleVector_norm2(rTmp, m)/preAlps_doubleVector_norm2(rhs, m));
+      #endif
+
+      free(xTmp);
+    }
+
 
     tSolve = MPI_Wtime() - ttemp;
 
@@ -485,7 +536,7 @@ int main(int argc, char** argv){
     preAlps_dstats_display(comm_masterGroup, tSolve, "Time Solve");
     preAlps_dstats_display(comm_masterGroup, tTotal, "Time Total");
 
-    free(sol);
+
 
     #ifdef USE_OPERATOR_MATMULT_GATHERV
       free(vs);
@@ -508,6 +559,9 @@ int main(int argc, char** argv){
   }
 
   if(b) free(b);
+  if(rhs) free(rhs);
+  if(sol) free(sol);
+  if(x) free(x);
   CPLM_MatCSRFree(&locAP);
   if(my_rank==0){
     CPLM_MatCSRFree(&A);
