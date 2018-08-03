@@ -62,6 +62,15 @@ void preAlps_doubleVector_gathervDump(double *v_in, int mloc, char *fileName, MP
 
 }
 
+
+/* Permute a vector by computing x = P^{-1}*b = P^{T}*b , for dense vectors x and b; p=NULL denotes identity */
+void preAlps_doubleVector_invpermute(const int *p, const double *b_in, double *x_out, int n)
+{
+    int k ;
+    for (k = 0 ; k < n ; k++) x_out [p ? p [k] : k] = b_in [k] ;
+}
+
+
 /*
  * Load a vector from a file.
  */
@@ -82,7 +91,7 @@ double preAlps_doubleVector_norm2(double *v, int vlen){
     return sqrt(r);
 }
 
-/* x = b(p), for dense vectors x and b; p=NULL denotes identity */
+/* Permute a vector by computing x = P*b, for dense vectors x and b; p=NULL denotes identity */
 void preAlps_doubleVector_permute(const int *p, const double *b_in, double *x_out, int n)
 {
     int k ;
@@ -120,7 +129,7 @@ void preAlps_doubleVector_printSynchronized(double *v, int vlen, char *varname, 
 
   if(my_rank ==0){
 
-    printf("[%d] %s, norm:%f\n", 0, s, preAlps_doubleVector_norm2(v, vlen));
+    printf("[%d] %s, norm:%e\n", 0, s, preAlps_doubleVector_norm2(v, vlen));
 
     for(j=0;j<vlen;j++) {
 
@@ -142,7 +151,7 @@ void preAlps_doubleVector_printSynchronized(double *v, int vlen, char *varname, 
       CPLM_DVectorRecv(&vbuffer, i, TAG_PRINT, comm);
 
       //printf("[%d] %s\n", i, s);
-      printf("[%d] %s, norm:%f\n", i, s, preAlps_doubleVector_norm2(vbuffer.val, vbuffer.nval));
+      printf("[%d] %s, norm:%e\n", i, s, preAlps_doubleVector_norm2(vbuffer.val, vbuffer.nval));
       mark = 0;
       for(j=0;j<vbuffer.nval;j++) {
 

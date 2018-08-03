@@ -82,7 +82,7 @@ void CPLM_esprintf( const char *signal,
 /*Function which checks the return of an MPI call*/
 void CPLM_checkMPIERR(int cr, const char *action){
 
-#ifdef DEBUG
+#ifdef DEBUG_MPIERR
 	switch(cr){
 		case MPI_SUCCESS :
 				printf("%s -- SUCCESS\n",action);
@@ -127,7 +127,7 @@ void CPLM_stdFErr(const char  *fun,
 {
 
   //Quick printing the error --Sim
-  printf("ERROR from %s: Error in %s, line %d\tcode : %d\n", fun, file, line, ierr); 
+  printf("ERROR from %s: Error in %s, line %d\tcode : %d\n", fun, file, line, ierr);
 
   //TODO: fix this function
   CPLM_esprintf(CPALAMEMSIGERR, fun, "Error in %s, line %d\tcode : %d\n",

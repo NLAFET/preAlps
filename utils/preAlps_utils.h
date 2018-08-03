@@ -129,6 +129,10 @@ void preAlps_checkError_srcLine(int err, int line, char *src);
 void preAlps_dstats_display(MPI_Comm comm, double d, char *str);
 
 
+/*
+ * Get the extension of a filename
+ */
+const char *preAlps_get_filename_extension(const char *filename);
 
 /*
  * Each processor print the value of type int that it has

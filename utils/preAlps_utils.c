@@ -204,10 +204,15 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
 #else
 
   CPLM_MatCSROrderingND(comm, &locAP, moffsets, order, sizes);
-  // Gather the ordering infos from all proc to all
+
+  preAlps_intVector_printSynchronized(order, mloc, "order", "Order after ordering", comm);
+  
+  // Gather the ordering infos from all to all
   ierr = MPI_Allgatherv(order, mloc, MPI_INT, perm, mcounts, moffsets, MPI_INT, comm); preAlps_checkError(ierr);
 #endif
 
+
+  preAlps_intVector_printSynchronized(perm, m, "perm", "Permutation vector after ordering", comm);
 
   if ( !(mwork  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for mwork[].");
   if ( !(partwork = (int *)  malloc((nparts*sizeof(int)))) ) preAlps_abort("Malloc fails for partwork[].");
@@ -225,6 +230,8 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
   // Get the permutation vector
 
   preAlps_pinv_outplace (perm, m, mwork);
+
+  preAlps_intVector_printSynchronized(mwork, m, "mwork", "Permutation vector after ordering", comm);
 
   // Determine the leaves from the partitioning
   preAlps_binaryTreeIsLeaves(nparts, partwork);
@@ -621,6 +628,14 @@ void preAlps_dstats_display(MPI_Comm comm, double d, char *str){
   }
 }
 
+/*
+ * Get the extension of a filename
+ */
+const char *preAlps_get_filename_extension(const char *filename) {
+    const char *ext = strrchr(filename, '.');
+    if(!ext) return filename;
+    return ext + 1;
+}
 
 /*
  * Each processor print the value of type int that it has

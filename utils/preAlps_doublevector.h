@@ -15,6 +15,10 @@ Date        : Oct 13, 2017
 /* Gather each part of a vector and Dump the result in a file*/
 void preAlps_doubleVector_gathervDump(double *v_in, int mloc, char *fileName, MPI_Comm comm, char *header);
 
+
+/* Permute a vector with the inverse permutation by computing x = P^{-1}*b = P^{T}*b , for dense vectors x and b; p=NULL denotes identity */
+void preAlps_doubleVector_invpermute(const int *p, const double *b_in, double *x_out, int n);
+
 /*
  * Load a vector from a file.
  */
