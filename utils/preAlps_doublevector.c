@@ -98,6 +98,20 @@ void preAlps_doubleVector_permute(const int *p, const double *b_in, double *x_ou
     for (k = 0 ; k < n ; k++) x_out [k] = b_in [p ? p [k] : k] ;
 }
 
+/* Compute the point Wise product of two vectors yOut = yIn.*xIn */
+void preAlps_doubleVector_pointWiseProduct(const double *x_in, double *y_in, double *y_out, int n)
+{
+    int k ;
+    for (k = 0 ; k < n ; k++) y_out [k] = y_in[k]*x_in[k] ;
+}
+
+/* Compute the point Wise product of two vectors y = y.*x */
+void preAlps_doubleVector_pointWiseProductInPlace(const double *x_in, double *y_inout, int n)
+{
+    int k ;
+    for (k = 0 ; k < n ; k++) y_inout [k] = y_inout[k]*x_in[k] ;
+}
+
 /*
  * Each processor print the vector of type double that it has.
  * Work only in debug (-DDEBUG) mode

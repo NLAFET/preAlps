@@ -13,7 +13,6 @@ Date        : Oct 13, 2017
 
 #include <stdlib.h>
 #include <mpi.h>
-#include <metis.h>
 #include <cplm_v0_ivector.h>
 #include <cplm_v0_dvector.h>
 #include <cplm_v0_metis_utils.h>

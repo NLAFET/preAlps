@@ -96,12 +96,14 @@ int main(int argc, char** argv){
   int npLevel1 = 0; //For multilevel algorithms, the number of processors at the first level
   //int npLevel2 = 1; //For multilevel algorithms, the number of processors at the second level
 
-  char matrix_filename[150]="", rhs_filename[150]="";
-  CPLM_Mat_CSR_t A = CPLM_MatCSRNULL();
-  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
   int i, ierr = 0;
+  char matrix_filename[150]="", rhs_filename[150]="";
+  CPLM_Mat_CSR_t A = CPLM_MatCSRNULL(), AOrigin = CPLM_MatCSRNULL();
+  CPLM_Mat_CSR_t locAP = CPLM_MatCSRNULL();
+  double *R = NULL, *C = NULL; //For the scaling
 
-  double *b = NULL, *rhs = NULL, *sol = NULL, *x = NULL;
+
+  double *b = NULL, *rhs = NULL, *sol = NULL, *x = NULL, *rhsOrigin = NULL;
   int m = 0, n, nnz, mloc, offsetloc, rhs_size = 0;
 
   double ttemp, tPartition =0.0, tPrec = 0.0, tSolve = 0.0, tTotal;
@@ -124,7 +126,7 @@ int main(int argc, char** argv){
   preAlps_Lorasc_t *lorascA = NULL;
 
   /* Program default parameters */
-  int doScale = 0, monitorResidual = 0;
+  int doScale = 1, monitorResidual = 0, doSolutionCheck = 1;
   int precond_num = 2; /* 0: no prec, 1: blockJacobi, 2: Lorasc */
   int ecg_enlargedFactor = 1, ecg_maxIter = 30000;
   int ecg_ortho_alg = ORTHOMIN;
@@ -210,7 +212,12 @@ int main(int argc, char** argv){
       #endif
     }
 
-    //CPLM_MatCSRPrintInfo(&A);
+    if(doSolutionCheck){
+      //Save the matrix for the solution check
+      CPLM_MatCSRCopy(&A, &AOrigin);
+    }
+
+    CPLM_MatCSRPrintInfo(&A);
     CPLM_MatCSRPrintCoords(&A, "Loaded matrix");
   }
 
@@ -219,18 +226,13 @@ int main(int argc, char** argv){
 
     if(strlen(rhs_filename)==0){
 
+      // rhs not provided, generate x and compute rhs = Ax
+
       if ( !(rhs  = (double *) malloc(A.info.m*sizeof(double))) ) preAlps_abort("Malloc fails for rhs[].");
-      /*
-      // Generate a random vector
-      srand(11);
-      for(int i=0;i<A.info.m;i++)
-        rhs[i] = ((double) rand() / (double) RAND_MAX);
-      */
-      // Set a rhs
+
       double *xTmp;
       xTmp = (double*) malloc(A.info.m*sizeof(double));
       for (int k = 0 ; k < A.info.m ; k++) xTmp [k] = 1.0;
-      // rhs = Ax
 
       CPLM_MatCSRMatrixVector(&A, 1.0, xTmp, 0.0, rhs);
       free(xTmp);
@@ -241,25 +243,25 @@ int main(int argc, char** argv){
       if(rhs_size!=A.info.m){
         preAlps_abort("Error: the matrix and rhs size does not match. Matrix size: %d x %d, rhs size: %d", A.info.m, A.info.n, rhs_size);
       }
-      //for(i=0;i<rhs_size;i++) b[i] = rhs[i];
-      //free(rhs);
+
     }
     //preAlps_doubleVector_printSynchronized(b, A.info.m, "b0", "b", MPI_COMM_SELF);
+    if(doSolutionCheck){
+      rhsOrigin = (double*) malloc(A.info.m*sizeof(double));
+      for (int k = 0 ; k < A.info.m ; k++) rhsOrigin [k] = rhs[k];
+    }
   }
 
-  // Scale the matrix
-  if(my_rank==root){
-
-    if(doScale){
-      double *R, *C;
+  // Scale the matrix and the rhs
+  if(doScale & my_rank==0){
 
       if ( !(R  = (double *) malloc(A.info.m * sizeof(double))) ) preAlps_abort("Malloc fails for R[].");
       if ( !(C  = (double *) malloc(A.info.n * sizeof(double))) ) preAlps_abort("Malloc fails for C[].");
 
       CPLM_MatCSRSymRACScaling(&A, R, C);
 
-      free(R);
-      free(C);
+      preAlps_doubleVector_printSynchronized(R, A.info.m, "R", "R", MPI_COMM_SELF);
+      preAlps_doubleVector_printSynchronized(C, A.info.n, "C", "C", MPI_COMM_SELF);
 
       #ifdef BUILDING_MATRICES_DUMP
         printf("Dumping the matrix ...\n");
@@ -268,8 +270,12 @@ int main(int argc, char** argv){
       #endif
 
       CPLM_MatCSRPrintCoords(&A, "Scaled matrix");
-    }
+
+      //Apply the Scaling factor on the rhs
+      if(R) preAlps_doubleVector_pointWiseProductInPlace(R, rhs, A.info.m);
+
   }
+
 
 
   /* Build the selected preconditionner */
@@ -316,8 +322,6 @@ int main(int argc, char** argv){
     tPartition = lorascA->tPartition; //MPI_Wtime() - ttemp;
   }
 
-
-
   comm_masterGroup = lorascA->comm_masterGroup;
   comm_localGroup  = lorascA->comm_localGroup;
 
@@ -329,7 +333,6 @@ int main(int argc, char** argv){
     CPLM_MatCSRDimensions_Bcast(&A, root, &m, &n, &nnz, comm_masterGroup);
 
     // Prepare the operator
-
     if(lorascA) preAlps_OperatorBuildNoPerm(&locAP, lorascA->partBegin, 1, comm_masterGroup);
 
     #ifdef USE_OPERATOR_MATMULT_GATHERV //DEBUG ONLY
@@ -360,23 +363,18 @@ int main(int argc, char** argv){
     preAlps_PreconditionerCreate(&precond, precond_type, (void *) lorascA);
   }
 
-  //if(my_rank==0) preAlps_doubleVector_gathervDump(b, A.info.m, "dump/b0.txt", MPI_COMM_SELF, "b0");
   if(comm_masterGroup!=MPI_COMM_NULL){
 
-    //if(my_rank!=root){
     if ( !(b  = (double *) malloc(m*sizeof(double))) ) preAlps_abort("Malloc fails for b[].");
-    //}
 
-    //Apply the permutation on the right hand side
     if(my_rank==root){
-
+      //Apply the permutation on the right hand side
       preAlps_doubleVector_permute(lorascA->perm, rhs, b, m);
-
     }
 
     //Distribute the rhs
     MPI_Scatterv(b, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, my_rank==0?MPI_IN_PLACE:b, locAP.info.m, MPI_DOUBLE, root, comm_masterGroup);
-    preAlps_doubleVector_printSynchronized(b, locAP.info.m, "b after scatter", "b", comm_masterGroup);
+    preAlps_doubleVector_printSynchronized(b, locAP.info.m, "b after the distribution", "b", comm_masterGroup);
 
   }
 
@@ -486,18 +484,17 @@ int main(int argc, char** argv){
 
     sol = (double*) malloc(locAP.info.m*sizeof(double));
 
-    preAlps_doubleVectorSet_printSynchronized(ecg.X->val, ecg.X->info.m, ecg.X->info.n, ecg.X->info.lda, "X", "X computed", comm_masterGroup);
-
     // Retrieve solution and free memory
     preAlps_ECGFinalize(&ecg, sol);
 
-
     preAlps_doubleVector_printSynchronized(sol, locAP.info.m, "sol", "solution", comm_masterGroup);
 
-    //Gather the solution
+    // Gather the solution on proc 0
+
     if(my_rank==0) x = (double*) malloc(m*sizeof(double));
     MPI_Gatherv(sol, locAP.info.m, MPI_DOUBLE, x, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, root, comm_masterGroup);
 
+    // Post process the solution
     if(my_rank==0) {
 
       double *xTmp;
@@ -505,23 +502,30 @@ int main(int argc, char** argv){
 
       preAlps_doubleVector_invpermute(lorascA->perm, x, xTmp, m);
 
-      preAlps_doubleVector_printSynchronized(xTmp, m, "final solution", "xTmp", MPI_COMM_SELF);
+      //Apply the Scaling factor on the solution
+      if(C) preAlps_doubleVector_pointWiseProduct(C, xTmp, x, m);
 
-      #ifdef DEBUG
-        double *rTmp;
-        rTmp = (double*) malloc(m*sizeof(double));
-        for (int k = 0 ; k < m ; k++) rTmp [ k] = rhs [k] ;
-        // compute Ax-b
-        CPLM_MatCSRMatrixVector(&A, 1.0, xTmp, -1.0, rTmp);
-
-        preAlps_doubleVector_printSynchronized(rTmp, m, "err=b-AX", "err", MPI_COMM_SELF);
-
-        printf("norm b: %e, norm res:%e\n", preAlps_doubleVector_norm2(rhs, m), preAlps_doubleVector_norm2(rTmp, m)/preAlps_doubleVector_norm2(rhs, m));
-      #endif
+      preAlps_doubleVector_printSynchronized(x, m, "final solution", "xTmp", MPI_COMM_SELF);
 
       free(xTmp);
     }
 
+
+    //Check the solution
+    if(doSolutionCheck && my_rank==0){
+      double *rTmp, normRes, normRhs;
+      rTmp = (double*) malloc(m*sizeof(double));
+      for (int k = 0 ; k < m ; k++) rTmp [ k] = rhsOrigin [k] ;
+      // compute Ax-b
+      CPLM_MatCSRMatrixVector(&AOrigin, 1.0, x, -1.0, rTmp);
+
+      preAlps_doubleVector_printSynchronized(rTmp, m, "err=b-AX", "err", MPI_COMM_SELF);
+
+      normRes = preAlps_doubleVector_norm2(rTmp, m);
+      normRhs = preAlps_doubleVector_norm2(rhsOrigin, m);
+      printf("norm (b-Ax)/norm(b): %e\n", normRes/normRhs);
+      free(rTmp);
+    }
 
     tSolve = MPI_Wtime() - ttemp;
 
@@ -558,6 +562,7 @@ int main(int argc, char** argv){
     preAlps_PreconditionerDestroy(&precond);
   }
 
+  //Free memory
   if(b) free(b);
   if(rhs) free(rhs);
   if(sol) free(sol);
@@ -565,6 +570,10 @@ int main(int argc, char** argv){
   CPLM_MatCSRFree(&locAP);
   if(my_rank==0){
     CPLM_MatCSRFree(&A);
+    CPLM_MatCSRFree(&AOrigin);
+    if(rhsOrigin) free(rhsOrigin);
+    if(R) free(R);
+    if(C) free(C);
   }
 
   MPI_Finalize();

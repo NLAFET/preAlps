@@ -2905,12 +2905,14 @@ int CPLM_MatCSRRowsMerge(CPLM_Mat_CSR_t *A_in, CPLM_Mat_CSR_t *B_in, CPLM_Mat_CS
 int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
 
   int i, j;
-  double rcmin, rcmax;
+  double rcmin, rcmax, rc = 0.0 ;
 
   /* Get machine constants. */
-  //double smlnum = dlamch_("S");
-  //double bignum = 1. / smlnum;
-
+  /*
+  double smlnum = fabs(dlamch_("S"));
+  double bignum = 1. / smlnum;
+  printf("smlnum:%e, bignum:%e\n", smlnum, bignum);
+  */
 
   /* Find the maximum element in each row. */
 
@@ -2930,12 +2932,11 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
       rcmin = CPLM_MIN(rcmin, R[i]);
   }
 
+  if(rcmin!=0.0) rc = rcmin/rcmax;
+
 #ifdef DEBUG
-  printf("ROW: rcmin:%e, rcmax:%e\n", rcmin, rcmax);
+  printf("ROW: rcmin:%e, rcmax:%e, rc:%e\n", rcmin, rcmax, rc);
 #endif
-
-
-  //*amax = rcmax;
 
   if (rcmin == 0.) {
     CPLM_Abort("Impossible to scale the matrix, rcmin=0");
@@ -2944,14 +2945,15 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
       /* Invert the scale factors. */
       for (i = 0; i < A->info.m; i++){
           //R[i] = 1. / MIN( MAX( R[i], smlnum ), bignum );
+          //R[i] = sqrt(fabs(1.0 / CPLM_MIN( CPLM_MAX( R[i], smlnum ), bignum )));
+          //R[i] = sqrt(1.0 / CPLM_MIN( CPLM_MAX( R[i], smlnum ), bignum));
           R[i] = sqrt(1.0 / R[i]);
       }
-      /* Compute ROWCND = min(R(I)) / max(R(I)) */
-      //*rowcnd = MAX( rcmin, smlnum ) / MIN( rcmax, bignum );
+
   }
 
 #if 0
-
+  //Non symmetric case
   /* Find the maximum element in each col. */
   for (j = 0; j < A->info.n; ++j) C[j] = 0.;
 
@@ -2978,8 +2980,6 @@ int CPLM_MatCSRSymRACScaling(CPLM_Mat_CSR_t *A, double *R, double *C){
       /* Invert the scale factors. */
       for (j = 0; j < A->info.n; ++j)
           C[j] = 1. / MIN( MAX( C[j], smlnum ), bignum);
-      /* Compute COLCND = min(C(J)) / max(C(J)) */
-    //  *colcnd = MAX( rcmin, smlnum ) / MIN( rcmax, bignum );
   }
 #else
   //Assume the matrix is symmetric
