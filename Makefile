@@ -6,8 +6,10 @@ all: compil_cplm compil_utils  compil_src compil_examples ok
 
 compil_cplm:
 		@if [ ! -d $(LIBDIR) ]; then mkdir -v $(LIBDIR);fi
-		( cd $(CPLMDIR) ; $(MAKE) )
+		( cd $(CPLM_CORE) ; $(MAKE) )
 		( cd $(CPLM_V0_DIR) ; $(MAKE) )
+		( cd $(CPLMDIR) ; $(MAKE) )
+
 compil_utils:
 	@if [ ! -d $(LIBDIR) ]; then mkdir -v $(LIBDIR);fi
 	make -C $(UTILS)
@@ -23,6 +25,8 @@ compil_examples:
 clean:
 	rm -f $(LIBDIR)/lib$(LIBNAME).a
 	make clean -C $(UTILS)
+	( cd $(CPLM_CORE) ; $(MAKE) clean)
+	( cd $(CPLM_V0_DIR) ; $(MAKE) clean)
 	( cd $(CPLMDIR) ; $(MAKE) clean)
 	make clean -C $(SRC)
 	make clean -C $(EXAMPLES)

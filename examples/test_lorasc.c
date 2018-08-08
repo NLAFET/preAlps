@@ -253,7 +253,7 @@ int main(int argc, char** argv){
   }
 
   // Scale the matrix and the rhs
-  if(doScale & my_rank==0){
+  if(doScale && my_rank==0){
 
       if ( !(R  = (double *) malloc(A.info.m * sizeof(double))) ) preAlps_abort("Malloc fails for R[].");
       if ( !(C  = (double *) malloc(A.info.n * sizeof(double))) ) preAlps_abort("Malloc fails for C[].");

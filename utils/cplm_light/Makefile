@@ -6,7 +6,6 @@ LIBCPLM_NAME = cplm_light
 #The full path for the library
 LIBCPLM = ../../$(LIBDIR)/lib$(LIBCPLM_NAME).a
 
-#SRC = preAlps_utils.c preAlps_solver.c pardiso_solver.c mkl_pardiso_solver.c mumps_solver.c
 SRC = $(shell ls *.c)
 
 OBJ = $(SRC:.c=.o)
@@ -21,4 +20,4 @@ create_lib:
 	$(RANLIB) $(LIBCPLM)
 
 clean:
-	-${RM} $(OBJ)
+	-${RM} $(OBJ) $(LIBCPLM)
