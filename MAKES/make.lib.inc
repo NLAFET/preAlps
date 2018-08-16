@@ -54,6 +54,17 @@ ifeq ($(USE_PARMETIS), 1)
   ADDITIONAL_FLAGS    += -DUSE_PARMETIS
 endif
 
+# Provide the compiler directives for PARPACK
+
+USE_PARPACK=1
+ifeq ($(USE_PARPACK), 1)
+  PARPACK_DIR          = ${PARPACK_ROOT}
+  PARPACK_LIB          = $(PARPACK_DIR)
+  INCLUDE_FLAGS       +=
+  LD_FLAGS            += -L$(PARPACK_LIB) -lparpack -larpack
+  ADDITIONAL_FLAGS    += -DUSE_PARPACK
+endif
+
 # Provide the compiler directives for MUMPS
 
 USE_SOLVER_MUMPS=1
@@ -66,16 +77,7 @@ ifeq ($(USE_SOLVER_MUMPS), 1)
   ADDITIONAL_FLAGS    += -DUSE_SOLVER_MUMPS
 endif
 
-# Provide the compiler directives for PARPACK
 
-USE_PARPACK=1
-ifeq ($(USE_PARPACK), 1)
-  PARPACK_DIR          = ${PARPACK_ROOT}
-  PARPACK_LIB          = $(PARPACK_DIR)
-  INCLUDE_FLAGS       +=
-  LD_FLAGS            += -L$(PARPACK_LIB) -lparpack -larpack
-  ADDITIONAL_FLAGS    += -DUSE_PARPACK
-endif
 
 # Provide the compiler directives for PARDISO
 USE_SOLVER_PARDISO=0
