@@ -15,8 +15,8 @@
 #include <cplm_utils.h>
 #include <cplm_v0_timing.h>
 #include <cplm_v0_ivector.h>
+#include <cplm_v0_matmult_v2.h>
 #include <cplm_matcsr.h>
-#include <preAlps_matmult_v2.h>
 #include "operator.h"
 /******************************************************************************/
 
