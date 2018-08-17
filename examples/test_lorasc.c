@@ -226,16 +226,20 @@ int main(int argc, char** argv){
 
     if(strlen(rhs_filename)==0){
 
-      // rhs not provided, generate x and compute rhs = Ax
-
       if ( !(rhs  = (double *) malloc(A.info.m*sizeof(double))) ) preAlps_abort("Malloc fails for rhs[].");
-
+      /*
+      // rhs not provided, generate x and compute rhs = Ax
       double *xTmp;
       xTmp = (double*) malloc(A.info.m*sizeof(double));
       for (int k = 0 ; k < A.info.m ; k++) xTmp [k] = 1.0;
 
       CPLM_MatCSRMatrixVector(&A, 1.0, xTmp, 0.0, rhs);
       free(xTmp);
+      */
+      // Generate a random vector
+      srand(11);
+      for(int i=0;i<A.info.m;i++)
+        rhs[i] = ((double) rand() / (double) RAND_MAX);
     }else{
       // Read rhs on proc 0
       preAlps_doubleVector_load(rhs_filename, &rhs, &rhs_size);
