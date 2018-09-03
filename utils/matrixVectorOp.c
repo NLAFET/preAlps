@@ -105,8 +105,8 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
                              CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig, CPLM_Mat_CSR_t *Aggloc,
                              preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv, double *X, double *Y,
                              double *dwork1, double *dwork2, double *ywork,
-                             MPI_Comm comm_masterGroup,
-                             MPI_Comm comm_localGroup,
+                             MPI_Comm comm_masterLevel,
+                             MPI_Comm comm_localLevel,
                              int *Aii_mcounts, int *Aii_moffsets,
                              int *Aig_mcounts, int *Aig_moffsets,
                              int *Agi_mcounts, int *Agi_moffsets,
@@ -115,24 +115,19 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
   int ierr = 0; int nrhs = 1;
 
   int my_rank, nbprocs, root = 0;
-  int masterGroup_myrank, masterGroup_nbprocs, localGroup_myrank, localGroup_nbprocs, local_root = 0;
+  int masterLevel_myrank, masterGroup_nbprocs, localLevel_myrank, localGroup_nbprocs, local_root = 0;
 
   double dONE = 1.0, dZERO = 0.0, dMONE = -1.0;
   double ttemp, ttemp1;
 
   int Aii_m, Agi_m;
 
-  //MPI_Comm_rank(comm, &my_rank);
-  //MPI_Comm_size(comm, &nbprocs);
-
-  preAlps_int_printSynchronized(1, "matvec dbg", comm_localGroup);
-
-  if(comm_masterGroup!=MPI_COMM_NULL){
-    MPI_Comm_rank(comm_masterGroup, &masterGroup_myrank);
-    MPI_Comm_size(comm_masterGroup, &masterGroup_nbprocs);
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    MPI_Comm_rank(comm_masterLevel, &masterLevel_myrank);
+    MPI_Comm_size(comm_masterLevel, &masterGroup_nbprocs);
   }
-  MPI_Comm_rank(comm_localGroup, &localGroup_myrank);
-  MPI_Comm_size(comm_localGroup, &localGroup_nbprocs);
+  MPI_Comm_rank(comm_localLevel, &localLevel_myrank);
+  MPI_Comm_size(comm_localLevel, &localGroup_nbprocs);
 
 
   //The global size of Aii
@@ -143,18 +138,16 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
    * S = Agg - sum(Agi*Aii^{-1}*Aig);
   */
 
-  preAlps_int_printSynchronized(2, "matvec dbg", comm_localGroup);
-
   //Gather the vector from each procs
-  if(comm_masterGroup!=MPI_COMM_NULL){
+  if(comm_masterLevel!=MPI_COMM_NULL){
     ttemp1 = MPI_Wtime();
-    MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm_masterGroup);
+    MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm_masterLevel);
     tstats->tComm+= MPI_Wtime() - ttemp1;
   }
 
   //Broadcast the vector to the local group
   if(localGroup_nbprocs>1){
-    MPI_Bcast(ywork, m, MPI_DOUBLE, local_root, comm_localGroup);
+    MPI_Bcast(ywork, m, MPI_DOUBLE, local_root, comm_localLevel);
   }
 
 
@@ -168,7 +161,7 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
   //tstats->tAv += MPI_Wtime() - ttemp1;
   if(localGroup_nbprocs>1){ //gather on the master proc
     ttemp1 = MPI_Wtime();
-    MPI_Gatherv(localGroup_myrank==local_root?MPI_IN_PLACE:dwork1, Aig->info.m, MPI_DOUBLE,  dwork1, Aig_mcounts, Aig_moffsets, MPI_DOUBLE, local_root, comm_localGroup);
+    MPI_Gatherv(localLevel_myrank==local_root?MPI_IN_PLACE:dwork1, Aig->info.m, MPI_DOUBLE,  dwork1, Aig_mcounts, Aig_moffsets, MPI_DOUBLE, local_root, comm_localLevel);
     tstats->tComm+= MPI_Wtime() - ttemp1;
   }
 
@@ -186,7 +179,7 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
   //Broadcast the vector to the local group
   if(localGroup_nbprocs>1){
     ttemp1 = MPI_Wtime();
-    MPI_Bcast(dwork2, Aii_m, MPI_DOUBLE, local_root, comm_localGroup);
+    MPI_Bcast(dwork2, Aii_m, MPI_DOUBLE, local_root, comm_localLevel);
     tstats->tComm+= MPI_Wtime() - ttemp1;
   }
 
@@ -195,24 +188,22 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
   CPLM_MatCSRMatrixVector(Agi, dONE, dwork2, dZERO, dwork1);
   if(localGroup_nbprocs>1){ //gather on the master proc
     ttemp1 = MPI_Wtime();
-    MPI_Gatherv(localGroup_myrank==local_root?MPI_IN_PLACE:dwork1, Agi->info.m, MPI_DOUBLE,  dwork1, Agi_mcounts, Agi_moffsets, MPI_DOUBLE, local_root, comm_localGroup);
+    MPI_Gatherv(localLevel_myrank==local_root?MPI_IN_PLACE:dwork1, Agi->info.m, MPI_DOUBLE,  dwork1, Agi_mcounts, Agi_moffsets, MPI_DOUBLE, local_root, comm_localLevel);
     tstats->tComm+= MPI_Wtime() - ttemp1;
   }
   //tstats->tAv += MPI_Wtime() - ttemp1;
 
 
-  if(comm_masterGroup!=MPI_COMM_NULL){
+  if(comm_masterLevel!=MPI_COMM_NULL){
 
     /* Sum on proc O */
     ttemp1 = MPI_Wtime();
-    MPI_Reduce(dwork1, dwork2, Agi_m, MPI_DOUBLE, MPI_SUM, root, comm_masterGroup);
+    MPI_Reduce(dwork1, dwork2, Agi_m, MPI_DOUBLE, MPI_SUM, root, comm_masterLevel);
     tstats->tComm+= MPI_Wtime() - ttemp1;
-
-
 
     /* Scatter dwork2 to X */
     ttemp1 = MPI_Wtime();
-    MPI_Scatterv(dwork2, mcounts, mdispls, MPI_DOUBLE, X, mloc, MPI_DOUBLE, root, comm_masterGroup);
+    MPI_Scatterv(dwork2, mcounts, mdispls, MPI_DOUBLE, X, mloc, MPI_DOUBLE, root, comm_masterLevel);
     tstats->tComm+= MPI_Wtime() - ttemp1;
 
     //Copy of Su must be in X
@@ -228,27 +219,25 @@ int matrixVectorOp_AggInvxS_mlevel(int mloc, int m, int *mcounts, int *mdispls,
    * Compute Y = inv(Agg)*X => solve A Y = X with the previous factorized matrix
   */
 
-  if(comm_masterGroup!=MPI_COMM_NULL){
+  if(comm_masterLevel!=MPI_COMM_NULL){
 
 
     ttemp = MPI_Wtime();
     //Centralized rhs, gather X on the host
-    MPI_Gatherv(X, mloc, MPI_DOUBLE, dwork2, mcounts, mdispls, MPI_DOUBLE, root, comm_masterGroup);
+    MPI_Gatherv(X, mloc, MPI_DOUBLE, dwork2, mcounts, mdispls, MPI_DOUBLE, root, comm_masterLevel);
 
     //solve the system
 
     preAlps_solver_triangsolve(Agg_sv, Aggloc->info.m, Aggloc->val, Aggloc->rowPtr, Aggloc->colInd, nrhs, NULL, dwork2);
 
-    #ifdef DEBUG
-    if(masterGroup_myrank==root) preAlps_doubleVector_printSynchronized(dwork2, m, "Y", " Y proc 0 after matvec", MPI_COMM_SELF);
-    #endif
     //centralized solution, scatter Y to each procs
-    MPI_Scatterv(dwork2, mcounts, mdispls, MPI_DOUBLE, Y, mloc, MPI_DOUBLE, root, comm_masterGroup);
+    MPI_Scatterv(dwork2, mcounts, mdispls, MPI_DOUBLE, Y, mloc, MPI_DOUBLE, root, comm_masterLevel);
 
     tstats->tInvAv += MPI_Wtime() - ttemp;
 
-
-    preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after matvec", comm_masterGroup);
+    #ifdef DEBUG
+    preAlps_doubleVector_printSynchronized(Y, mloc, "Y", "Y after matvec", comm_masterLevel);
+    #endif
   }
 
   return ierr;

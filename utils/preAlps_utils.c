@@ -28,16 +28,7 @@ Date        : Mai 15, 2017
  * utils
  */
 
- /* MPI custom function to sum the column of a matrix using MPI_REDUCE */
- void DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype)
- {
-     int i;
-     double *invec_d = (double*) invec;
-     double *inoutvec_d = (double*) inoutvec;
 
-     for ( i=0; i<*len; i++ )
-         inoutvec_d[i] += invec_d[i];
- }
 
 /* Display a message and stop the execution of the program */
 void preAlps_abort(char *s, ... ){
@@ -607,7 +598,38 @@ void preAlps_checkError_srcLine(int err, int line, char *src){
   }
 }
 
+/* Create a multilevel communicator by spliting the communicator on two groups based on the number of processors provided*/
+int preAlps_comm2LevelsSplit(MPI_Comm comm, int npLevel1, MPI_Comm *commMultilevel){
 
+  int ierr = 0, nbprocs, my_rank, npLevel2, masterLevelMark, localLevelMark;
+  MPI_Comm comm_masterLevel = MPI_COMM_NULL, comm_localLevel = MPI_COMM_NULL;
+
+  //Get some infos about the communicator
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+  // Check args
+  if((npLevel1<=0) || (npLevel1>nbprocs)) npLevel1 = nbprocs;
+
+  // Number of processors within each blocks
+  npLevel2 = nbprocs / npLevel1;
+  //printf("npLevel1:%d, npLevel2:%d\n", npLevel1, npLevel2);
+
+  // Create a communicator with only the master of each groups of procs
+  masterLevelMark = my_rank%npLevel2;
+  MPI_Comm_split(comm, masterLevelMark==0?0:MPI_UNDEFINED, my_rank, &comm_masterLevel);
+
+  // Create a communicator with only the process of each local groups
+  localLevelMark  = my_rank / npLevel2;
+  MPI_Comm_split(comm, localLevelMark, my_rank, &comm_localLevel);
+
+  //Save the communicator
+  commMultilevel[0] = comm;
+  commMultilevel[1] = comm_masterLevel;
+  commMultilevel[2] = comm_localLevel;
+
+  return ierr;
+}
 
 /* Display statistiques min, max and avg of a double*/
 void preAlps_dstats_display(MPI_Comm comm, double d, char *str){
@@ -626,6 +648,18 @@ void preAlps_dstats_display(MPI_Comm comm, double d, char *str){
   if(my_rank==0){
 	  printf("%s:  min: %.2f , max: %.2f , avg: %.2f\n", str, dMin, dMax, (double) dSum/nbprocs);
   }
+}
+
+
+/* MPI custom function to sum the column of a matrix using MPI_REDUCE */
+void preAlps_DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype)
+{
+    int i;
+    double *invec_d = (double*) invec;
+    double *inoutvec_d = (double*) inoutvec;
+
+    for ( i=0; i<*len; i++ )
+        inoutvec_d[i] += invec_d[i];
 }
 
 /*

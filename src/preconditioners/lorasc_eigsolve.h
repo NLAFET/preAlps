@@ -35,6 +35,6 @@ Date        : oct 1, 2017
  *    input: the solver object to apply to compute  Agg^{-1}v
 */
 
-int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, MPI_Comm comm, int mloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
+int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, int mloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
                          CPLM_Mat_CSR_t *Aggloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv);
 #endif

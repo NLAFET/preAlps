@@ -36,14 +36,13 @@ typedef struct{
   int *sep_moffsets;
   int sep_nrows;
 
-  /* */
+  /* The global communicator */
   MPI_Comm comm;            /* The MPI communicator used to build the preconditioner. Should be the same to apply it. */
 
-  /* Multilevel algorithms */
-  MPI_Comm comm_masterGroup;  /* The MPI communicator for the master group of processors */
-  MPI_Comm comm_localGroup;  /* The MPI communicator for the local group of processors */
-  int npLevel1; //For multilevel algorithms, the number of processors at the first level
-  int npLevel2; //For multilevel algorithms, the number of processors at the second level
+  /* Multilevel communicators */
+  MPI_Comm comm_masterLevel;  /* The MPI communicator for the master group of processors */
+  MPI_Comm comm_localLevel;  /* The MPI communicator for the local group of processors */
+
 
   int *Aii_mcounts;
   int *Aii_moffsets;
@@ -52,9 +51,7 @@ typedef struct{
   int *Agi_mcounts;
   int *Agi_moffsets;
 
-
   int nev;                  /* Number of eigenvalues computed */
-
 
   /* Lorasc required matrices */
   CPLM_Mat_CSR_t *Aii;
@@ -88,13 +85,15 @@ int preAlps_LorascAlloc(preAlps_Lorasc_t **lorasc);
 /*
  * Build the preconditioner
  * lorasc:
- *     input: the preconditioner object to construct
+ *     input/output: the preconditioner object to construct
+ * commMultilevel:
+ *    input: a multilevel communicator built with preAlps_comm2LevelsSplit
  * A:
  *     input: the input matrix on processor 0
  * locAP:
  *     output: the local permuted matrix on each proc after the preconditioner is built
 */
-int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, MPI_Comm comm);
+int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP);
 
 
 /*Destroy the preconditioner*/

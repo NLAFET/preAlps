@@ -40,8 +40,7 @@ Date        : Mai 15, 2017
  * Functions
  */
 
- /* MPI custom function to sum the column of a matrix using MPI_REDUCE */
- void DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype);
+
 
 
 /* Display a message and stop the execution of the program */
@@ -124,10 +123,14 @@ int preAlps_blockDiagODBStructCreate(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_
 void preAlps_checkError_srcLine(int err, int line, char *src);
 
 
+/* Split the communicator on two groups based on the number of processors provided */
+int preAlps_comm2LevelsSplit(MPI_Comm comm, int npLevel1, MPI_Comm *commArray);
 
 /* Display statistiques min, max and avg of a double*/
 void preAlps_dstats_display(MPI_Comm comm, double d, char *str);
 
+/* MPI custom function to sum the column of a matrix using MPI_REDUCE */
+void preAlps_DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype);
 
 /*
  * Get the extension of a filename
