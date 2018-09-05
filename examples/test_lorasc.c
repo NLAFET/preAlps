@@ -313,8 +313,6 @@ int main(int argc, char** argv){
   // Prepare the operator
   if(comm_masterLevel!=MPI_COMM_NULL){
 
-    CPLM_MatCSRPrintSynchronizedCoords(&locAP, comm_masterLevel, "locAP", "locAP");
-
     preAlps_OperatorBuildNoPerm(&locAP, partBegin, 1, comm_masterLevel);
 
     #ifdef USE_OPERATOR_MATMULT_GATHERV //DEBUG ONLY
@@ -331,6 +329,7 @@ int main(int argc, char** argv){
     preAlps_PreconditionerCreate(&precond, precond_type, NULL);
 
   } else if(precond_type==PREALPS_BLOCKJACOBI){
+
     ttemp =  MPI_Wtime();
     // Get row partitioning of A from the operator
     preAlps_OperatorGetRowPosPtr(&rowPos,&sizeRowPos);
@@ -339,9 +338,15 @@ int main(int argc, char** argv){
     // Construct the preconditioner
     preAlps_BlockJacobiCreate(&locAP, rowPos, sizeRowPos, colPos, sizeColPos);
     tPrec = MPI_Wtime() - ttemp;
+
+    // Create a generic preconditioner object compatible with EcgSolver
+    preAlps_PreconditionerCreate(&precond, precond_type, NULL);
+
   }else if(precond_type==PREALPS_LORASC){
+
     // Create a generic preconditioner object compatible with EcgSolver
     preAlps_PreconditionerCreate(&precond, precond_type, (void *) lorascA);
+
   }
 
 
@@ -385,12 +390,7 @@ int main(int argc, char** argv){
   }
 
   // Finish initialization
-  if(precond_type==PREALPS_BLOCKJACOBI) {
-    preAlps_BlockJacobiApply(ecg.R,ecg.P);
-  }
-  else {
-    preAlps_PreconditionerMatApply(precond, ecg.R, ecg.P);
-  }
+  preAlps_PreconditionerMatApply(precond, ecg.R, ecg.P);
 
   if(comm_masterLevel!=MPI_COMM_NULL){
 
@@ -404,7 +404,7 @@ int main(int argc, char** argv){
     #endif
   }
 
-  //Pointers for the RCI interface
+  // Pointers for the RCI interface
   CPLM_Mat_Dense_t *AX  = NULL, *AY = NULL;
 
   if (ecg_ortho_alg == ORTHOMIN){
@@ -444,12 +444,8 @@ int main(int argc, char** argv){
       MPI_Bcast(&stop, 1, MPI_INT, local_root, comm_localLevel);
 
       if (stop == 1) break;
-
-      if(precond_type==PREALPS_BLOCKJACOBI) {
-        preAlps_BlockJacobiApply(AX, AY);
-      } else {
-        preAlps_PreconditionerMatApply(precond, AX, AY);
-      }
+      //Apply the preconditioner
+      preAlps_PreconditionerMatApply(precond, AX, AY);
 
     }
 
@@ -519,15 +515,18 @@ int main(int argc, char** argv){
     preAlps_dstats_display(comm_masterLevel, tSolve, "Time Solve");
     preAlps_dstats_display(comm_masterLevel, tTotal, "Time Total");
   }
-  // Clean up
 
+  // Clean up
   #ifdef USE_OPERATOR_MATMULT_GATHERV
     free(vs);
   #endif
   preAlps_OperatorFree();
 
   // Destroy the preconditioner/the partitioning
-  if(precond_type==PREALPS_LORASC){
+  if(precond_type==PREALPS_BLOCKJACOBI){
+    preAlps_BlockJacobiFree();
+  }
+  else if(precond_type==PREALPS_LORASC){
     ierr =  preAlps_LorascDestroy(&lorascA); preAlps_checkError(ierr);
   }
 
