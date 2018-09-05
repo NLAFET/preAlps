@@ -352,9 +352,6 @@ int preAlps_blockArrowStructPartitioning(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_
   int *perm1=NULL, m, n, nnz;
   int nparts, *partCountWork=NULL, *partBeginWork=NULL;
   int *sep_mcounts = NULL, *sep_moffsets=NULL;
-  //int *Aii_mcounts = NULL, *Aii_moffsets=NULL;
-  //int *Aig_mcounts = NULL, *Aig_moffsets=NULL;
-  //int *Agi_mcounts = NULL, *Agi_moffsets=NULL;
 
   CPLM_Mat_CSR_t AP = CPLM_MatCSRNULL();
   CPLM_Mat_CSR_t *Aii = NULL, *Aig =NULL, *Agi=NULL, *Aggloc=NULL;
@@ -748,15 +745,6 @@ void preAlps_DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dt
 
     for ( i=0; i<*len; i++ )
         inoutvec_d[i] += invec_d[i];
-}
-
-/*
- * Get the extension of a filename
- */
-const char *preAlps_get_filename_extension(const char *filename) {
-    const char *ext = strrchr(filename, '.');
-    if(!ext) return filename;
-    return ext + 1;
 }
 
 /*

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <mpi.h>
 
 #include <cplm_utils.h>
@@ -135,6 +136,16 @@ void CPLM_stdFErr(const char  *fun,
       line,
       ierr);
 
+}
+
+
+/*
+ * Get the extension from a filename
+ */
+const char *CPLM_getFilenameExtension(const char *filename) {
+    const char *ext = strrchr(filename, '.');
+    if(!ext) return filename;
+    return ext + 1;
 }
 
 /*

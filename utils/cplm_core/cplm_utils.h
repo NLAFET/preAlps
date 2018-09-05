@@ -55,6 +55,12 @@ void CPLM_esprintf( const char *signal,
 void CPLM_FAbort(const char *fun,  const char *format, ...);
 void CPLM_stdFErr(const char *fun, const char *file, const int line, const int ierr);
 
+
+/*
+ * Get the extension from a filename
+ */
+const char *CPLM_getFilenameExtension(const char *filename);
+
 /*
  * Split n in P parts and
  * returns the number of element, and the data offset for the specified index.

@@ -31,20 +31,9 @@ Date        : Mai 15, 2017
 #include "ecg.h"
 #include "operator.h"
 
-//#define USE_OPERATORBUILD 0
-
 //#define USE_OPERATOR_MATMULT_GATHERV 1 //debug only, use gather the vector to perform the matvec operation
 
-//#define USE_SPMSV_DBG 1
-
-#ifdef USE_SPMSV_DBG
-#include "spmsv_dbg/preAlps_spmsv_dbg.c"
-#endif //SPMSV
-
-
-
-
-static int checkArgs(MPI_Comm comm, int precond_num, Prec_Type_t precond_type, int npLevel1){
+static int testLorasc_checkArgs(MPI_Comm comm, int precond_num, Prec_Type_t precond_type, int npLevel1){
   int my_rank, nbprocs;
 
   MPI_Comm_rank(comm, &my_rank);
@@ -66,7 +55,7 @@ static int checkArgs(MPI_Comm comm, int precond_num, Prec_Type_t precond_type, i
   return 0;
 }
 
-static void help_show(){
+static void testLorasc_showHelp(){
   printf(" Purpose\n");
   printf(" =======\n");
   printf(" Preconditioner based on Schur complement, \n");
@@ -148,70 +137,70 @@ int main(int argc, char** argv){
 
   // Get user parameters
   for(i=1;i<argc;i+=2){
-    if (strcmp(argv[i],"-m") == 0) strcpy(matrix_filename,argv[i+1]);
-    if (strcmp(argv[i],"-r") == 0) strcpy(rhs_filename,argv[i+1]);
-    if (strcmp(argv[i],"-t") == 0) ecg_enlargedFactor = atoi(argv[i+1]);
-    if (strcmp(argv[i],"-p") == 0) precond_num = atoi(argv[i+1]);
-    if (strcmp(argv[i],"-npLevel1") == 0) npLevel1 = atoi(argv[i+1]);
-    if (strcmp(argv[i],"-h") == 0){
+    if (strcmp(argv[i], "-m") == 0)        strcpy(matrix_filename, argv[i+1]);
+    if (strcmp(argv[i], "-r") == 0)        strcpy(rhs_filename, argv[i+1]);
+    if (strcmp(argv[i], "-t") == 0)        ecg_enlargedFactor = atoi(argv[i+1]);
+    if (strcmp(argv[i], "-p") == 0)        precond_num        = atoi(argv[i+1]);
+    if (strcmp(argv[i], "-npLevel1") == 0) npLevel1           = atoi(argv[i+1]);
+    if (strcmp(argv[i], "-h") == 0){
       if(my_rank==0){
-        help_show();
+        testLorasc_showHelp();
       }
       MPI_Finalize();
       return EXIT_SUCCESS;
     }
   }
 
-
   switch(precond_num){
     case 0:
       precond_type = PREALPS_NOPREC;
-      if(my_rank==root) printf("Preconditioner: NONE\n");
     break;
     case 1:
       precond_type = PREALPS_BLOCKJACOBI;
-      if(my_rank==root) printf("Preconditioner: BLOCKJACOBI\n");
     break;
     case 2:
       precond_type = PREALPS_LORASC;
-      if(my_rank==root) printf("Preconditioner: LORASC\n");
     break;
   }
 
   // Check args
   if(npLevel1<=0 || npLevel1>nbprocs) npLevel1 = nbprocs;
-
-  checkArgs(comm, precond_num, precond_type, npLevel1);
+  testLorasc_checkArgs(comm, precond_num, precond_type, npLevel1);
+  if(strlen(matrix_filename)==0 && my_rank==0){
+    preAlps_abort("Error: unknown Matrix. ./test_lorasc -h for usage");
+  }
 
   // Print Summary
   if(my_rank==0){
 
-    if(strlen(matrix_filename)==0){
-      preAlps_abort("Error: unknown Matrix. ./test_lorasc -h for usage");
-    }
-
     printf("Matrix name: %s\nEnlarged factor: %d\n", matrix_filename, ecg_enlargedFactor);
     printf("nbprocs: %d, nbprocs Level 1: %d\n", nbprocs, npLevel1);
-    printf("Reading matrix ...\n");
+    switch(precond_type){
+      case PREALPS_NOPREC:
+        printf("Preconditioner: NONE\n");
+      break;
+      case PREALPS_BLOCKJACOBI:
+        printf("Preconditioner: BLOCKJACOBI\n");
+      break;
+      case PREALPS_LORASC:
+        printf("Preconditioner: LORASC\n");
+      break;
+    }
   }
 
-  // Load the matrix on proc 0
+  // Create a multilevel communicator based on the number of processors provided for level 1
+  preAlps_comm2LevelsSplit(comm, npLevel1, commMultilevel);
+
+  // Get the communicator at each level
+  comm_masterLevel  = commMultilevel[1];
+  comm_localLevel   = commMultilevel[2];
+
+
+  // Load the matrix using MatrixMarket or PETSc format depending on the file extension on proc 0
   if(my_rank==root){
 
-    const char* ext = preAlps_get_filename_extension(matrix_filename);
-
-    if (strcmp(ext,"mtx") == 0) {
-      CPLM_LoadMatrixMarket(matrix_filename, &A);
-    }else{
-      #ifdef PETSC
-        Mat A_petsc;
-        petscMatLoad(&A_petsc,matrix_filename,PETSC_COMM_SELF);
-        petscCreateMatCSR(A_petsc,&A);
-        MatDestroy(&A_petsc);
-      #else
-        CPLM_Abort("Please Compile with PETSC to read other matrix file type");
-      #endif
-    }
+    printf("Reading the matrix ...\n");
+    CPLM_LoadMatrix(matrix_filename, &A);
 
     if(doSolutionCheck){
       //Save the matrix for the solution check
@@ -248,9 +237,8 @@ int main(int argc, char** argv){
       if(rhs_size!=A.info.m){
         preAlps_abort("Error: the matrix and rhs size does not match. Matrix size: %d x %d, rhs size: %d", A.info.m, A.info.n, rhs_size);
       }
-
     }
-    //preAlps_doubleVector_printSynchronized(b, A.info.m, "b0", "b", MPI_COMM_SELF);
+
     if(doSolutionCheck){
       rhsOrigin = (double*) malloc(A.info.m*sizeof(double));
       for (int k = 0 ; k < A.info.m ; k++) rhsOrigin [k] = rhs[k];
@@ -265,9 +253,6 @@ int main(int argc, char** argv){
 
       CPLM_MatCSRSymRACScaling(&A, R, C);
 
-      preAlps_doubleVector_printSynchronized(R, A.info.m, "R", "R", MPI_COMM_SELF);
-      preAlps_doubleVector_printSynchronized(C, A.info.n, "C", "C", MPI_COMM_SELF);
-
       #ifdef BUILDING_MATRICES_DUMP
         printf("Dumping the matrix ...\n");
         CPLM_MatCSRSave(&A, "dump_AScaled.mtx");
@@ -278,27 +263,20 @@ int main(int argc, char** argv){
 
       //Apply the Scaling factor on the rhs
       if(R) preAlps_doubleVector_pointWiseProductInPlace(R, rhs, A.info.m);
-
   }
 
-  //Create a multilevel communicator based on the number of processors provided at level 1
-  preAlps_comm2LevelsSplit(comm, npLevel1, commMultilevel);
 
-  //Get the communicator at each level
-  comm_masterLevel  = commMultilevel[1];
-  comm_localLevel   = commMultilevel[2];
-
-  // Broadcast the global matrix dimension from the root to the other procs in the master groups
+  // Broadcast the global matrix dimension from the root to the other procs in the master level
   if(comm_masterLevel!=MPI_COMM_NULL){
     CPLM_MatCSRDimensions_Bcast(&A, root, &m, &n, &nnz, comm_masterLevel);
   }
 
-  //Allocate memory
+  // Allocate memory
   if(comm_masterLevel!=MPI_COMM_NULL){
     if ( !(perm  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm[].");
   }
 
-  /* Build the selected preconditionner */
+  // Build the selected preconditionner
   if(precond_type==PREALPS_LORASC){
 
     ttemp =  MPI_Wtime();
@@ -323,11 +301,9 @@ int main(int argc, char** argv){
   }else{
 
     //Permute the matrix using the same partitioning as lorasc
-
     ttemp =  MPI_Wtime();
 
     if(comm_masterLevel!=MPI_COMM_NULL){
-
       preAlps_blockArrowStructPartitioning(comm_masterLevel, &A, &locAP, &partCount, &partBegin, perm);
     }
 
@@ -349,7 +325,6 @@ int main(int argc, char** argv){
   }
 
   // Prepare the selected preconditioner
-
   if(precond_type==PREALPS_NOPREC){
 
     // Create a generic preconditioner object compatible with EcgSolver
@@ -429,6 +404,16 @@ int main(int argc, char** argv){
     #endif
   }
 
+  //Pointers for the RCI interface
+  CPLM_Mat_Dense_t *AX  = NULL, *AY = NULL;
+
+  if (ecg_ortho_alg == ORTHOMIN){
+    AX  = ecg.R; AY = ecg.Z;
+  }
+  else if (ecg_ortho_alg == ORTHODIR){
+    AX  = ecg.AP; AY = ecg.Z;
+  }
+
   // Main loop
   while (stop != 1) {
 
@@ -460,23 +445,10 @@ int main(int argc, char** argv){
 
       if (stop == 1) break;
 
-      if (ecg_ortho_alg == ORTHOMIN){
-
-        if(precond_type==PREALPS_BLOCKJACOBI) {
-          preAlps_BlockJacobiApply(ecg.R,ecg.Z);
-        } else {
-          preAlps_PreconditionerMatApply(precond, ecg.R, ecg.Z);
-        }
-
-      }
-      else if (ecg_ortho_alg == ORTHODIR){
-
-        if(precond_type==PREALPS_BLOCKJACOBI) {
-          preAlps_BlockJacobiApply(ecg.AP, ecg.Z);
-        }else{
-          preAlps_PreconditionerMatApply(precond, ecg.AP, ecg.Z);
-        }
-
+      if(precond_type==PREALPS_BLOCKJACOBI) {
+        preAlps_BlockJacobiApply(AX, AY);
+      } else {
+        preAlps_PreconditionerMatApply(precond, AX, AY);
       }
 
     }

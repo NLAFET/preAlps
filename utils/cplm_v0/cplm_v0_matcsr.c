@@ -2532,6 +2532,31 @@ int CPLM_MatCSRDimensions_Bcast(CPLM_Mat_CSR_t *A, int root, int *m, int *n, int
   return ierr;
 }
 
+
+/*
+ * Load a matrix from a file using MatrixMarket or PETSc format depending on the file extension
+ */
+int CPLM_LoadMatrix( const char* matrix_filename, CPLM_Mat_CSR_t* A_out){
+
+  int ierr = 0;
+  const char* ext = CPLM_getFilenameExtension(matrix_filename);
+
+  if (strcmp(ext,"mtx") == 0) {
+    CPLM_LoadMatrixMarket(matrix_filename, A_out);
+  }else{
+    #ifdef PETSC
+      Mat A_petsc;
+      petscMatLoad(&A_petsc, matrix_filename, PETSC_COMM_SELF);
+      petscCreateMatCSR(A_petsc, A_out);
+      MatDestroy(&A_petsc);
+    #else
+      CPLM_Abort("Please Compile with PETSC to read other matrix file type");
+    #endif
+  }
+
+  return ierr;
+}
+
 /*
  * Matrix matrix product, C := alpha*A*B + beta*C
  * where A is a CSR matrix, B and C is are dense Matrices stored in column major layout/

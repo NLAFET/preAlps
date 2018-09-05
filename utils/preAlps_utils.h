@@ -151,11 +151,6 @@ void preAlps_dstats_display(MPI_Comm comm, double d, char *str);
 void preAlps_DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype);
 
 /*
- * Get the extension of a filename
- */
-const char *preAlps_get_filename_extension(const char *filename);
-
-/*
  * Each processor print the value of type int that it has
  * Work only in debug (-DDEBUG) mode
  * a:

@@ -445,6 +445,11 @@ int CPLM_MatCSRCreateNULL(CPLM_Mat_CSR_t **A);
 int CPLM_MatCSRDimensions_Bcast(CPLM_Mat_CSR_t *A, int root, int *m, int *n, int *nnz, MPI_Comm comm);
 
 /*
+ * Load a matrix from a file using MatrixMarket or PETSc format depending on the file extension
+ */
+int CPLM_LoadMatrix( const char* matrix_filename, CPLM_Mat_CSR_t* A_out);
+
+/*
  * Matrix matrix product, C := alpha*A*B + beta*C
  * where A is a CSR matrix, B and C is are dense Matrices stored in column major layout/
  */
