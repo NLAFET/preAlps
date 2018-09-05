@@ -26,17 +26,15 @@ int preAlps_LorascAlloc(preAlps_Lorasc_t **lorasc){
     (*lorasc)->eigvalues  = NULL;
     (*lorasc)->eigvectors = NULL;
 
-
-    // Partitioning and permutation vector
-    (*lorasc)->partCount  = NULL;
-    (*lorasc)->partBegin  = NULL;
-    (*lorasc)->perm       = NULL;
+    // Global separator
+    (*lorasc)->sep_mcounts  = NULL;
+    (*lorasc)->sep_moffsets = NULL;
+    (*lorasc)->sep_nrows    = 0;
 
 
     // Default parameters
     (*lorasc)->deflation_tol = 1e-2;
     (*lorasc)->nrhs          = 1;
-    (*lorasc)->OptPermuteOnly= 0;
 
     // Matrices
     (*lorasc)->Aii        = NULL;
@@ -48,10 +46,7 @@ int preAlps_LorascAlloc(preAlps_Lorasc_t **lorasc){
     (*lorasc)->Aii_sv     = NULL;
     (*lorasc)->Agg_sv     = NULL;
 
-    // Global separator
-    (*lorasc)->sep_mcounts  = NULL;
-    (*lorasc)->sep_moffsets = NULL;
-    (*lorasc)->sep_nrows    = 0;
+
 
 
     // Eigenvalues workspace
@@ -90,15 +85,21 @@ int preAlps_LorascAlloc(preAlps_Lorasc_t **lorasc){
  *     input: the input matrix on processor 0
  * locAP:
  *     output: the local permuted matrix on each proc after the preconditioner is built
+ * partCount:
+ *     output: the number of rows in each part
+ * partBegin:
+ *     output: the begining rows of each part.
+ * perm:
+ *     output: the permutation vector
 */
-int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP){
+int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, int **partCount, int **partBegin, int *perm){
 
-  int ierr = 0, nbprocs, my_rank, root = 0, npLevel1;
+  int ierr = 0, nbprocs, my_rank, root = 0;
   MPI_Comm comm = MPI_COMM_NULL, comm_masterLevel = MPI_COMM_NULL, comm_localLevel = MPI_COMM_NULL;
   int masterLevel_myrank, masterGroup_nbprocs, localLevel_myrank, localGroup_nbprocs, local_root = 0;
 
-  int *perm = NULL, *perm1=NULL, m, n, nnz;
-  int nparts, *partCount=NULL, *partBegin=NULL;
+  int *perm1=NULL, m, n, nnz;
+  int nparts, *partCountWork=NULL, *partBeginWork=NULL;
   int *sep_mcounts = NULL, *sep_moffsets=NULL, sep_nrows=0;
   int *Aii_mcounts = NULL, *Aii_moffsets=NULL;
   int *Aig_mcounts = NULL, *Aig_moffsets=NULL;
@@ -116,11 +117,11 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
    * 0. Let's begin
    */
 
-  lorasc->eigvalues_deflation = 0;
-
-  lorasc->tPartition = 0;
-
   ttemp1 = MPI_Wtime();
+
+  //initialization
+  lorasc->eigvalues_deflation = 0;
+  lorasc->tPartition = 0.0;
 
   // Get the multilevel communicators
   comm              = commMultilevel[0];
@@ -148,14 +149,12 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
 
   // Broadcast the global matrix dimension from the root to the other procs
   if(comm_masterLevel!=MPI_COMM_NULL){
-
     CPLM_MatCSRDimensions_Bcast(A, root, &m, &n, &nnz, comm_masterLevel);
   }
 
   //Allocate memory
   if(comm_masterLevel!=MPI_COMM_NULL){
     // Allocate memory for the permutation array
-    if ( !(perm  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm[].");
     if ( !(perm1  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm1[].");
 
     // Allocate memory for the distribution of the separator
@@ -170,7 +169,7 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
 
   if(comm_masterLevel!=MPI_COMM_NULL){
 
-    preAlps_blockArrowStructCreate(comm_masterLevel, m, A, &AP, perm1, &nparts, &partCount, &partBegin);
+    preAlps_blockArrowStructCreate(comm_masterLevel, m, A, &AP, perm1, &nparts, &partCountWork, &partBeginWork);
 
     // Check if each processor has at least one block
     if(masterGroup_nbprocs!=nparts-1){
@@ -184,9 +183,8 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
 
   if(comm_masterLevel!=MPI_COMM_NULL){
 
-    preAlps_blockArrowStructDistribute(comm_masterLevel, m, &AP, perm1, nparts, partCount, partBegin, locAP, perm,
+    preAlps_blockArrowStructDistribute(comm_masterLevel, m, &AP, perm1, nparts, partCountWork, partBeginWork, locAP, perm,
                                        Aii, Aig, Agi, Aggloc, sep_mcounts, sep_moffsets);
-
 
     // Get the global number of rows of the separator
     sep_nrows = sep_moffsets[masterGroup_nbprocs];
@@ -194,10 +192,9 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
   }
   lorasc->tPartition = MPI_Wtime() - ttemp1;
 
-  //if(localGroup_nbprocs>1){
 
+  // Allocate memory for the distribution of the blocks of the Arrow Block Strcuture
 
-  // Allocate memory for the distribution of the blocks
   if ( !(Aii_mcounts  = (int *) malloc((localGroup_nbprocs) * sizeof(int))) ) preAlps_abort("Malloc fails for Aii_mcounts[].");
   if ( !(Aii_moffsets = (int *) malloc((localGroup_nbprocs+1) * sizeof(int))) ) preAlps_abort("Malloc fails for Aii_moffsets[].");
   if ( !(Agi_mcounts  = (int *) malloc((localGroup_nbprocs) * sizeof(int))) ) preAlps_abort("Malloc fails for Agi_mcounts[].");
@@ -216,57 +213,54 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
   CPLM_MatCSRBlockRowDistribute(Aig, &Aiwork, Aig_mcounts, Aig_moffsets, local_root, comm_localLevel);
   CPLM_MatCSRCopy(&Aiwork, Aig);
 
-  //}
+  /*
+   * 3. Factorize the blocks Aii and Agg
+   */
 
-  if(!lorasc->OptPermuteOnly){
+  // Factorize Aii sequentially or in parallel depending on the number of procs within each blocks
 
-    /*
-     * 3. Factorize the blocks Aii and Agg
-     */
-
-    // Factorize Aii
-    if(localGroup_nbprocs>1){
-      stype = SOLVER_MUMPS; //only MUMPS is supported for the moment for the parallel case
-    }else{
-      switch(SPARSE_SOLVER){
-        case 0: stype = SOLVER_MKL_PARDISO; break;
-        case 1: stype = SOLVER_PARDISO; break;
-        case 2: stype = SOLVER_MUMPS; break;
-        default: stype = 0;
-      }
+  if(localGroup_nbprocs>1){
+    stype = SOLVER_MUMPS; //only MUMPS is supported for the moment for the parallel case
+  }else{
+    switch(SPARSE_SOLVER){
+      case 0: stype = SOLVER_MKL_PARDISO; break;
+      case 1: stype = SOLVER_PARDISO; break;
+      case 2: stype = SOLVER_MUMPS; break;
+      default: stype = 0;
     }
-
-    if(stype==SOLVER_MUMPS){
-      preAlps_solver_create(&Aii_sv, stype, comm_localLevel);
-      //set the global problem infos (required only for parallel solver)
-      preAlps_solver_setGlobalMatrixParam(Aii_sv, Aii_moffsets[localGroup_nbprocs], lorasc->nrhs, Aii_moffsets[localLevel_myrank]);
-    }else{
-      preAlps_solver_create(&Aii_sv, stype, MPI_COMM_SELF);
-    }
-
-    preAlps_solver_setMatrixType(Aii_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC);  //TODO: SOLVER_MATRIX_REAL_SYMMETRIC
-    preAlps_solver_init(Aii_sv);
-    preAlps_solver_factorize(Aii_sv, Aii->info.m, Aii->val, Aii->rowPtr, Aii->colInd);
-
-
-    // Factorize Agg in parallel
-
-    if(comm_masterLevel!=MPI_COMM_NULL){
-      stype = SOLVER_MUMPS; //only MUMPS is supported for the moment
-      preAlps_solver_create(&Agg_sv, stype, comm_masterLevel);
-      preAlps_solver_setMatrixType(Agg_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC); //must be done before solver_init
-      //set the global problem infos (required only for parallel solver)
-      preAlps_solver_setGlobalMatrixParam(Agg_sv, sep_nrows, lorasc->nrhs, sep_moffsets[masterLevel_myrank]);
-      //initialize the solver
-      preAlps_solver_init(Agg_sv);
-      preAlps_solver_factorize(Agg_sv, Aggloc->info.m, Aggloc->val, Aggloc->rowPtr, Aggloc->colInd);
-    }
-
-
   }
 
+  if(stype==SOLVER_MUMPS){
+    preAlps_solver_create(&Aii_sv, stype, comm_localLevel);
+    //set the global problem infos (required only for parallel solver)
+    preAlps_solver_setGlobalMatrixParam(Aii_sv, Aii_moffsets[localGroup_nbprocs], lorasc->nrhs, Aii_moffsets[localLevel_myrank]);
+  }else{
+    preAlps_solver_create(&Aii_sv, stype, MPI_COMM_SELF);
+  }
 
-  //Save params for further use
+  preAlps_solver_setMatrixType(Aii_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC);  //TODO: SOLVER_MATRIX_REAL_SYMMETRIC
+  preAlps_solver_init(Aii_sv);
+  preAlps_solver_factorize(Aii_sv, Aii->info.m, Aii->val, Aii->rowPtr, Aii->colInd);
+
+
+  // Factorize Agg in parallel
+
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    stype = SOLVER_MUMPS; //only MUMPS is supported for the moment
+    preAlps_solver_create(&Agg_sv, stype, comm_masterLevel);
+    preAlps_solver_setMatrixType(Agg_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC); //must be done before solver_init
+    //set the global problem infos (required only for parallel solver)
+    preAlps_solver_setGlobalMatrixParam(Agg_sv, sep_nrows, lorasc->nrhs, sep_moffsets[masterLevel_myrank]);
+    //initialize the solver
+    preAlps_solver_init(Agg_sv);
+    preAlps_solver_factorize(Agg_sv, Aggloc->info.m, Aggloc->val, Aggloc->rowPtr, Aggloc->colInd);
+  }
+
+  // Restore output vectors
+  *partCount    = partCountWork;
+  *partBegin    = partBeginWork;
+
+  // Save params for further use
   lorasc->comm             = comm;
   lorasc->comm_masterLevel = comm_masterLevel;
   lorasc->comm_localLevel  = comm_localLevel;
@@ -281,19 +275,11 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
    * 4. Solve the eigenvalue problem
    */
 
-  if(!lorasc->OptPermuteOnly){
-
-    preAlps_LorascEigSolve(lorasc, Aggloc->info.m, Agi, Aii, Aig, Aggloc, Aii_sv, Agg_sv);
-  }
+  preAlps_LorascEigSolve(lorasc, Aggloc->info.m, Agi, Aii, Aig, Aggloc, Aii_sv, Agg_sv);
 
   /*
    * 5. Save infos for the application of the preconditioner
    */
-
-  //Save partitioning infos
-  lorasc->partCount    = partCount;
-  lorasc->partBegin    = partBegin;
-  lorasc->perm         = perm;
 
   //Matrices
   lorasc->Aii          = Aii;
@@ -325,11 +311,6 @@ int preAlps_LorascDestroy(preAlps_Lorasc_t **lorasc){
   preAlps_Lorasc_t *lorascA = *lorasc;
 
   if(!lorascA) return 0;
-
-  //Free partitioning and permutation
-  if(lorascA->partCount) free(lorascA->partCount);
-  if(lorascA->partBegin) free(lorascA->partBegin);
-  if(lorascA->perm)      free(lorascA->perm);
 
   //Free internal allocated workspace
   preAlps_LorascMatApplyWorkspaceFree(lorascA);

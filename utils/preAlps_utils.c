@@ -330,6 +330,91 @@ int preAlps_blockArrowStructDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP,
   return ierr;
 }
 
+/*
+ * Perform a block arrow partitioning of a matrix and distribute the separator to all procs
+ * comm:
+ *     input: the communicator for all the processors calling the routine
+ * A:
+ *     input: the input matrix on processor 0
+ * locAP:
+ *     output: the local permuted matrix on each proc after the preconditioner is built
+ * partCount:
+ *     output: the number of rows in each part
+ * partBegin:
+ *     output: the begining rows of each part.
+ * perm:
+ *     output: the permutation vector
+*/
+int preAlps_blockArrowStructPartitioning(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, int **partCount, int **partBegin, int *perm){
+
+  int ierr = 0, nbprocs, my_rank, root = 0;
+
+  int *perm1=NULL, m, n, nnz;
+  int nparts, *partCountWork=NULL, *partBeginWork=NULL;
+  int *sep_mcounts = NULL, *sep_moffsets=NULL;
+  //int *Aii_mcounts = NULL, *Aii_moffsets=NULL;
+  //int *Aig_mcounts = NULL, *Aig_moffsets=NULL;
+  //int *Agi_mcounts = NULL, *Agi_moffsets=NULL;
+
+  CPLM_Mat_CSR_t AP = CPLM_MatCSRNULL();
+  CPLM_Mat_CSR_t *Aii = NULL, *Aig =NULL, *Agi=NULL, *Aggloc=NULL;
+
+  // Let me know who I am at each level
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+  // Create matrix objects
+  CPLM_MatCSRCreateNULL(&Aii);
+  CPLM_MatCSRCreateNULL(&Aig);
+  CPLM_MatCSRCreateNULL(&Agi);
+  CPLM_MatCSRCreateNULL(&Aggloc);
+
+  // Broadcast the global matrix dimension from the root to the other procs
+
+  CPLM_MatCSRDimensions_Bcast(A, root, &m, &n, &nnz, comm);
+
+  // Allocate memory for the permutation array
+  //if ( !(perm  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm[].");
+  if ( !(perm1  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm1[].");
+
+  // Allocate memory for the distribution of the separator
+  if ( !(sep_mcounts  = (int *) malloc((nbprocs) * sizeof(int))) ) preAlps_abort("Malloc fails for sep_mcounts[].");
+  if ( !(sep_moffsets = (int *) malloc((nbprocs+1) * sizeof(int))) ) preAlps_abort("Malloc fails for sep_moffsets[].");
+
+  // Create a block arrow structure of the matrix
+
+  preAlps_blockArrowStructCreate(comm, m, A, &AP, perm1, &nparts, &partCountWork, &partBeginWork);
+
+  // Check if each processor has at least one block
+  if(nbprocs!=nparts-1){
+    preAlps_abort("This number of process is not support yet. Please use a multiple of 2. nbprocs (level 1): %d, nparts created:%d\n", nbprocs, nparts-1);
+  }
+
+  // Distribute the permuted matrix to all the processors
+  //TODO: create a distribute version which will not allocate the matrices Aii, Aig, Agi, Aggloc when they are not needed
+
+  preAlps_blockArrowStructDistribute(comm, m, &AP, perm1, nparts, partCountWork, partBeginWork, locAP, perm,
+                                       Aii, Aig, Agi, Aggloc, sep_mcounts, sep_moffsets);
+
+  //Save partitioning arrays
+  *partCount = partCountWork;
+  *partBegin = partBeginWork;
+
+  //Free matrices objects
+  if(Aii)    CPLM_MatCSRFree(Aii);
+  if(Aig)    CPLM_MatCSRFree(Aig);
+  if(Agi)    CPLM_MatCSRFree(Agi);
+  if(Aggloc) CPLM_MatCSRFree(Aggloc);
+  //free separator infos
+  if(sep_mcounts)     free(sep_mcounts);
+  if(sep_moffsets)    free(sep_moffsets);
+  // Free memory
+  free(perm1);
+  CPLM_MatCSRFree(&AP);
+
+  return ierr;
+}
+
 
 /* Distribute the separator to each proc and permute the matrix such as their are contiguous in memory */
 int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
@@ -413,6 +498,9 @@ int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_C
 
   return ierr;
 }
+
+
+
 
 /*
  *

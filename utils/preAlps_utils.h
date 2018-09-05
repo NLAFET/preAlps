@@ -90,6 +90,24 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
    CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
 
 
+ /*
+  * Perform a block arrow partitioning of a matrix and distribute the separator to all procs
+  * comm:
+  *     input: the communicator for all the processors calling the routine
+  * A:
+  *     input: the input matrix on processor 0
+  * locAP:
+  *     output: the local permuted matrix on each proc after the preconditioner is built
+  * partCount:
+  *     output: the number of rows in each part
+  * partBegin:
+  *     output: the begining rows of each part.
+  * perm:
+  *     output: the permutation vector
+ */
+ int preAlps_blockArrowStructPartitioning(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, int **partCount, int **partBegin, int *perm);
+
+
 /* Distribute the separator to each proc and permute the matrix such as their are contiguous in memory */
 int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
     CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);

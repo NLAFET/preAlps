@@ -21,20 +21,21 @@ typedef struct{
   /* User input*/
   double deflation_tol;    /* The deflation tolerance (default: 10^-2)*/
   int nrhs;                /* The number of rhs on which lorasc will be applied. This is required internally for the analysis. Default value: 1 */
-  int OptPermuteOnly;      /* Option to only permute the matrix for LORASC, do not build the preconditioner */
 
   /* Computed during the build but accessible by the user */
-  int *partCount;           /* array of size P (idxRowCount[i] indicates the number of rows for processor i in the permuted matrix)*/
-  int *partBegin;          /* array of size P+1 (idxRowBegin[i] indicates the position of the first row of processor i in the permuted matrix)*/
-  int *perm;               /* The permutation applied by lorasc to construct the block Arrow structure and distribute */
-  double *eigvalues;       /* The eigenvalues from the eigenvalue problem of lorasc */
-  double *eigvectors;      /* The eigenvectors from the eigenvalue problem of lorasc (allocated on the root only) */
-  int eigvalues_deflation; /* Number of eigenvalues selected for the deflation*/
+  //int *partCount;           /* array of size P (idxRowCount[i] indicates the number of rows for processor i in the permuted matrix)*/
+  //int *partBegin;          /* array of size P+1 (idxRowBegin[i] indicates the position of the first row of processor i in the permuted matrix)*/
 
   /* infos about the separator  also accessible by the user */
   int *sep_mcounts;
   int *sep_moffsets;
   int sep_nrows;
+
+  double *eigvalues;       /* The eigenvalues from the eigenvalue problem of lorasc */
+  double *eigvectors;      /* The eigenvectors from the eigenvalue problem of lorasc (allocated on the root only) */
+  int eigvalues_deflation; /* Number of eigenvalues selected for the deflation*/
+
+
 
   /* The global communicator */
   MPI_Comm comm;            /* The MPI communicator used to build the preconditioner. Should be the same to apply it. */
@@ -92,8 +93,14 @@ int preAlps_LorascAlloc(preAlps_Lorasc_t **lorasc);
  *     input: the input matrix on processor 0
  * locAP:
  *     output: the local permuted matrix on each proc after the preconditioner is built
+ * partCount:
+ *     output: the number of rows in each part
+ * partBegin:
+ *     output: the begining rows of each part.
+ * perm:
+ *     output: the permutation vector
 */
-int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP);
+int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, int **partCount, int **partBegin, int *perm);
 
 
 /*Destroy the preconditioner*/

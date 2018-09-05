@@ -94,7 +94,6 @@ int main(int argc, char** argv){
   MPI_Comm comm, comm_masterLevel, comm_localLevel, commMultilevel[3];
   int nbprocs, my_rank, root = 0, groupLevel = 0, local_root=0;
   int npLevel1 = 0; //For multilevel algorithms, the number of processors at the first level
-  //int npLevel2 = 1; //For multilevel algorithms, the number of processors at the second level
 
   int i, ierr = 0;
   char matrix_filename[150]="", rhs_filename[150]="";
@@ -108,8 +107,10 @@ int main(int argc, char** argv){
 
   double ttemp, tPartition =0.0, tPrec = 0.0, tSolve = 0.0, tTotal;
 
+  //Partitioning and permutation vectors
+  int *partBegin = NULL, *partCount = NULL, *perm = NULL;
 
-  /* Required by block Jacobi*/
+  // Required by block Jacobi
   int* rowPos = NULL;
   int* colPos = NULL;
   int sizeRowPos, sizeColPos;
@@ -287,8 +288,17 @@ int main(int argc, char** argv){
   comm_masterLevel  = commMultilevel[1];
   comm_localLevel   = commMultilevel[2];
 
-  /* Build the selected preconditionner */
+  // Broadcast the global matrix dimension from the root to the other procs in the master groups
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    CPLM_MatCSRDimensions_Bcast(&A, root, &m, &n, &nnz, comm_masterLevel);
+  }
 
+  //Allocate memory
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    if ( !(perm  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm[].");
+  }
+
+  /* Build the selected preconditionner */
   if(precond_type==PREALPS_LORASC){
 
     ttemp =  MPI_Wtime();
@@ -303,40 +313,33 @@ int main(int argc, char** argv){
     lorascA->nrhs = ecg_enlargedFactor;
 
     // Build the preconditioner and distribute the matrix
-    ierr = preAlps_LorascBuild(lorascA, commMultilevel, &A, &locAP); preAlps_checkError(ierr);
-
-    tPrec = MPI_Wtime() - ttemp - lorascA->tPartition;
+    ierr = preAlps_LorascBuild(lorascA, commMultilevel, &A, &locAP, &partCount, &partBegin, perm); preAlps_checkError(ierr);
 
     if(my_rank==root) printf("Schur-complement size: %d\n", lorascA->sep_nrows);
 
     tPartition = lorascA->tPartition;
+    tPrec = MPI_Wtime() - ttemp - lorascA->tPartition;
 
   }else{
 
-    //ttemp =  MPI_Wtime();
-    /* permute only the matrix using lorasc, do not build the preconditioner */
+    //Permute the matrix using the same partitioning as lorasc
 
-    // Memory allocation for lorasc preconditioner
-    ierr =  preAlps_LorascAlloc(&lorascA); preAlps_checkError(ierr);
+    ttemp =  MPI_Wtime();
 
-    //permute only the matrix using lorasc, do not build the preconditioner
-    lorascA->OptPermuteOnly = 1;
+    if(comm_masterLevel!=MPI_COMM_NULL){
 
-    // permute and distribute the matrix using lorasc
-    ierr = preAlps_LorascBuild(lorascA, commMultilevel, &A, &locAP); preAlps_checkError(ierr);
+      preAlps_blockArrowStructPartitioning(comm_masterLevel, &A, &locAP, &partCount, &partBegin, perm);
+    }
 
-    tPartition = lorascA->tPartition; //MPI_Wtime() - ttemp;
+    tPartition = MPI_Wtime() - ttemp;
   }
 
+  // Prepare the operator
   if(comm_masterLevel!=MPI_COMM_NULL){
 
     CPLM_MatCSRPrintSynchronizedCoords(&locAP, comm_masterLevel, "locAP", "locAP");
 
-    // Broadcast the global matrix dimension from the root to the other procs in the master groups
-    CPLM_MatCSRDimensions_Bcast(&A, root, &m, &n, &nnz, comm_masterLevel);
-
-    // Prepare the operator
-    if(lorascA) preAlps_OperatorBuildNoPerm(&locAP, lorascA->partBegin, 1, comm_masterLevel);
+    preAlps_OperatorBuildNoPerm(&locAP, partBegin, 1, comm_masterLevel);
 
     #ifdef USE_OPERATOR_MATMULT_GATHERV //DEBUG ONLY
       if(my_rank==0) printf("[DEBUG] ***** USING MATMULT GATHERV DEBUG **** \n");
@@ -345,7 +348,7 @@ int main(int argc, char** argv){
 
   }
 
-  /* Prepare the selected preconditioner */
+  // Prepare the selected preconditioner
 
   if(precond_type==PREALPS_NOPREC){
 
@@ -366,17 +369,19 @@ int main(int argc, char** argv){
     preAlps_PreconditionerCreate(&precond, precond_type, (void *) lorascA);
   }
 
+
+  //Permute and distribute the right hand side
   if(comm_masterLevel!=MPI_COMM_NULL){
 
     if ( !(b  = (double *) malloc(m*sizeof(double))) ) preAlps_abort("Malloc fails for b[].");
 
     if(my_rank==root){
       //Apply the permutation on the right hand side
-      preAlps_doubleVector_permute(lorascA->perm, rhs, b, m);
+      preAlps_doubleVector_permute(perm, rhs, b, m);
     }
 
     //Distribute the rhs
-    MPI_Scatterv(b, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, my_rank==0?MPI_IN_PLACE:b, locAP.info.m, MPI_DOUBLE, root, comm_masterLevel);
+    MPI_Scatterv(b, partCount, partBegin, MPI_DOUBLE, my_rank==0?MPI_IN_PLACE:b, locAP.info.m, MPI_DOUBLE, root, comm_masterLevel);
     preAlps_doubleVector_printSynchronized(b, locAP.info.m, "b after the distribution", "b", comm_masterLevel);
 
   }
@@ -412,12 +417,11 @@ int main(int argc, char** argv){
     preAlps_PreconditionerMatApply(precond, ecg.R, ecg.P);
   }
 
-
   if(comm_masterLevel!=MPI_COMM_NULL){
 
     #ifdef USE_OPERATOR_MATMULT_GATHERV
       //Algatherv AP
-      MPI_Allgatherv(ecg.P->val, ecg.P->info.nval, MPI_DOUBLE, vs, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, comm_masterLevel);
+      MPI_Allgatherv(ecg.P->val, ecg.P->info.nval, MPI_DOUBLE, vs, partCount, partBegin, MPI_DOUBLE, comm_masterLevel);
       CPLM_MatCSRMatrixCSRDenseMult(&locAP, 1.0, vs, ecg.P->info.n, m, 0.0, ecg.AP->val, ecg.AP->info.lda);
     #else
       preAlps_BlockOperator(ecg.P, ecg.AP);
@@ -438,7 +442,7 @@ int main(int argc, char** argv){
 
       if(comm_masterLevel!=MPI_COMM_NULL){
         #ifdef USE_OPERATOR_MATMULT_GATHERV
-          MPI_Allgatherv(ecg.P->val, ecg.P->info.nval, MPI_DOUBLE, vs, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, comm_masterLevel);
+          MPI_Allgatherv(ecg.P->val, ecg.P->info.nval, MPI_DOUBLE, vs, partCount, partBegin, MPI_DOUBLE, comm_masterLevel);
           CPLM_MatCSRMatrixCSRDenseMult(&locAP, 1.0, vs, ecg.P->info.n, m, 0.0, ecg.AP->val, ecg.AP->info.lda);
         #else
           preAlps_BlockOperator(ecg.P, ecg.AP);
@@ -480,8 +484,8 @@ int main(int argc, char** argv){
     if(monitorResidual && my_rank==root) printf("Iteration: %d, \tres: %e\n", ecg.iter, ecg.res);
   }
 
+  // Get and permute the solution
   if(comm_masterLevel!=MPI_COMM_NULL){
-
 
     sol = (double*) malloc(locAP.info.m*sizeof(double));
 
@@ -493,7 +497,7 @@ int main(int argc, char** argv){
     // Gather the solution on proc 0
 
     if(my_rank==0) x = (double*) malloc(m*sizeof(double));
-    MPI_Gatherv(sol, locAP.info.m, MPI_DOUBLE, x, lorascA->partCount, lorascA->partBegin, MPI_DOUBLE, root, comm_masterLevel);
+    MPI_Gatherv(sol, locAP.info.m, MPI_DOUBLE, x, partCount, partBegin, MPI_DOUBLE, root, comm_masterLevel);
 
     // Post process the solution
     if(my_rank==0) {
@@ -501,7 +505,7 @@ int main(int argc, char** argv){
       double *xTmp;
       xTmp = (double*) malloc(m*sizeof(double));
 
-      preAlps_doubleVector_invpermute(lorascA->perm, x, xTmp, m);
+      preAlps_doubleVector_invpermute(perm, x, xTmp, m);
 
       //Apply the Scaling factor on the solution
       if(C) preAlps_doubleVector_pointWiseProduct(C, xTmp, x, m);
@@ -511,63 +515,64 @@ int main(int argc, char** argv){
       free(xTmp);
     }
 
-
-    //Check the solution
-    if(doSolutionCheck && my_rank==0){
-      double *rTmp, normRes, normRhs;
-      rTmp = (double*) malloc(m*sizeof(double));
-      for (int k = 0 ; k < m ; k++) rTmp [ k] = rhsOrigin [k] ;
-      // compute Ax-b
-      CPLM_MatCSRMatrixVector(&AOrigin, 1.0, x, -1.0, rTmp);
-
-      preAlps_doubleVector_printSynchronized(rTmp, m, "err=b-AX", "err", MPI_COMM_SELF);
-
-      normRes = preAlps_doubleVector_norm2(rTmp, m);
-      normRhs = preAlps_doubleVector_norm2(rhsOrigin, m);
-      printf("norm (b-Ax)/norm(b): %e\n", normRes/normRhs);
-      free(rTmp);
-    }
-
-    tSolve = MPI_Wtime() - ttemp;
-
     if (my_rank == 0)
       printf("=== ECG ===\n\tSolver iterations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);
 
-    //tTotal = tPartition + tPrec + tSolve;
-    tTotal = tPrec + tSolve; //exclude partitioning time
+  }
 
+  tSolve = MPI_Wtime() - ttemp;
+  //tTotal = tPartition + tPrec + tSolve;
+  tTotal = tPrec + tSolve; //the partitioning time is excluded
+
+  // Check the solution
+  if(doSolutionCheck && my_rank==0){
+    double *rTmp, normRes, normRhs;
+    rTmp = (double*) malloc(m*sizeof(double));
+    for (int k = 0 ; k < m ; k++) rTmp [ k] = rhsOrigin [k] ;
+    // compute Ax-b
+    CPLM_MatCSRMatrixVector(&AOrigin, 1.0, x, -1.0, rTmp);
+
+    preAlps_doubleVector_printSynchronized(rTmp, m, "err=b-AX", "err", MPI_COMM_SELF);
+
+    normRes = preAlps_doubleVector_norm2(rTmp, m);
+    normRhs = preAlps_doubleVector_norm2(rhsOrigin, m);
+    printf("norm (b-Ax)/norm(b): %e\n", normRes/normRhs);
+    free(rTmp);
+  }
+
+  //Display stats
+  if(comm_masterLevel!=MPI_COMM_NULL){
     preAlps_dstats_display(comm_masterLevel, tPartition, "Time partitioning");
     preAlps_dstats_display(comm_masterLevel, tPrec, "Time preconditioner");
     preAlps_dstats_display(comm_masterLevel, tSolve, "Time Solve");
     preAlps_dstats_display(comm_masterLevel, tTotal, "Time Total");
+  }
+  // Clean up
 
+  #ifdef USE_OPERATOR_MATMULT_GATHERV
+    free(vs);
+  #endif
+  preAlps_OperatorFree();
 
-
-    #ifdef USE_OPERATOR_MATMULT_GATHERV
-      free(vs);
-    #endif
-
-    //Free memory
-    preAlps_OperatorFree();
-
+  // Destroy the preconditioner/the partitioning
+  if(precond_type==PREALPS_LORASC){
+    ierr =  preAlps_LorascDestroy(&lorascA); preAlps_checkError(ierr);
   }
 
-
-  //Destroy the preconditioner/the partitioning
-  //if(precond_type==PREALPS_LORASC){
-  ierr =  preAlps_LorascDestroy(&lorascA); preAlps_checkError(ierr);
-  //}
-
+  // Destroy the generic preconditioner object
   if(comm_masterLevel!=MPI_COMM_NULL){
-    // Destroy the generic preconditioner object
     preAlps_PreconditionerDestroy(&precond);
   }
 
-  //Free memory
-  if(b) free(b);
-  if(rhs) free(rhs);
-  if(sol) free(sol);
-  if(x) free(x);
+  // Free memory
+  if(partBegin) free(partBegin);
+  if(partCount) free(partCount);
+  if(perm)      free(perm);
+  if(b)         free(b);
+  if(rhs)       free(rhs);
+  if(sol)       free(sol);
+  if(x)         free(x);
+
   CPLM_MatCSRFree(&locAP);
   if(my_rank==0){
     CPLM_MatCSRFree(&A);
