@@ -18,23 +18,11 @@ Date        : oct 1, 2017
 /*
  * Solve the eigenvalues problem S*u = \lambda*Agg*u using arpack.
  * Where  S = Agg - Agi*inv(Aii)*Aig.
- *
  * lorascA:
  *     input/output: stores the computed eigenvalues at the end of this routine
- * comm:
- *    input: the communicator
  * mloc:
  *    input: the number of rows of the local matrice.
- * Agi, Aii, Aig
- *    input: the matrices required for computing the second part of S
- * Aggloc
- *    input: the matrix Agg distributed on all procs
- * Aii_sv
- *    input: the solver object to apply to compute  Aii^{-1}v
- * Agg_sv
- *    input: the solver object to apply to compute  Agg^{-1}v
 */
 
-int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, int mloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
-                         CPLM_Mat_CSR_t *Aggloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv);
+int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, int mloc);
 #endif

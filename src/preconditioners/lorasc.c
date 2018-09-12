@@ -260,10 +260,25 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
   *partCount    = partCountWork;
   *partBegin    = partBeginWork;
 
-  // Save params for further use
+  /*
+   * 4. Save infos for the application of the preconditioner
+   */
+
   lorasc->comm             = comm;
   lorasc->comm_masterLevel = comm_masterLevel;
   lorasc->comm_localLevel  = comm_localLevel;
+
+
+
+
+
+  // Matrices
+  lorasc->Aii          = Aii;
+  lorasc->Aig          = Aig;
+  lorasc->Agi          = Agi;
+  lorasc->Aggloc       = Aggloc;
+
+  // Distribution of the matrices to the local processors
   lorasc->Aii_mcounts      = Aii_mcounts;
   lorasc->Aii_moffsets     = Aii_moffsets;
   lorasc->Aig_mcounts      = Aig_mcounts;
@@ -271,30 +286,20 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
   lorasc->Agi_mcounts      = Agi_mcounts;
   lorasc->Agi_moffsets     = Agi_moffsets;
 
-  /*
-   * 4. Solve the eigenvalue problem
-   */
-
-  preAlps_LorascEigSolve(lorasc, Aggloc->info.m, Agi, Aii, Aig, Aggloc, Aii_sv, Agg_sv);
-
-  /*
-   * 5. Save infos for the application of the preconditioner
-   */
-
-  //Matrices
-  lorasc->Aii          = Aii;
-  lorasc->Aig          = Aig;
-  lorasc->Agi          = Agi;
-  lorasc->Aggloc       = Aggloc;
-
-  //Solvers
+  // Solvers
   lorasc->Aii_sv       = Aii_sv;
   lorasc->Agg_sv       = Agg_sv;
 
-  //Separator infos
+  // Separator infos
   lorasc->sep_mcounts  = sep_mcounts;
   lorasc->sep_moffsets = sep_moffsets;
   lorasc->sep_nrows    = sep_nrows;
+
+  /*
+   * 5.  Solve the eigenvalue problem
+   */
+
+  preAlps_LorascEigSolve(lorasc, Aggloc->info.m);
 
 
   // Free memory

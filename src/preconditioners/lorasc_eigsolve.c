@@ -31,25 +31,13 @@ Date        : oct 1, 2017
  /*
   * Solve the eigenvalues problem S*u = \lambda*Agg*u using arpack.
   * Where  S = Agg - Agi*inv(Aii)*Aig.
-  *
   * lorascA:
   *     input/output: stores the computed eigenvalues at the end of this routine
-  * comm:
-  *    input: the communicator
   * mloc:
   *    input: the number of rows of the local matrice.
-  * Agi, Aii, Aig
-  *    input: the matrices required for computing the second part of S
-  * Aggloc
-  *    input: the matrix Agg distributed on all procs
-  * Aii_sv
-  *    input: the solver object to apply to compute  Aii^{-1}v
-  * Agg_sv
-  *    input: the solver object to apply to compute  Agg^{-1}v
  */
 
- int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, int mloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
-                            CPLM_Mat_CSR_t *Aggloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv){
+ int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, int mloc){
 
   int ierr = 0;
   int root = 0, my_rank, nbprocs;
@@ -72,6 +60,13 @@ Date        : oct 1, 2017
   MPI_Comm comm_masterLevel = lorascA->comm_masterLevel;
   MPI_Comm comm_localLevel  = lorascA->comm_localLevel;
 
+  CPLM_Mat_CSR_t *Aii       = lorascA->Aii;
+  CPLM_Mat_CSR_t *Aig       = lorascA->Aig;
+  CPLM_Mat_CSR_t *Agi       = lorascA->Agi;
+  CPLM_Mat_CSR_t *Aggloc    = lorascA->Aggloc;
+  preAlps_solver_t *Aii_sv  = lorascA->Aii_sv;
+  preAlps_solver_t *Agg_sv  = lorascA->Agg_sv;
+
   int *Aii_mcounts          = lorascA->Aii_mcounts;
   int *Aii_moffsets         = lorascA->Aii_moffsets;
   int *Aig_mcounts          = lorascA->Aig_mcounts;
@@ -90,12 +85,12 @@ Date        : oct 1, 2017
   MPI_Comm_rank(comm_localLevel, &localLevel_myrank);
   MPI_Comm_size(comm_localLevel, &localGroup_nbprocs);
 
-  preAlps_int_printSynchronized(0, "dbg", comm);
+
+  t = MPI_Wtime();
 
   if(comm_masterLevel!=MPI_COMM_NULL){
 
     SolverStats_init(&tstats);
-    t = MPI_Wtime();
 
     /* Create the eigensolver object*/
     Eigsolver_create(&eigs);
@@ -137,8 +132,6 @@ Date        : oct 1, 2017
       if(masterLevel_myrank==0) printf("m:%d, mloc:%d, ncv:%d, nev:%d\n", m, mloc, eigs->ncv, eigs->nev);
     #endif
 
-
-
     //compute displacements
     mdispls[0] = 0;
     for(i=1;i<masterGroup_nbprocs;i++) mdispls[i] = mdispls[i-1] + mcounts[i-1];
@@ -146,8 +139,6 @@ Date        : oct 1, 2017
     //if(my_rank==root) printf("Agg size: %d\n", m);
 
   }
-
-  preAlps_int_printSynchronized(1, "dbg", comm);
 
   //broadcast the global matrix dimension to the local group
   if(localGroup_nbprocs>1){
@@ -201,12 +192,6 @@ Date        : oct 1, 2017
       /*
        * Compute the matrix vector product Y = OP*X = Inv(Agg)*S*X
        */
-      /*
-      ierr = matrixVectorOp_AggInvxS(comm, mloc, m, mcounts, mdispls,
-                                          Agi, Aii, Aig, Aggloc,
-                                          Aii_sv, Agg_sv, X, Y,
-                                          dwork1, dwork2, ywork, &tstats);
-      */
       ierr = matrixVectorOp_AggInvxS_mlevel(mloc, m, mcounts, mdispls,
                                           Agi, Aii, Aig, Aggloc,
                                           Aii_sv, Agg_sv, X, Y,
@@ -243,20 +228,6 @@ Date        : oct 1, 2017
       preAlps_abort("[PARPACK] (Unhandled case) ido is not 99, current value:%d", ido);
     } //ido
      //if(RCI_its>=5) iterate = 0; //DEBUG: force break for debugging purpose
-
-     #ifdef DEBUG
-       if(comm_masterLevel!=MPI_COMM_NULL){
-         MPI_Gatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, root, comm_masterLevel);
-         if(masterLevel_myrank==root) preAlps_doubleVector_printSynchronized(ywork, m, "X", " X after matvec", MPI_COMM_SELF);
-       }
-     #endif
-    #ifdef DEBUG
-      if(comm_masterLevel!=MPI_COMM_NULL){
-        MPI_Gatherv(Y, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, root, comm_masterLevel);
-        if(masterLevel_myrank==root) preAlps_doubleVector_printSynchronized(ywork, m, "Y", " Y gathered after matvec", MPI_COMM_SELF);
-      }
-    #endif
-
   }
 
   free(dwork1);
