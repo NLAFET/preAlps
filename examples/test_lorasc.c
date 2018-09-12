@@ -31,8 +31,6 @@ Date        : Mai 15, 2017
 #include "ecg.h"
 #include "operator.h"
 
-//#define USE_OPERATOR_MATMULT_GATHERV 1 //debug only, use gather the vector to perform the matvec operation
-
 static int testLorasc_checkArgs(MPI_Comm comm, int precond_num, Prec_Type_t precond_type, int npLevel1){
   int my_rank, nbprocs;
 
@@ -55,6 +53,89 @@ static int testLorasc_checkArgs(MPI_Comm comm, int precond_num, Prec_Type_t prec
   return 0;
 }
 
+static int testLorasc_ECGSolve(preAlps_ECG_t  *ecg, PreAlps_preconditioner_t *precond, MPI_Comm *commMultilevel, double *b, double *sol, int monitorResidual){
+
+  int ierr = 0, rci_request = 0, stop = 0;
+  MPI_Comm comm, comm_masterLevel, comm_localLevel;
+  int my_rank, root = 0, local_root=0;
+
+  // Get the multilevel communicators
+  comm              = commMultilevel[0];
+  comm_masterLevel  = commMultilevel[1];
+  comm_localLevel   = commMultilevel[2];
+
+  // Let me know who I am
+  MPI_Comm_rank(comm, &my_rank);
+
+  // Allocate memory and initialize variables
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    preAlps_ECGInitialize(ecg, b, &rci_request);
+  }
+
+  // Finish initialization
+  preAlps_PreconditionerMatApply(precond, ecg->R, ecg->P);
+
+  //Compute AP = A*P
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    preAlps_BlockOperator(ecg->P, ecg->AP);
+  }
+
+  // Pointers for the RCI interface
+  CPLM_Mat_Dense_t *AX  = NULL, *AY = NULL;
+
+  if (ecg->ortho_alg == ORTHOMIN){
+    AX  = ecg->R; AY = ecg->Z;
+  }
+  else if (ecg->ortho_alg == ORTHODIR){
+    AX  = ecg->AP; AY = ecg->Z;
+  }
+
+  // Main loop
+  while (stop != 1) {
+
+    //Iterate at the master level
+    if(comm_masterLevel!=MPI_COMM_NULL) {
+      preAlps_ECGIterate(ecg, &rci_request);
+    }
+
+    //Broadcast rci_request to the local group
+    MPI_Bcast(&rci_request, 1, MPI_INT, local_root, comm_localLevel);
+
+    if (rci_request == 0) {
+
+      //Compute AP = A*P
+      if(comm_masterLevel!=MPI_COMM_NULL){
+        preAlps_BlockOperator(ecg->P, ecg->AP);
+      }
+
+    }
+    else if (rci_request == 1) {
+
+      if(comm_masterLevel!=MPI_COMM_NULL) {
+        preAlps_ECGStoppingCriterion(ecg, &stop);
+      }
+
+      //Broadcast stop to the local group
+      MPI_Bcast(&stop, 1, MPI_INT, local_root, comm_localLevel);
+
+      if (stop == 1) break;
+
+      //Apply the preconditioner
+      preAlps_PreconditionerMatApply(precond, AX, AY);
+
+    }
+
+    if(monitorResidual && my_rank==root) printf("Iteration: %d, \tres: %e\n", ecg->iter, ecg->res);
+  }
+
+  // Retrieve solution and free memory
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    preAlps_ECGFinalize(ecg, sol);
+  }
+
+  return ierr;
+}
+
 static void testLorasc_showHelp(){
   printf(" Purpose\n");
   printf(" =======\n");
@@ -67,21 +148,27 @@ static void testLorasc_showHelp(){
   printf("\n");
   printf(" Arguments\n");
   printf(" =========\n");
-  printf(" -m: the matrix file\n");
+  printf(" -m/-mat: the matrix file\n");
   printf("    the matrix stored in matrix market format\n");
-  printf(" -r: the right hand side file\n");
+  printf(" -r/-rhs: the right hand side file\n");
   printf("     the right hand side stored in a text file\n");
   printf(" -t: the enlarged factor (default :1)\n");
   printf(" -npLevel1: the number of processors at the first level if greater then 0 (default : 0 = <all processors>)\n");
-  printf(" -p: preconditioner \n");
+  printf(" -p/-prec: preconditioner \n");
   printf("     0: no prec, 1: blockJacobi, 2: Lorasc\n");
 }
 
-/**/
+
+
+/*
+ * Main program
+ *
+ */
+
 int main(int argc, char** argv){
 
-  MPI_Comm comm, comm_masterLevel, comm_localLevel, commMultilevel[3];
-  int nbprocs, my_rank, root = 0, groupLevel = 0, local_root=0;
+  MPI_Comm comm, commMultilevel[3];
+  int nbprocs, my_rank, root = 0;
   int npLevel1 = 0; //For multilevel algorithms, the number of processors at the first level
 
   int i, ierr = 0;
@@ -92,7 +179,7 @@ int main(int argc, char** argv){
 
 
   double *b = NULL, *rhs = NULL, *sol = NULL, *x = NULL, *rhsOrigin = NULL;
-  int m = 0, n, nnz, mloc, offsetloc, rhs_size = 0;
+  int m = 0, n, nnz, rhs_size = 0;
 
   double ttemp, tPartition =0.0, tPrec = 0.0, tSolve = 0.0, tTotal;
 
@@ -108,14 +195,11 @@ int main(int argc, char** argv){
   Prec_Type_t precond_type = PREALPS_LORASC; //PREALPS_NOPREC, PREALPS_BLOCKJACOBI
   PreAlps_preconditioner_t *precond = NULL;
 
-  #ifdef USE_OPERATOR_MATMULT_GATHERV //DEBUG ONLY
-    double *vs;
-  #endif
 
   // Lorasc preconditioner
   preAlps_Lorasc_t *lorascA = NULL;
 
-  /* Program default parameters */
+  // Program default parameters
   int doScale = 1, monitorResidual = 0, doSolutionCheck = 1;
   int precond_num = 2; /* 0: no prec, 1: blockJacobi, 2: Lorasc */
   int ecg_enlargedFactor = 1, ecg_maxIter = 60000;
@@ -137,12 +221,12 @@ int main(int argc, char** argv){
 
   // Get user parameters
   for(i=1;i<argc;i+=2){
-    if (strcmp(argv[i], "-m") == 0)        strcpy(matrix_filename, argv[i+1]);
-    if (strcmp(argv[i], "-r") == 0)        strcpy(rhs_filename, argv[i+1]);
-    if (strcmp(argv[i], "-t") == 0)        ecg_enlargedFactor = atoi(argv[i+1]);
-    if (strcmp(argv[i], "-p") == 0)        precond_num        = atoi(argv[i+1]);
-    if (strcmp(argv[i], "-npLevel1") == 0) npLevel1           = atoi(argv[i+1]);
-    if (strcmp(argv[i], "-h") == 0){
+    if ((strcmp(argv[i], "-m") == 0)||(strcmp(argv[i], "-mat")  == 0)) strcpy(matrix_filename, argv[i+1]);
+    if ((strcmp(argv[i], "-r") == 0)||(strcmp(argv[i], "-rhs")  == 0)) strcpy(rhs_filename, argv[i+1]);
+    if ((strcmp(argv[i], "-p") == 0)||(strcmp(argv[i], "-prec") == 0)) precond_num   = atoi(argv[i+1]);
+    if (strcmp(argv[i], "-t") == 0)                                    ecg_enlargedFactor = atoi(argv[i+1]);
+    if (strcmp(argv[i], "-npLevel1") == 0)                             npLevel1           = atoi(argv[i+1]);
+    if ((strcmp(argv[i], "-h") == 0)||(strcmp(argv[i], "-help") == 0)){
       if(my_rank==0){
         testLorasc_showHelp();
       }
@@ -185,16 +269,17 @@ int main(int argc, char** argv){
       case PREALPS_LORASC:
         printf("Preconditioner: LORASC\n");
       break;
+      default:
+        preAlps_abort("Precondioner: Unknown\n");
+      break;
     }
   }
 
   // Create a multilevel communicator based on the number of processors provided for level 1
   preAlps_comm2LevelsSplit(comm, npLevel1, commMultilevel);
 
-  // Get the communicator at each level
-  comm_masterLevel  = commMultilevel[1];
-  comm_localLevel   = commMultilevel[2];
-
+  // Get the communicator at the master level
+  MPI_Comm comm_masterLevel  = commMultilevel[1];
 
   // Load the matrix using MatrixMarket or PETSc format depending on the file extension on proc 0
   if(my_rank==root){
@@ -312,14 +397,7 @@ int main(int argc, char** argv){
 
   // Prepare the operator
   if(comm_masterLevel!=MPI_COMM_NULL){
-
     preAlps_OperatorBuildNoPerm(&locAP, partBegin, 1, comm_masterLevel);
-
-    #ifdef USE_OPERATOR_MATMULT_GATHERV //DEBUG ONLY
-      if(my_rank==0) printf("[DEBUG] ***** USING MATMULT GATHERV DEBUG **** \n");
-      vs = (double*) malloc(m*ecg_enlargedFactor*sizeof(double));
-    #endif
-
   }
 
   // Prepare the selected preconditioner
@@ -343,10 +421,8 @@ int main(int argc, char** argv){
     preAlps_PreconditionerCreate(&precond, precond_type, NULL);
 
   }else if(precond_type==PREALPS_LORASC){
-
     // Create a generic preconditioner object compatible with EcgSolver
     preAlps_PreconditionerCreate(&precond, precond_type, (void *) lorascA);
-
   }
 
 
@@ -379,91 +455,20 @@ int main(int argc, char** argv){
   ecg.ortho_alg  = ecg_ortho_alg;     /* Orthogonalization algorithm */
   ecg.bs_red     = NO_BS_RED;         /* Reduction of the search directions */
 
-  int rci_request = 0;
-  int stop = 0;
+
+  sol = (double*) malloc(locAP.info.m*sizeof(double));
 
   ttemp = MPI_Wtime();
-  // Allocate memory and initialize variables
+
+  //Solve the system
+  testLorasc_ECGSolve(&ecg, precond, commMultilevel, b, sol, monitorResidual);
+
+  // Post process the solution
   if(comm_masterLevel!=MPI_COMM_NULL){
-    preAlps_ECGInitialize(&ecg, b, &rci_request);
-    preAlps_doubleVectorSet_printSynchronized(ecg.R->val, ecg.R->info.m, ecg.R->info.n, ecg.R->info.lda, "ecg.R", "ecg.R0", comm_masterLevel);
-  }
-
-  // Finish initialization
-  preAlps_PreconditionerMatApply(precond, ecg.R, ecg.P);
-
-  if(comm_masterLevel!=MPI_COMM_NULL){
-
-    #ifdef USE_OPERATOR_MATMULT_GATHERV
-      //Algatherv AP
-      MPI_Allgatherv(ecg.P->val, ecg.P->info.nval, MPI_DOUBLE, vs, partCount, partBegin, MPI_DOUBLE, comm_masterLevel);
-      CPLM_MatCSRMatrixCSRDenseMult(&locAP, 1.0, vs, ecg.P->info.n, m, 0.0, ecg.AP->val, ecg.AP->info.lda);
-    #else
-      preAlps_BlockOperator(ecg.P, ecg.AP);
-      //spmsv_dbg(comm_masterLevel, &locAP, ecg.P, lorascA->partCount, ecg.AP);
-    #endif
-  }
-
-  // Pointers for the RCI interface
-  CPLM_Mat_Dense_t *AX  = NULL, *AY = NULL;
-
-  if (ecg_ortho_alg == ORTHOMIN){
-    AX  = ecg.R; AY = ecg.Z;
-  }
-  else if (ecg_ortho_alg == ORTHODIR){
-    AX  = ecg.AP; AY = ecg.Z;
-  }
-
-  // Main loop
-  while (stop != 1) {
-
-    //Iterate in the master group
-    if(comm_masterLevel!=MPI_COMM_NULL) preAlps_ECGIterate(&ecg, &rci_request);
-
-    //Broadcast rci_request to the local group
-    MPI_Bcast(&rci_request, 1, MPI_INT, local_root, comm_localLevel);
-
-    if (rci_request == 0) {
-
-      if(comm_masterLevel!=MPI_COMM_NULL){
-        #ifdef USE_OPERATOR_MATMULT_GATHERV
-          MPI_Allgatherv(ecg.P->val, ecg.P->info.nval, MPI_DOUBLE, vs, partCount, partBegin, MPI_DOUBLE, comm_masterLevel);
-          CPLM_MatCSRMatrixCSRDenseMult(&locAP, 1.0, vs, ecg.P->info.n, m, 0.0, ecg.AP->val, ecg.AP->info.lda);
-        #else
-          preAlps_BlockOperator(ecg.P, ecg.AP);
-          //spmsv_dbg(comm_masterLevel, &locAP, ecg.P, lorascA->partCount, ecg.AP);
-        #endif
-      }
-
-    }
-    else if (rci_request == 1) {
-
-      if(comm_masterLevel!=MPI_COMM_NULL) preAlps_ECGStoppingCriterion(&ecg, &stop);
-
-      //Broadcast stop to the local group
-      MPI_Bcast(&stop, 1, MPI_INT, local_root, comm_localLevel);
-
-      if (stop == 1) break;
-      //Apply the preconditioner
-      preAlps_PreconditionerMatApply(precond, AX, AY);
-
-    }
-
-    if(monitorResidual && my_rank==root) printf("Iteration: %d, \tres: %e\n", ecg.iter, ecg.res);
-  }
-
-  // Get and permute the solution
-  if(comm_masterLevel!=MPI_COMM_NULL){
-
-    sol = (double*) malloc(locAP.info.m*sizeof(double));
-
-    // Retrieve solution and free memory
-    preAlps_ECGFinalize(&ecg, sol);
 
     preAlps_doubleVector_printSynchronized(sol, locAP.info.m, "sol", "solution", comm_masterLevel);
 
     // Gather the solution on proc 0
-
     if(my_rank==0) x = (double*) malloc(m*sizeof(double));
     MPI_Gatherv(sol, locAP.info.m, MPI_DOUBLE, x, partCount, partBegin, MPI_DOUBLE, root, comm_masterLevel);
 
@@ -517,9 +522,6 @@ int main(int argc, char** argv){
   }
 
   // Clean up
-  #ifdef USE_OPERATOR_MATMULT_GATHERV
-    free(vs);
-  #endif
   preAlps_OperatorFree();
 
   // Destroy the preconditioner/the partitioning
