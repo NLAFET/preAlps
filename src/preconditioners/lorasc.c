@@ -238,7 +238,7 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
     preAlps_solver_create(&Aii_sv, stype, MPI_COMM_SELF);
   }
 
-  preAlps_solver_setMatrixType(Aii_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC);  //TODO: SOLVER_MATRIX_REAL_SYMMETRIC
+  preAlps_solver_setMatrixType(Aii_sv, SOLVER_MATRIX_REAL_SPD);
   preAlps_solver_init(Aii_sv);
   preAlps_solver_factorize(Aii_sv, Aii->info.m, Aii->val, Aii->rowPtr, Aii->colInd);
 
@@ -248,7 +248,7 @@ int preAlps_LorascBuild(preAlps_Lorasc_t *lorasc, MPI_Comm *commMultilevel, CPLM
   if(comm_masterLevel!=MPI_COMM_NULL){
     stype = SOLVER_MUMPS; //only MUMPS is supported for the moment
     preAlps_solver_create(&Agg_sv, stype, comm_masterLevel);
-    preAlps_solver_setMatrixType(Agg_sv, SOLVER_MATRIX_REAL_NONSYMMETRIC); //must be done before solver_init
+    preAlps_solver_setMatrixType(Agg_sv, SOLVER_MATRIX_REAL_SPD); //must be done before solver_init
     //set the global problem infos (required only for parallel solver)
     preAlps_solver_setGlobalMatrixParam(Agg_sv, sep_nrows, lorasc->nrhs, sep_moffsets[masterLevel_myrank]);
     //initialize the solver
