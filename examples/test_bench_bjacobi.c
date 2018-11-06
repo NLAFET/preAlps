@@ -1,8 +1,8 @@
 /**
  * \file    test_ecg_petsc_op.c
  * \author  Olivier Tissot
- * \date    2018/11/06
- * \brief   Benchmark of different routines for computing the SpMM
+ * \date    2016/06/23
+ * \brief   Benchmark of different routines for applying a bjacobi preconditioner
  */
 
 /******************************************************************************/
@@ -18,10 +18,6 @@
 /* MKL */
 #include <mkl.h>
 
-/* CPaLAMeM */
-//#include <cpalamem_macro.h>
-//#include <cpalamem_instrumentation.h>
-
 #ifdef PETSC
 #include <preAlps_cplm_petsc_interface.h>
 /* Petsc */
@@ -31,6 +27,7 @@
 /* preAlps */
 #include "preAlps_cplm_matdense.h"
 #include "operator.h"
+#include "block_jacobi.h"
 /******************************************************************************/
 
 /******************************************************************************/
@@ -38,26 +35,26 @@
 /******************************************************************************/
 
 #ifdef PETSC
-/** \brief Simple wrapper to PETSc MatMatMult */
-void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
-  Mat V_petsc, AV_petsc;
-  MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,n,V,&V_petsc);
-  MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,n,AV,&AV_petsc);
-  MatMatMult(A, V_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AV_petsc);
-  MatDestroy(&V_petsc);MatDestroy(&AV_petsc);
+/** \brief Simple wrapper for applying PETSc preconditoner */
+void petsc_precond_apply(Mat P, double* V, double* W, int M, int m, int n) {
+  Mat V_petsc, W_petsc;
+  MatCreateSeqDense(PETSC_COMM_SELF,m,n,V,&V_petsc);
+  MatCreateSeqDense(PETSC_COMM_SELF,m,n,W,&W_petsc);
+  MatMatSolve(P,V_petsc,W_petsc);
+  MatDestroy(&V_petsc);MatDestroy(&W_petsc);
 }
 #endif
 
 /* Private function to print the help message */
 void _print_help() {
   printf("DESCRIPTION\n");
-  printf("\tBenchmark preAlps and PETSc SpMM routines.\n");
+  printf("\tBenchmark preAlps and PETSc bjacobi routines.\n");
   printf("USAGE\n");
-  printf("\tmpirun -n nb_proc"
-         " ./test_bench_spmm"
+  printf("\tmpirun test_bench_bjacobi -n nb_proc"
          " -m/--matrix file\n");
   printf("OPTIONS\n");
   printf("\t-m/--matrix           : the .mtx file containing the matrix A\n");
+
 }
 /******************************************************************************/
 
@@ -113,6 +110,9 @@ int main(int argc, char** argv) {
     printf("=== Matrix informations ===\n\tsize: %d\n\tnnz : %d\n", A.info.M, A.info.nnz);
   }
 
+  /*======== Construct the preconditioner ========*/
+  preAlps_BlockJacobiCreate(&A,rowPos,sizeRowPos,colPos,sizeColPos);
+
   /*============= Construct a random rhs =============*/
   int maxCol = 28;
   double* rhs = (double*) malloc(m*maxCol*sizeof(double));
@@ -124,8 +124,13 @@ int main(int argc, char** argv) {
   double* res = (double*) malloc(m*maxCol*sizeof(double));
 
   /*================ Petsc set-up ================*/
-  Mat A_petsc;
-  CPLM_petscCreateMatFromMatCSR(&A,&A_petsc);
+  Mat A_petsc, M_petsc;
+  KSP ksp;
+  KSP *subksp;
+  PC pc, subpc;
+  int first,nlocal;
+
+  // Set RHS
   Vec rhs_petsc;
   Vec res_petsc;
   VecCreateMPIWithArray(MPI_COMM_WORLD,1,m,M,rhs,&rhs_petsc);
@@ -135,27 +140,52 @@ int main(int argc, char** argv) {
   VecAssemblyBegin(rhs_petsc);
   VecAssemblyBegin(rhs_petsc);
 
+  // Set solver
+  KSPCreate(MPI_COMM_WORLD,&ksp);
+  CPLM_petscCreateMatFromMatCSR(&A,&A_petsc);
+  KSPSetOperators(ksp,A_petsc,A_petsc);
+  KSPSetType(ksp,KSPCG);
+//  KSPSetTolerances(ksp,tol,PETSC_DEFAULT,PETSC_DEFAULT,maxIter);
+  KSPSetPCSide(ksp,PC_LEFT);
+  KSPCGSetType(ksp,KSP_CG_SYMMETRIC);
+  KSPSetFromOptions(ksp);
+  KSPSetUp(ksp);
+  KSPGetPC(ksp,&pc);
+  PCSetType(pc,PCBJACOBI);
+  PCBJacobiGetSubKSP(pc,&nlocal,&first,&subksp);
+
+  // Loop over the local blocks, setting various KSP options
+  // for each block.
+  // printf("nlocal: %d\n",nlocal);
+  for (int i=0; i<nlocal; i++) {
+    KSPGetPC(subksp[i],&subpc);
+    PCSetUp(subpc);
+    PCFactorGetMatrix(subpc,&M_petsc);
+    /* PCFactorSetMatSolverPackage(subpc,MATSOLVERMKL_PARDISO); */
+  }
+
+
   /*================ Petsc benchmark ================*/
   double* petsc_t = malloc(maxCol*sizeof(double)); // a bit oversized but it does not really matter
-  // 1) SpMV
-  MatMult(A_petsc,rhs_petsc,res_petsc);
+  // 1) built-in apply
+  PCApply(pc,rhs_petsc,res_petsc);
   trash_t = MPI_Wtime();
-  MatMult(A_petsc,rhs_petsc,res_petsc);
+  PCApply(pc,rhs_petsc,res_petsc);
   petsc_t[maxCol - 1] = MPI_Wtime() - trash_t;
   // Retrieve the pointers
   VecGetArray(rhs_petsc,&rhs);
   VecGetArray(res_petsc,&res);
 
-  // 2) SpMM
-  petsc_operator_apply(A_petsc, rhs, res, M, m, 1);
+  // 2) several rhs
+  petsc_precond_apply(M_petsc, rhs, res, M, m, 1);
   trash_t = MPI_Wtime();
-  petsc_operator_apply(A_petsc, rhs, res, M, m, 1);
+  petsc_precond_apply(M_petsc, rhs, res, M, m, 1);
   MPI_Barrier(MPI_COMM_WORLD);
   petsc_t[0] = MPI_Wtime() - trash_t;
   for (int t = 1; t <= (int) maxCol/2; t++) {
-    petsc_operator_apply(A_petsc, rhs, res, M, m, 2*t);
+    petsc_precond_apply(M_petsc, rhs, res, M, m, 2*t);
     trash_t = MPI_Wtime();
-    petsc_operator_apply(A_petsc, rhs, res, M, m, 2*t);
+    petsc_precond_apply(M_petsc, rhs, res, M, m, 2*t);
     MPI_Barrier(MPI_COMM_WORLD);
     petsc_t[t] = MPI_Wtime() - trash_t;
   }
@@ -178,19 +208,19 @@ int main(int argc, char** argv) {
   rhs_preAlps.val = rhs;
   CPLM_MatDenseSetInfo(&res_preAlps, M, 1, m, 1, COL_MAJOR);
   res_preAlps.val = res;
-  preAlps_BlockOperator(&rhs_preAlps,&res_preAlps);
+  preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
   MPI_Barrier(MPI_COMM_WORLD);
   trash_t = MPI_Wtime();
-  preAlps_BlockOperator(&rhs_preAlps,&res_preAlps);
+  preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
   preAlps_t[0] = MPI_Wtime() - trash_t;
   for (int t = 1; t <= (int) maxCol/2; t++) {
     CPLM_MatDenseSetInfo(&rhs_preAlps, M, 2*t, m, 2*t, COL_MAJOR);
     rhs_preAlps.val = rhs;
     CPLM_MatDenseSetInfo(&res_preAlps, M, 2*t, m, 2*t, COL_MAJOR);
     res_preAlps.val = res;
-    preAlps_BlockOperator(&rhs_preAlps,&res_preAlps);
+    preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
     trash_t = MPI_Wtime();
-    preAlps_BlockOperator(&rhs_preAlps,&res_preAlps);
+    preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
     MPI_Barrier(MPI_COMM_WORLD);
     preAlps_t[t] = MPI_Wtime() - trash_t;
   }
@@ -198,16 +228,16 @@ int main(int argc, char** argv) {
   if (rank == 0) {
     printf("=== ECG timings ===\n");
     printf("\trhs\ttime\t\ttime/rhs\n");
-    printf("spmm\t%2d\t%e\t%e\n",1,preAlps_t[0], preAlps_t[0]);
+    printf("trsm\t%2d\t%e\t%e\n",1,preAlps_t[0], preAlps_t[0]);
     for (int t = 1; t <= (int) maxCol/2; t++) {
       printf("\t%2d\t%e\t%e\n",2*t,preAlps_t[t],preAlps_t[t]/(2*t));
     }
   }
-
   /*================ Finalize ================*/
 
   // Free PETSc structure
   MatDestroy(&A_petsc);
+  KSPDestroy(&ksp);
 
   // Free arrays
   if (rhs != NULL) free(rhs);
