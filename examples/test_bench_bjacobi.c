@@ -206,8 +206,8 @@ int main(int argc, char** argv) {
   if (rank == 0) {
     printf("=== Petsc timings ===\n");
     printf("\trhs\ttime\t\ttime/rhs\n");
-    printf("spmv\t%2d\t%e\t%e\n",1,petsc_t[maxCol-1],petsc_t[maxCol-1]);
-    printf("spmm\t%2d\t%e\t%e\n",1,petsc_t[0],petsc_t[0]);
+    printf("trsv\t%2d\t%e\t%e\n",1,petsc_t[maxCol-1],petsc_t[maxCol-1]);
+    printf("trsm\t%2d\t%e\t%e\n",1,petsc_t[0],petsc_t[0]);
     for (int t = 1; t <= (int) maxCol/2; t++) {
       printf("\t%2d\t%e\t%e\n",2*t,petsc_t[t],petsc_t[t]/(2*t));
     }
