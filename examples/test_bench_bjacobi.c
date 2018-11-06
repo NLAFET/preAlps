@@ -171,6 +171,7 @@ int main(int argc, char** argv) {
   PCApply(pc,rhs_petsc,res_petsc);
   trash_t = MPI_Wtime();
   PCApply(pc,rhs_petsc,res_petsc);
+  MPI_Barrier(MPI_COMM_WORLD);
   petsc_t[maxCol - 1] = MPI_Wtime() - trash_t;
   // Retrieve the pointers
   VecGetArray(rhs_petsc,&rhs);
