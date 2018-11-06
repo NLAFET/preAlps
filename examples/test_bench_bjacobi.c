@@ -169,6 +169,7 @@ int main(int argc, char** argv) {
   double* petsc_t = malloc(maxCol*sizeof(double)); // a bit oversized but it does not really matter
   // 1) built-in apply
   PCApply(pc,rhs_petsc,res_petsc);
+  MPI_Barrier(MPI_COMM_WORLD);
   trash_t = MPI_Wtime();
   PCApply(pc,rhs_petsc,res_petsc);
   MPI_Barrier(MPI_COMM_WORLD);
@@ -179,12 +180,14 @@ int main(int argc, char** argv) {
 
   // 2) several rhs
   petsc_precond_apply(M_petsc, rhs, res, M, m, 1);
+  MPI_Barrier(MPI_COMM_WORLD);
   trash_t = MPI_Wtime();
   petsc_precond_apply(M_petsc, rhs, res, M, m, 1);
   MPI_Barrier(MPI_COMM_WORLD);
   petsc_t[0] = MPI_Wtime() - trash_t;
   for (int t = 1; t <= (int) maxCol/2; t++) {
     petsc_precond_apply(M_petsc, rhs, res, M, m, 2*t);
+    MPI_Barrier(MPI_COMM_WORLD);
     trash_t = MPI_Wtime();
     petsc_precond_apply(M_petsc, rhs, res, M, m, 2*t);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -213,6 +216,7 @@ int main(int argc, char** argv) {
   MPI_Barrier(MPI_COMM_WORLD);
   trash_t = MPI_Wtime();
   preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
+  MPI_Barrier(MPI_COMM_WORLD);
   preAlps_t[0] = MPI_Wtime() - trash_t;
   for (int t = 1; t <= (int) maxCol/2; t++) {
     CPLM_MatDenseSetInfo(&rhs_preAlps, M, 2*t, m, 2*t, COL_MAJOR);
@@ -220,6 +224,7 @@ int main(int argc, char** argv) {
     CPLM_MatDenseSetInfo(&res_preAlps, M, 2*t, m, 2*t, COL_MAJOR);
     res_preAlps.val = res;
     preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
+    MPI_Barrier(MPI_COMM_WORLD);
     trash_t = MPI_Wtime();
     preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
     MPI_Barrier(MPI_COMM_WORLD);
