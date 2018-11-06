@@ -68,6 +68,8 @@ int main(int argc, char** argv) {
   /*================ Initialize ================*/
   int rank, size;
   double trash_t;
+  int maxCol = 28;
+  int nrepet = 10;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   // Force sequential execution on each MPI process
@@ -87,6 +89,8 @@ int main(int argc, char** argv) {
   if (rank == 0) {
     printf("=== Parameters ===\n");
     printf("\tmatrix: %s\n",matrixFilename);
+    printf("\tnrepet: %d\n",nrepet);
+    printf("\tmaxCol: %d\n",maxCol);
   }
 
   /*======== Construct the operator using a CSR matrix ========*/
@@ -114,7 +118,6 @@ int main(int argc, char** argv) {
   preAlps_BlockJacobiCreate(&A,rowPos,sizeRowPos,colPos,sizeColPos);
 
   /*============= Construct a random rhs =============*/
-  int maxCol = 28;
   double* rhs = (double*) malloc(m*maxCol*sizeof(double));
   // Set the seed of the random generator
   srand(0);
@@ -171,8 +174,10 @@ int main(int argc, char** argv) {
   PCApply(pc,rhs_petsc,res_petsc);
   MPI_Barrier(MPI_COMM_WORLD);
   trash_t = MPI_Wtime();
-  PCApply(pc,rhs_petsc,res_petsc);
-  MPI_Barrier(MPI_COMM_WORLD);
+  for (int i = 0; i < nrepet; ++i) {
+    PCApply(pc,rhs_petsc,res_petsc);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
   petsc_t[maxCol - 1] = MPI_Wtime() - trash_t;
   // Retrieve the pointers
   VecGetArray(rhs_petsc,&rhs);
@@ -182,15 +187,19 @@ int main(int argc, char** argv) {
   petsc_precond_apply(M_petsc, rhs, res, M, m, 1);
   MPI_Barrier(MPI_COMM_WORLD);
   trash_t = MPI_Wtime();
-  petsc_precond_apply(M_petsc, rhs, res, M, m, 1);
-  MPI_Barrier(MPI_COMM_WORLD);
+  for (int i = 0; i < nrepet; ++i) {
+    petsc_precond_apply(M_petsc, rhs, res, M, m, 1);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
   petsc_t[0] = MPI_Wtime() - trash_t;
   for (int t = 1; t <= (int) maxCol/2; t++) {
     petsc_precond_apply(M_petsc, rhs, res, M, m, 2*t);
     MPI_Barrier(MPI_COMM_WORLD);
     trash_t = MPI_Wtime();
-    petsc_precond_apply(M_petsc, rhs, res, M, m, 2*t);
-    MPI_Barrier(MPI_COMM_WORLD);
+    for (int i = 0; i < nrepet; ++i) {
+      petsc_precond_apply(M_petsc, rhs, res, M, m, 2*t);
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
     petsc_t[t] = MPI_Wtime() - trash_t;
   }
 
@@ -215,8 +224,10 @@ int main(int argc, char** argv) {
   preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
   MPI_Barrier(MPI_COMM_WORLD);
   trash_t = MPI_Wtime();
-  preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
-  MPI_Barrier(MPI_COMM_WORLD);
+  for (int i = 0; i < nrepet; ++i) {
+    preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
   preAlps_t[0] = MPI_Wtime() - trash_t;
   for (int t = 1; t <= (int) maxCol/2; t++) {
     CPLM_MatDenseSetInfo(&rhs_preAlps, M, 2*t, m, 2*t, COL_MAJOR);
@@ -226,8 +237,10 @@ int main(int argc, char** argv) {
     preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
     MPI_Barrier(MPI_COMM_WORLD);
     trash_t = MPI_Wtime();
-    preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
-    MPI_Barrier(MPI_COMM_WORLD);
+    for (int i = 0; i < nrepet; ++i) {
+      preAlps_BlockJacobiApply(&rhs_preAlps,&res_preAlps);
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
     preAlps_t[t] = MPI_Wtime() - trash_t;
   }
 
