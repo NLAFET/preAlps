@@ -162,7 +162,9 @@ CPLM_PUSH
   ecg->kbs  = ecg->V->info.n;
   // First we construct R_0 by splitting b
   nCol = rank % t;
-  //nCol = (int) (rank * (ecg->enlFac) / size);
+  // int size;
+  // MPI_Comm_size(ecg->comm,&size);
+  // nCol = (int) (rank * t / size);
   ierr = _preAlps_ECGSplit(rhs, R, nCol);
   // Then we need to construct R_0 and P_0
   *rci_request = 0;
