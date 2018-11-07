@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
   // Main loop
   while (rci_request != 1) {
     trash_t = MPI_Wtime();
-    preAlps_BlockOperator(ecg.P,ecg.AP);
+    petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, enlFac);
     op_t += MPI_Wtime() - trash_t;
     trash_t = MPI_Wtime();
     preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
