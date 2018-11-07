@@ -162,9 +162,10 @@ int main(int argc, char** argv) {
   // printf("nlocal: %d\n",nlocal);
   for (int i=0; i<nlocal; i++) {
     KSPGetPC(subksp[i],&subpc);
+    PCSetType(subpc,PCCHOLESKY);
+    PCFactorSetMatSolverPackage(subpc,MATSOLVERMKL_PARDISO);
     PCSetUp(subpc);
     PCFactorGetMatrix(subpc,&M_petsc);
-    /* PCFactorSetMatSolverPackage(subpc,MATSOLVERMKL_PARDISO); */
   }
 
 
