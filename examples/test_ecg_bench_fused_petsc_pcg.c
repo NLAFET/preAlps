@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
   ecg.maxIter = maxIter;
   ecg.enlFac = enlFac;
   ecg.tol = tol;
-  ecg.ortho_alg = (ortho_alg == 0 ? ORTHODIR : ORTHOMIN);
+  ecg.ortho_alg = ORTHODIR_FUSED;
   ecg.bs_red = (bs_red == 0 ? NO_BS_RED : ADAPT_BS);
   /* Restore the pointer */
   VecGetArray(B,&rhs);
@@ -285,27 +285,15 @@ int main(int argc, char** argv) {
   trash_t = MPI_Wtime();
   preAlps_BlockJacobiApply(ecg.R,ecg.P);
   prec_t += MPI_Wtime() - trash_t;
-  trash_t = MPI_Wtime();
-  petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, enlFac);
-  op_t += MPI_Wtime() - trash_t;
   // Main loop
-  while (stop != 1) {
+  while (rci_request != 1) {
+    trash_t = MPI_Wtime();
+    preAlps_BlockOperator(ecg.P,ecg.AP);
+    op_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
+    preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
+    prec_t += MPI_Wtime() - trash_t;
     preAlps_ECGIterate(&ecg,&rci_request);
-    if (rci_request == 0) {
-      trash_t = MPI_Wtime();
-      petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, enlFac);
-      op_t += MPI_Wtime() - trash_t;
-    }
-    else if (rci_request == 1) {
-      preAlps_ECGStoppingCriterion(&ecg,&stop);
-      if (stop == 1) break;
-      trash_t = MPI_Wtime();
-      if (ecg.ortho_alg == ORTHOMIN)
-        preAlps_BlockJacobiApply(ecg.R,ecg.Z);
-      else if (ecg.ortho_alg == ORTHODIR)
-        preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
-      prec_t += MPI_Wtime() - trash_t;
-    }
   }
   // Retrieve solution and free memory
   preAlps_ECGFinalize(&ecg,sol);
@@ -342,7 +330,7 @@ int main(int argc, char** argv) {
     printf("\tnorm(res): %e\n",rnorm);
     printf("Timing:\n");
     printf("\ttotal   : %e s\n\n",tot_t);
-    printf("=== ECG ===\n");
+    printf("=== ECG-F ===\n");
     printf("\titerations: %d\n",ecg.iter);
     printf("\tnorm(res) : %e\n",ecg.res);
     printf("\tenl factor: %d\n",ecg.enlFac);
