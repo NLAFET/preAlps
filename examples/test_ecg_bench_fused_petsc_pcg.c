@@ -329,7 +329,7 @@ int main(int argc, char** argv) {
     printf("\titerations: %d\n",its);
     printf("\tnorm(res): %e\n",rnorm);
     printf("Timing:\n");
-    printf("\ttotal   : %e s\n\n",tot_t);
+    printf("\ttotal   : %e s\n\n",petsc_t);
     printf("=== ECG-F ===\n");
     printf("\titerations: %d\n",ecg.iter);
     printf("\tnorm(res) : %e\n",ecg.res);
