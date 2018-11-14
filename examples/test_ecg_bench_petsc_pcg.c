@@ -33,6 +33,7 @@
 #include "operator.h"
 #include "block_jacobi.h"
 #include "ecg.h"
+#include <preAlps_cplm_utils.h>
 
 /* Command line parser */
 #include <getopt.h>
@@ -97,6 +98,7 @@ int main(int argc, char** argv) {
     {"matrix"           , required_argument, NULL, 'm'},
     {"ortho-alg"        , required_argument, NULL, 'o'},
     {"search-dir-red"   , required_argument, NULL, 'r'},
+    {"right-hand-side"  , optional_argument, NULL, 's'},
     {"tolerance"        , optional_argument, NULL, 't'},
     {NULL               , 0                , NULL, 0}
   };
@@ -109,7 +111,8 @@ int main(int argc, char** argv) {
   int maxIter = 1000;
   int enlFac = 1, ortho_alg = 0, bs_red = 0;
   const char* matrixFilename = NULL;
-  while ((c = getopt_long(argc, argv, "e:hi:m:o:r:t:", long_options, &option_index)) != -1)
+  const char* rhsFilename = NULL;
+  while ((c = getopt_long(argc, argv, "e:hi:m:o:r:s:t:", long_options, &option_index)) != -1)
     switch (c) {
       case 'e':
         enlFac = atoi(optarg);
@@ -135,6 +138,9 @@ int main(int argc, char** argv) {
       case 'r':
         bs_red = atoi(optarg);
         break;
+      case 's':
+        rhsFilename = optarg;
+        break;
       case 't':
         if (optarg != NULL)
           tol = atof(optarg);
@@ -145,6 +151,7 @@ int main(int argc, char** argv) {
             || optopt == 'm'
             || optopt == 'o'
             || optopt == 'r'
+            || optopt == 's'
             || optopt == 't')
           fprintf (stderr, "Option -%c requires an argument.\n", optopt);
         else if (isprint (optopt))
@@ -173,13 +180,21 @@ int main(int argc, char** argv) {
 
   /*======== Construct the operator using a CSR matrix ========*/
   CPLM_Mat_CSR_t A = CPLM_MatCSRNULL();
+  double* rhs = NULL;
   int M, m;
   int* rowPos = NULL;
   int* colPos = NULL;
   int sizeRowPos, sizeColPos;
   // Read and partition the matrix
   trash_t = MPI_Wtime();
-  preAlps_OperatorBuild(matrixFilename,MPI_COMM_WORLD);
+  if (rhsFilename == NULL) {
+    // Construct a normalized random rhs
+    preAlps_OperatorBuild(matrixFilename,MPI_COMM_WORLD);
+  }
+  else {
+    // Read the rhs from a file
+    preAlps_OperatorRHSBuild(matrixFilename,rhsFilename,&rhs,MPI_COMM_WORLD);
+  }
   buildop_t += MPI_Wtime() - trash_t;
   // Get the CSR structure of A
   preAlps_OperatorGetA(&A);
@@ -195,20 +210,21 @@ int main(int argc, char** argv) {
   preAlps_BlockJacobiCreate(&A,rowPos,sizeRowPos,colPos,sizeColPos);
   buildprec_t += MPI_Wtime() - trash_t;
 
-  /*============= Construct a normalized random rhs =============*/
-  double* rhs = (double*) malloc(m*sizeof(double));
-  // Set the seed of the random generator
-  srand(0);
-  double normb = 0.0;
-  for (int i = 0; i < m; ++i) {
-    rhs[i] = ((double) rand() / (double) RAND_MAX);
-    normb += pow(rhs[i],2);
+  /*=== Construct a normalized random rhs if not already read from a file ===*/
+  if (rhsFilename == NULL) {
+    rhs = (double*) malloc(m*sizeof(double));
+    srand(0);
+    double normb = 0.0;
+    for (int i = 0; i < m; ++i) {
+      rhs[i] = ((double) rand() / (double) RAND_MAX);
+      normb += pow(rhs[i],2);
+    }
+    // Compute the norm of rhs and scale it accordingly
+    MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    normb = sqrt(normb);
+    for (int i = 0; i < m; ++i)
+      rhs[i] /= normb;
   }
-  // Compute the norm of rhs and scale it accordingly
-  MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-  normb = sqrt(normb);
-  for (int i = 1; i < m; ++i)
-    rhs[i] /= normb;
 
   /*================ Petsc solve ================*/
   Mat A_petsc;
@@ -339,12 +355,14 @@ int main(int argc, char** argv) {
     printf("\tbuild precond: %e s\n\n",buildprec_t);
     printf("=== PETSC ===\n");
     printf("\titerations: %d\n",its);
-    printf("\tnorm(res): %e\n",rnorm);
+    printf("\tres.      : %e\n",rnorm);
+    printf("\tnorm. res.: %e\n",rnorm/ecg.normb);
     printf("Timing:\n");
     printf("\ttotal   : %e s\n\n",petsc_t);
     printf("=== ECG ===\n");
     printf("\titerations: %d\n",ecg.iter);
-    printf("\tnorm(res) : %e\n",ecg.res);
+    printf("\tres.      : %e\n",ecg.res);
+    printf("\tnorm. res.: %e\n",ecg.res/ecg.normb);
     printf("\tenl factor: %d\n",ecg.enlFac);
     printf("\tortho alg : %d\n",ecg.ortho_alg);
     printf("\treduction : %d\n",ecg.bs_red);
