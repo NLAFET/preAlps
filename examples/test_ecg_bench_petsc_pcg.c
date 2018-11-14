@@ -309,7 +309,7 @@ int main(int argc, char** argv) {
     preAlps_ECGIterate(&ecg,&rci_request);
     if (rci_request == 0) {
       trash_t = MPI_Wtime();
-      petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, enlFac);
+      petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, ecg.bs);
       op_t += MPI_Wtime() - trash_t;
     }
     else if (rci_request == 1) {
@@ -364,8 +364,8 @@ int main(int argc, char** argv) {
     printf("\tres.      : %e\n",ecg.res);
     printf("\tnorm. res.: %e\n",ecg.res/ecg.normb);
     printf("\tenl factor: %d\n",ecg.enlFac);
-    printf("\tortho alg : %d\n",ecg.ortho_alg);
-    printf("\treduction : %d\n",ecg.bs_red);
+    printf("\tortho alg : %d\n",ortho_alg);
+    printf("\treduction : %d\n",bs_red);
     printf("\tfinal bs  : %d\n",ecg.bs);
     printf("Timing:\n");
     printf("\ttotal   : %e s\n",tot_t);
