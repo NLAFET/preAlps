@@ -7,8 +7,8 @@
 *         : olivier.tissot@inria.fr
 */
 
-#ifndef PREALPS_CPLM_KERNELS_H
-#define PREALPS_CPLM_KERNELS_H
+#ifndef CPLM_V0_KERNELS_H
+#define CPLM_V0_KERNELS_H
 
 
 /******************************************************************************/

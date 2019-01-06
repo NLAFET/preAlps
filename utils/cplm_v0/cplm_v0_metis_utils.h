@@ -5,8 +5,8 @@
 * Email   : sebastien.cayrols@[(gmail.com) | (inria.fr)]
 */
 
-#ifndef PREALPS_CPLM_METIS_H
-#define PREALPS_CPLM_METIS_H
+#ifndef CPLM_V0_METIS_H
+#define CPLM_V0_METIS_H
 
 #include <metis.h>
 #include <cplm_v0_ivector.h>

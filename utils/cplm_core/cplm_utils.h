@@ -6,8 +6,8 @@
 * Initial file: Sebastien Cayrols
 * Simplified version: Simplice Donfack
 */
-#ifndef PREALPS_CPLM_H
-#define PREALPS_CPLM_H
+#ifndef CPLM_UTILS_H
+#define CPLM_UTILS_H
 
 #include <stdarg.h>
 

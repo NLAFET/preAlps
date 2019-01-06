@@ -5,8 +5,8 @@
 *         : Hussam Al Daas
 *         : Simplice Donfack
 */
-#ifndef PREALPS_MATMULT_V2
-#define PREALPS_MATMULT_V2
+#ifndef CPLM_VO_MATMULT_V2
+#define CPLM_V0_MATMULT_V2
 
 #include <cplm_matcsr.h>
 #include <cplm_matdense.h>
