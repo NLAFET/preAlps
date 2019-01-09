@@ -6,6 +6,7 @@
 * Email   : sebastien.cayrols@[(gmail.com) | (inria.fr)]
 *         : olivier.tissot@inria.fr
 */
+#ifdef PETSC
 #include <petscdraw.h>
 #include <petscviewer.h>
 #include <petscsys.h>
@@ -543,3 +544,4 @@ CPLM_POP
   return ierr;
 }
 */
+#endif
