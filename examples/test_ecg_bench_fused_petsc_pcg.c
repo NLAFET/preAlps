@@ -33,7 +33,6 @@
 #include "operator.h"
 #include "block_jacobi.h"
 #include "ecg.h"
-#include <preAlps_cplm_utils.h>
 
 /* Command line parser */
 #include <getopt.h>
@@ -74,13 +73,6 @@ void _print_help() {
 }
 
 #ifdef PETSC
-// Used for the shell matrix definition
-typedef struct {
-  Mat A;  // petsc non-shell matrix
-  int M;  // global row count
-  int m;  // local row count
-} AppCtx;
-
 /** \brief Simple wrapper to PETSc MatMatMult */
 void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
   Mat V_petsc, AV_petsc;
@@ -88,16 +80,6 @@ void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
   MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,n,AV,&AV_petsc);
   MatMatMult(A, V_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AV_petsc);
   MatDestroy(&V_petsc);MatDestroy(&AV_petsc);
-}
-
-int petsc_spmm(Mat A, Vec v, Vec Av) {
-  int ierr = 0;
-  AppCtx *ctx;
-  const double* v_p; double* Av_p;
-  VecGetArrayRead(v,&v_p); VecGetArray(Av,&Av_p);
-  MatShellGetContext(A,(void *)&ctx);
-  petsc_operator_apply(ctx->A,v_p,Av_p,ctx->M,ctx->m,1);
-  return ierr;
 }
 #endif
 
@@ -228,45 +210,39 @@ int main(int argc, char** argv) {
   buildprec_t += MPI_Wtime() - trash_t;
 
   /*=== Construct a normalized random rhs if not already read from a file ===*/
-  rhs = (double*) malloc(m*sizeof(double));
-  srand(0);
-  double normb = 0.0;
-  for (int i = 0; i < m; ++i) {
-    rhs[i] = ((double) rand() / (double) RAND_MAX);
-    normb += pow(rhs[i],2);
+  if (rhsFilename == NULL) {
+    rhs = (double*) malloc(m*sizeof(double));
+    srand(0);
+    double normb = 0.0;
+    for (int i = 0; i < m; ++i) {
+      rhs[i] = ((double) rand() / (double) RAND_MAX);
+      normb += pow(rhs[i],2);
+    }
+    // Compute the norm of rhs and scale it accordingly
+    MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    normb = sqrt(normb);
+    for (int i = 0; i < m; ++i)
+      rhs[i] /= normb;
   }
-  // Compute the norm of rhs and scale it accordingly
-  MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-  normb = sqrt(normb);
-  for (int i = 1; i < m; ++i)
-    rhs[i] /= normb;
 
   /*================ Petsc solve ================*/
-  // Set RHS and solution
+  Mat A_petsc;
   Vec X, B;
+  KSP ksp;
+  KSP *subksp;
+  PC pc, subpc;
+  int first,nlocal;
+
+  // Set RHS
   VecCreateMPIWithArray(MPI_COMM_WORLD,1,m,M,rhs,&B);
   VecCreateMPI(MPI_COMM_WORLD,m,M,&X);
   VecAssemblyBegin(X);
   VecAssemblyBegin(X);
   VecAssemblyBegin(B);
   VecAssemblyBegin(B);
-  // Set operator
-  Mat A_petsc;
-  CPLM_petscCreateMatFromMatCSR(&A,&A_petsc);
-  Mat A_shell;
-  AppCtx ctx;
-  MatCreateShell(MPI_COMM_WORLD, m, m, M, M, (void *)&ctx, &A_shell);
-  ctx.A = A_petsc; ctx.m = m; ctx.M = M;
-  MatShellSetContext(A_shell,(void *)&ctx);
-  MatShellSetOperation(A_shell, MATOP_MULT, (void(*)(void)) petsc_spmm);
-  MatSetOption(A_shell,MAT_SYMMETRIC,PETSC_TRUE);
-
   // Set solver
-  KSP ksp;
-  KSP *subksp;
-  PC pc, subpc;
-  int first,nlocal;
   KSPCreate(MPI_COMM_WORLD,&ksp);
+  CPLM_petscCreateMatFromMatCSR(&A,&A_petsc);
   KSPSetOperators(ksp,A_petsc,A_petsc);
   KSPSetType(ksp,KSPCG);
   KSPSetTolerances(ksp,tol,PETSC_DEFAULT,PETSC_DEFAULT,maxIter);
@@ -307,7 +283,7 @@ int main(int argc, char** argv) {
   ecg.maxIter = maxIter;
   ecg.enlFac = enlFac;
   ecg.tol = tol;
-  ecg.ortho_alg = (ortho_alg == 0 ? ORTHODIR : ORTHOMIN);
+  ecg.ortho_alg = ORTHODIR_FUSED;
   ecg.bs_red = (bs_red == 0 ? NO_BS_RED : ADAPT_BS);
   /* Restore the pointer */
   VecGetArray(B,&rhs);
@@ -324,27 +300,15 @@ int main(int argc, char** argv) {
   trash_t = MPI_Wtime();
   preAlps_BlockJacobiApply(ecg.R,ecg.P);
   prec_t += MPI_Wtime() - trash_t;
-  trash_t = MPI_Wtime();
-  petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, enlFac);
-  op_t += MPI_Wtime() - trash_t;
   // Main loop
-  while (stop != 1) {
+  while (rci_request != 1) {
+    trash_t = MPI_Wtime();
+    petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, ecg.bs);
+    op_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
+    preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
+    prec_t += MPI_Wtime() - trash_t;
     preAlps_ECGIterate(&ecg,&rci_request);
-    if (rci_request == 0) {
-      trash_t = MPI_Wtime();
-      petsc_operator_apply(A_petsc, ecg.P_p, ecg.AP_p, M, m, ecg.bs);
-      op_t += MPI_Wtime() - trash_t;
-    }
-    else if (rci_request == 1) {
-      preAlps_ECGStoppingCriterion(&ecg,&stop);
-      if (stop == 1) break;
-      trash_t = MPI_Wtime();
-      if (ecg.ortho_alg == ORTHOMIN)
-        preAlps_BlockJacobiApply(ecg.R,ecg.Z);
-      else if (ecg.ortho_alg == ORTHODIR)
-        preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
-      prec_t += MPI_Wtime() - trash_t;
-    }
   }
   // Retrieve solution and free memory
   preAlps_ECGFinalize(&ecg,sol);
@@ -382,7 +346,7 @@ int main(int argc, char** argv) {
     printf("\tnorm. res.: %e\n",rnorm/ecg.normb);
     printf("Timing:\n");
     printf("\ttotal   : %e s\n\n",petsc_t);
-    printf("=== ECG ===\n");
+    printf("=== ECG-F ===\n");
     printf("\titerations: %d\n",ecg.iter);
     printf("\tres.      : %e\n",ecg.res);
     printf("\tnorm. res.: %e\n",ecg.res/ecg.normb);

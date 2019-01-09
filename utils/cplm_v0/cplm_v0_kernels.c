@@ -493,7 +493,7 @@ CPLM_POP
 // y = beta*y + alpha*A*x
 int CPLM_MatDenseKernelMatVec(CPLM_Mat_Dense_t* A_in,
                               double*           x_in,
-                              double**          y_io,
+                              double*           y_io,
                               double            alpha,
                               double            beta)
 {
@@ -504,7 +504,7 @@ CPLM_BEGIN_TIME
 
   CPLM_ASSERT(A_in       !=  NULL);
   CPLM_ASSERT(x_in       !=  NULL);
-  CPLM_ASSERT(*y_io       !=  NULL);
+  CPLM_ASSERT(y_io       !=  NULL);
   CPLM_ASSERT(A_in->val  !=  NULL);
 
   /* if (*y_io == NULL) */
@@ -525,7 +525,7 @@ CPLM_BEGIN_TIME
               x_in,
               1,             // increment for the elements of x
               beta,
-              *y_io,
+              y_io,
               1);            // increment of the elements of y
 CPLM_END_TIME
 CPLM_POP
@@ -536,23 +536,21 @@ CPLM_POP
 
 
 
-int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, double** sumCol)
+int CPLM_MatDenseKernelSumColumns(CPLM_Mat_Dense_t* A_in, double* sumCol)
 {
 CPLM_PUSH
 CPLM_BEGIN_TIME
   int ierr = 0;
-  CPLM_DVector_t ones = CPLM_DVectorNULL();
-  CPLM_DVector_t sumCol_s = CPLM_DVectorNULL();
-  sumCol_s.val  = *sumCol;
-  sumCol_s.nval = A_in->info.m;
   CPLM_ASSERT(A_in->val != NULL);
+  CPLM_ASSERT(sumCol != NULL);
 
-  ierr = CPLM_DVectorMalloc(&ones, A_in->info.n);CPLM_CHKERR(ierr);
-  ierr = CPLM_DVectorConstant(&ones, 1.0);CPLM_CHKERR(ierr);
+  double* ones = (double*) malloc(A_in->info.n*sizeof(double));
+  for (int i = 0; i < A_in->info.n; ++i)
+    ones[i] = 1.E0;
 
-  ierr = CPLM_MatDenseKernelMatVec(A_in, &ones, &sumCol_s, 1.0, 0.0);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatDenseKernelMatVec(A_in, ones, sumCol, 1.0, 0.0);CPLM_CHKERR(ierr);
 
-  CPLM_DVectorFree(&ones);
+  if (ones != NULL) free(ones);
 CPLM_END_TIME
 CPLM_POP
   return ierr;

@@ -14,7 +14,7 @@ Date        : Mai 15, 2017
 
 #ifdef PETSC
 /* Petsc */
-#include <petsc_interface.h>
+#include <preAlps_cplm_petsc_interface.h>
 #include <petscksp.h>
 #endif
 
@@ -499,7 +499,7 @@ int main(int argc, char** argv){
     sol = (double*) malloc(m*sizeof(double));
 
     // Retrieve solution and free memory
-    preAlps_ECGFinalize(&ecg, &sol);
+    preAlps_ECGFinalize(&ecg, sol);
 
     tSolve = MPI_Wtime() - ttemp;
 

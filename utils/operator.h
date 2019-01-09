@@ -49,6 +49,17 @@
  */
 int  preAlps_OperatorBuild(const char* matrixFilename, MPI_Comm comm);
 
+/*
+ * Read a sparse matrix from file (mtx or petsc binary) and a corresponding RHS form txt fil
+ * then partition them using METIS K-Way algorithm into the number of processor in the communicator
+ * comm and distribute them among those processors.
+ * input: matrixFilename: MatrixMarket or PETSc binary file
+ *        rhsFilename   : txt file
+ *        comm          : MPI communicator
+ * output: rhs          : the corresponding rhs permuted and distributed
+ */
+int  preAlps_OperatorRHSBuild(const char* matrixFilename, const char* rhsFilename, double** rhs, MPI_Comm comm);
+
 
 /* Setup a matrix vector product without permuting the matrix. Useful for the cases where the matrix has already been partitioned */
 int preAlps_OperatorBuildNoPerm(CPLM_Mat_CSR_t *locA, int *idxRowBegin, int nbBlockPerProcs, MPI_Comm comm);

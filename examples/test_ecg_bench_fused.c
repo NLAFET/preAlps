@@ -1,8 +1,8 @@
 /**
  * \file    test_ecg_prealps_op.c
  * \author  Olivier Tissot
- * \date    2016/06/23
- * \brief   Example of usage of E(nlarged) C(onjugate) G(radient)
+ * \date    2018/07/13
+ * \brief   Example of usage of fused E(nlarged) C(onjugate) G(radient)
  */
 
 /******************************************************************************/
@@ -47,7 +47,6 @@ void _print_help() {
          " [-h/--help]"
          " [-i/--iteration-maximum int]"
          " -m/--matrix file"
-         " -o/--ortho-alg int"
          " -r/--search-dir-red int"
          " [-t/--tolerance double]\n");
   printf("OPTIONS\n");
@@ -57,8 +56,6 @@ void _print_help() {
   printf("\t-i/--iteration-maximum: maximum of iteration count"
                                   " (default is 1000)\n");
   printf("\t-m/--matrix           : the .mtx file containing the matrix A\n");
-  printf("\t-o/--ortho-alg        : orthogonalization scheme"
-                                  " (0: odir, 1: omin)\n");
   printf("\t-r/--search-dir-red   : adaptive reduction of the search"
                                   " directions (0: no, 1: yes)\n");
   printf("\t-t/--tolerance        : tolerance of the method"
@@ -76,7 +73,6 @@ int main(int argc, char** argv) {
     {"help"             , no_argument      , NULL, 'h'},
     {"iteration-maximum", optional_argument, NULL, 'i'},
     {"matrix"           , required_argument, NULL, 'm'},
-    {"ortho-alg"        , required_argument, NULL, 'o'},
     {"search-dir-red"   , required_argument, NULL, 'r'},
     {"tolerance"        , optional_argument, NULL, 't'},
     {NULL               , 0                , NULL, 0}
@@ -88,9 +84,9 @@ int main(int argc, char** argv) {
   // Set global parameters for both PETSc and ECG
   double tol = 1e-5;
   int maxIter = 1000;
-  int enlFac = 1, ortho_alg = 0, bs_red = 0;
+  int enlFac = 1, bs_red = 0;
   const char* matrixFilename = NULL;
-  while ((c = getopt_long(argc, argv, "e:hi:m:o:r:t:", long_options, &option_index)) != -1)
+  while ((c = getopt_long(argc, argv, "e:hi:m:r:t:", long_options, &option_index)) != -1)
     switch (c) {
       case 'e':
         enlFac = atoi(optarg);
@@ -110,9 +106,6 @@ int main(int argc, char** argv) {
         else
           matrixFilename = optarg;
         break;
-      case 'o':
-        ortho_alg = atoi(optarg);
-        break;
       case 'r':
         bs_red = atoi(optarg);
         break;
@@ -124,7 +117,6 @@ int main(int argc, char** argv) {
         if (optopt == 'e'
             || optopt == 'i'
             || optopt == 'm'
-            || optopt == 'o'
             || optopt == 'r'
             || optopt == 't')
           fprintf (stderr, "Option -%c requires an argument.\n", optopt);
@@ -138,14 +130,16 @@ int main(int argc, char** argv) {
         MPI_Abort(MPI_COMM_WORLD, opterr);
     }
 
-CPLM_OPEN_TIMER
   /*================ Initialize ================*/
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  double trash_t, trash_tg;
+  double buildop_t = 0.E0, buildprec_t = 0.E0;
+  double tot_t = 0.E0, op_t = 0.E0, prec_t = 0.E0;
+  double totf_t = 0.E0, opf_t = 0.E0, precf_t = 0.E0;
 
   // Force sequential execution on each MPI process
-  // OT: I tested and it still works with OpenMP activated
   MKL_Set_Num_Threads(1);
 
   /*======== Construct the operator using a CSR matrix ========*/
@@ -155,7 +149,9 @@ CPLM_OPEN_TIMER
   int* colPos = NULL;
   int sizeRowPos, sizeColPos;
   // Read and partition the matrix
+  trash_t = MPI_Wtime();
   preAlps_OperatorBuild(matrixFilename,MPI_COMM_WORLD);
+  buildop_t += MPI_Wtime() - trash_t;
   // Get the CSR structure of A
   preAlps_OperatorGetA(&A);
   // Get the sizes of A
@@ -166,7 +162,9 @@ CPLM_OPEN_TIMER
   preAlps_OperatorGetColPosPtr(&colPos,&sizeColPos);
 
   /*======== Construct the preconditioner ========*/
+  trash_t = MPI_Wtime();
   preAlps_BlockJacobiCreate(&A,rowPos,sizeRowPos,colPos,sizeColPos);
+  buildprec_t += MPI_Wtime() - trash_t;
 
   /*============= Construct a normalized random rhs =============*/
   double* rhs = (double*) malloc(m*sizeof(double));
@@ -192,50 +190,156 @@ CPLM_OPEN_TIMER
   ecg.maxIter = maxIter;
   ecg.enlFac = enlFac;
   ecg.tol = tol;
-  ecg.ortho_alg = (ortho_alg == 0 ? ORTHODIR : ORTHOMIN);
+  ecg.ortho_alg = ORTHODIR;
   ecg.bs_red = (bs_red == 0 ? NO_BS_RED : ADAPT_BS);
   int rci_request = 0;
   int stop = 0;
   double* sol = NULL;
   sol = (double*) malloc(m*sizeof(double));
-CPLM_TIC(step1,"ECGSolve")
   // Allocate memory and initialize variables
+  trash_tg = MPI_Wtime();
   preAlps_ECGInitialize(&ecg,rhs,&rci_request);
   // Finish initialization
+  trash_t = MPI_Wtime();
   preAlps_BlockJacobiApply(ecg.R,ecg.P);
+  prec_t += MPI_Wtime() - trash_t;
+  trash_t = MPI_Wtime();
   preAlps_BlockOperator(ecg.P,ecg.AP);
+  op_t += MPI_Wtime() - trash_t;
   // Main loop
   while (stop != 1) {
     preAlps_ECGIterate(&ecg,&rci_request);
     if (rci_request == 0) {
+      trash_t = MPI_Wtime();
       preAlps_BlockOperator(ecg.P,ecg.AP);
+      op_t += MPI_Wtime() - trash_t;
     }
     else if (rci_request == 1) {
       preAlps_ECGStoppingCriterion(&ecg,&stop);
       if (stop == 1) break;
-      if (ecg.ortho_alg == ORTHOMIN)
-        preAlps_BlockJacobiApply(ecg.R,ecg.Z);
-      else if (ecg.ortho_alg == ORTHODIR)
-        preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
+      trash_t = MPI_Wtime();
+      preAlps_BlockJacobiApply(ecg.AP,ecg.Z);
+      prec_t += MPI_Wtime() - trash_t;
     }
   }
   // Retrieve solution and free memory
   preAlps_ECGFinalize(&ecg,sol);
-CPLM_TAC(step1)
+  tot_t += MPI_Wtime() - trash_tg;
+
+  /*================== Fused-ECG solve ==================*/
+  preAlps_ECG_t ecg_f;
+  // Set parameters
+  ecg_f.comm = MPI_COMM_WORLD;
+  ecg_f.globPbSize = M;
+  ecg_f.locPbSize = m;
+  ecg_f.maxIter = maxIter;
+  ecg_f.enlFac = enlFac;
+  ecg_f.tol = tol;
+  ecg_f.ortho_alg = ORTHODIR_FUSED;
+  ecg_f.bs_red = (bs_red == 0 ? NO_BS_RED : ADAPT_BS);
+  stop = 0; rci_request = 0;
+  if (sol != NULL) free(sol);
+  sol = (double*) malloc(m*sizeof(double));
+  // Allocate memory and initialize variables
+  trash_tg = MPI_Wtime();
+  preAlps_ECGInitialize(&ecg_f,rhs,&rci_request);
+  // Finish initialization
+  trash_t = MPI_Wtime();
+  preAlps_BlockJacobiApply(ecg_f.R,ecg_f.P);
+  precf_t += MPI_Wtime() - trash_t;
+  // Main loop
+  while (rci_request != 1) {
+    trash_t = MPI_Wtime();
+    preAlps_BlockOperator(ecg_f.P,ecg_f.AP);
+    opf_t += MPI_Wtime() - trash_t;
+    trash_t = MPI_Wtime();
+    preAlps_BlockJacobiApply(ecg_f.AP,ecg_f.Z);
+    precf_t += MPI_Wtime() - trash_t;
+    preAlps_ECGIterate(&ecg_f,&rci_request);
+  }
+  // Retrieve solution and free memory
+  preAlps_ECGFinalize(&ecg_f,sol);
+  totf_t += MPI_Wtime() - trash_tg;
+
+  // Post-processing
+  /* Global timings */
+  MPI_Allreduce(MPI_IN_PLACE, &buildop_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &buildprec_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &totf_t,  1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &tot_t,   1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &totf_t,  1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &op_t,    1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &opf_t,   1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &prec_t,  1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &precf_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  /* standard odir */
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.tot_t  , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.comm_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.trsm_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.gemm_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.potrf_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.pstrf_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.lapmt_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.gesvd_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.geqrf_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.ormqr_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg.copy_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  /* fused odir */
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.tot_t  , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.comm_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.trsm_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.gemm_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.potrf_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.pstrf_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.lapmt_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.gesvd_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.geqrf_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.ormqr_t, 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
+  MPI_Allreduce(MPI_IN_PLACE, &ecg_f.copy_t , 1, MPI_DOUBLE, MPI_MAX, ecg.comm);
 
   if (rank == 0) {
-    preAlps_ECGPrint(&ecg,0);
+    printf("=== SUMMARY ===\n");
+    printf("\t# mpi        : %d\n",size);
+    printf("\tbuild op     : %e s\n",buildop_t);
+    printf("\tbuild precond: %e s\n\n",buildprec_t);
+    printf("=== ODIR ===\n");
+    printf("\ttotal   : %e s\n",tot_t);
+    printf("\toperator: %e s\n",op_t);
+    printf("\tprecond : %e s\n",prec_t);
+    printf("\ttot_iter: %e s\n",   ecg.tot_t);
+    printf("\tcomm    : %e s\n",   ecg.comm_t);
+    printf("\ttrsm    : %e s\n",   ecg.trsm_t);
+    printf("\tgemm    : %e s\n",   ecg.gemm_t);
+    printf("\tpotrf   : %e s\n",   ecg.potrf_t);
+    printf("\tpstrf   : %e s\n",   ecg.pstrf_t);
+    printf("\tlapmt   : %e s\n",   ecg.lapmt_t);
+    printf("\tgesvd   : %e s\n",   ecg.gesvd_t);
+    printf("\tgeqrf   : %e s\n",   ecg.geqrf_t);
+    printf("\tormqr   : %e s\n",   ecg.ormqr_t);
+    printf("\tcopy    : %e s\n\n", ecg.copy_t);
+    printf("=== F-ODIR ===\n");
+    printf("\ttotal   : %e s\n",totf_t);
+    printf("\toperator: %e s\n",opf_t);
+    printf("\tprecond : %e s\n",precf_t);
+    printf("\ttot_iter: %e s\n",   ecg_f.tot_t);
+    printf("\tcomm    : %e s\n",   ecg_f.comm_t);
+    printf("\ttrsm    : %e s\n",   ecg_f.trsm_t);
+    printf("\tgemm    : %e s\n",   ecg_f.gemm_t);
+    printf("\tpotrf   : %e s\n",   ecg_f.potrf_t);
+    printf("\tpstrf   : %e s\n",   ecg_f.pstrf_t);
+    printf("\tlapmt   : %e s\n",   ecg_f.lapmt_t);
+    printf("\tgesvd   : %e s\n",   ecg_f.gesvd_t);
+    printf("\tgeqrf   : %e s\n",   ecg_f.geqrf_t);
+    printf("\tormqr   : %e s\n",   ecg_f.ormqr_t);
+    printf("\tcopy    : %e s\n\n", ecg_f.copy_t);
+
   }
 
   /*================ Finalize ================*/
-
   // Free arrays
   if (rhs != NULL) free(rhs);
   if (sol != NULL) free(sol);
   preAlps_OperatorFree();
-CPLM_CLOSE_TIMER
-
-  CPLM_printTimer(NULL);
   MPI_Finalize();
   return 0;
 }

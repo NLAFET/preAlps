@@ -10,7 +10,7 @@
 /******************************************************************************/
 
 #ifdef PETSC
-#include <petsc_interface.h>
+#include <preAlps_cplm_petsc_interface.h>
 #endif
 #include <cplm_utils.h>
 #include <cplm_v0_timing.h>
@@ -120,6 +120,140 @@ CPLM_PUSH
     ierr = CPLM_MatCSRRecv(&A_g,0,MPI_COMM_WORLD);
   }
   ierr = CPLM_IVectorBcast(&rowPos_g,MPI_COMM_WORLD,root);
+  ierr = CPLM_MatCSRGetColBlockPos(&A_g,
+                                   &rowPos_g,
+                                   &colPos_g);CPLM_CHKERR(ierr);
+  ierr = CPLM_MatCSRGetCommDep(&colPos_g,
+                               A_g.info.m,
+                               size,
+                               rank,
+                               &dep_g);CPLM_CHKERR(ierr);
+
+CPLM_POP
+  return ierr;
+}
+
+int preAlps_OperatorRHSBuild(const char* matrixFilename, const char* rhsFilename, double** rhs, MPI_Comm comm) {
+CPLM_PUSH
+  int rank, size, ierr = 0;
+
+  MPI_Comm_size(comm, &size);
+  MPI_Comm_rank(comm, &rank);
+  int root = 0; // root or master processor
+  // Number of Metis domains: assumed to be size of comm for the moment
+  int nbBlockPart = size;
+  // Set the communicator
+  comm_g = comm;
+  // local to the root
+  double* rhs_o;
+
+  //Load on root process
+  CPLM_Mat_CSR_t matCSR = CPLM_MatCSRNULL();
+  const char* operator_type = matrixFilename + strlen(matrixFilename) - 3;
+  // MatrixMarket format
+  if (rank == root) {
+    if (strcmp(operator_type,"mtx") == 0) {
+      ierr = CPLM_LoadMatrixMarket(matrixFilename, &matCSR);CPLM_CHKERR(ierr);
+    }
+    else {
+      #ifdef PETSC
+        Mat A_petsc;
+        petscMatLoad(&A_petsc,matrixFilename,PETSC_COMM_SELF);
+        petscCreateMatCSR(A_petsc,&matCSR);
+        MatDestroy(&A_petsc);
+      #else
+        CPLM_Abort("Please Compile with PETSC to read other matrix file type");
+      #endif
+    }
+    int size_rhs = 0;
+    printf("Load of %s ...\n",rhsFilename);
+    preAlps_doubleVector_load(rhsFilename, rhs, &size_rhs);
+    // Scale the matrix and the rhs; possibly shift the extreme values of the matrix
+    double* R = NULL;
+    R = (double*) calloc(matCSR.info.m,sizeof(double));
+    for (int i = 0; i < matCSR.info.m; i++){
+        for (int j = matCSR.rowPtr[i]; j < matCSR.rowPtr[i+1]; j++) {
+            // Shift extreme values
+            //if (matCSR.val[j] > 1e14) matCSR.val[j] = 1e14;
+            //else if (matCSR.val[j] < -1e14) matCSR.val[j] = -1e14;
+            R[i] = max( R[i], fabs(matCSR.val[j]) );
+        }
+    }
+    for (int i = 0; i < matCSR.info.m; i++) {
+        //(*rhs)[i] /= R[i];
+        for (int j = matCSR.rowPtr[i]; j < matCSR.rowPtr[i+1]; j++) {
+          matCSR.val[j] /= sqrt(R[i]*R[matCSR.colInd[j]]);
+        }
+    }
+    if (R != NULL) free(R);
+
+    CPLM_IVector_t posB = CPLM_IVectorNULL(), perm = CPLM_IVectorNULL();
+    ierr = CPLM_metisKwayOrdering(&matCSR,
+                                  &perm,
+                                  nbBlockPart,
+                                  &posB);CPLM_CHKERR(ierr);
+    // Permute the matrix
+    ierr = CPLM_MatCSRPermute(&matCSR,
+                              &A_g,
+                              perm.val,
+                              perm.val,
+                              PERMUTE);CPLM_CHKERR(ierr);
+    // // Permute the rhs
+    rhs_o = malloc(size_rhs*sizeof(double));
+    preAlps_doubleVector_permute(perm.val, *rhs, rhs_o, size_rhs);
+    if (*rhs != NULL) free(*rhs);
+    // Change posB into rowPos because each proc might have several block Jacobi
+    int inc = nbBlockPart / size;
+    // For the moment we assume that each mpi process has one metis block
+    if (inc != 1) {
+       CPLM_Abort("Each MPI process must have one (and only one) metis"
+        "block (nbMetis = %d != %d = nbProcesses)",nbBlockPart,size);
+    }
+    ierr = CPLM_IVectorMalloc(&rowPos_g, size+1);CPLM_CHKERR(ierr);
+    for (int i = 0; i < size; i++)
+       rowPos_g.val[i] = posB.val[i*inc];
+    rowPos_g.val[size] = posB.val[nbBlockPart];
+    // Send submatrices as row panel layout
+    for (int dest = 1; dest < size; dest++) {
+        ierr = CPLM_MatCSRGetRowPanel(&A_g,
+                                      &matCSR,
+                                      &rowPos_g,
+                                      dest);CPLM_CHKERR(ierr);
+        ierr = CPLM_MatCSRSend(&matCSR, dest, MPI_COMM_WORLD);
+    }
+    CPLM_MatCSRFree(&matCSR);
+    // Just keep the row panel in master
+    CPLM_MatCSRCopy(&A_g,&matCSR);
+    CPLM_MatCSRFree(&A_g);
+    ierr = CPLM_MatCSRGetRowPanel(&matCSR,
+                                  &A_g,
+                                  &rowPos_g,
+                                  0);CPLM_CHKERR(ierr);
+    // Free memory
+    CPLM_IVectorFree(&posB);
+    CPLM_IVectorFree(&perm);
+    CPLM_MatCSRFree(&matCSR);
+  }
+  else { //other MPI processes received their own submatrix
+    ierr = CPLM_MatCSRRecv(&A_g,0,MPI_COMM_WORLD);
+  }
+  ierr = CPLM_IVectorBcast(&rowPos_g,MPI_COMM_WORLD,root);
+  // Simply scatter the rhs
+  int* sizes = NULL; int* displs = NULL;
+  sizes = (int*) malloc(size*sizeof(int));
+  displs = (int*) malloc(size*sizeof(int));
+  int offset = 0;
+  for (int i = 0; i < size; ++i) {
+    sizes[i] = rowPos_g.val[i+1] - rowPos_g.val[i];
+    displs[i] = offset;
+    offset += sizes[i];
+  }
+  *rhs = (double*) malloc(sizes[rank]*sizeof(double));
+  MPI_Scatterv(rhs_o, sizes, displs, MPI_DOUBLE, *rhs, sizes[rank], MPI_DOUBLE, root, comm);
+
+  // for (int i = 0; i < sizes[rank]; ++i)
+  //   printf("rhs[%d] = %f\n",i,(*rhs)[i]);
+  // Other important information to generate locally
   ierr = CPLM_MatCSRGetColBlockPos(&A_g,
                                    &rowPos_g,
                                    &colPos_g);CPLM_CHKERR(ierr);

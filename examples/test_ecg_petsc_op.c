@@ -26,7 +26,7 @@
 //#include <cpalamem_instrumentation.h>
 
 #ifdef PETSC
-#include <petsc_interface.h>
+#include <preAlps_cplm_petsc_interface.h>
 /* Petsc */
 #include <petscksp.h>
 #endif
@@ -342,7 +342,7 @@ CPLM_TIC(step4,"ECGSolve")
   }
   // Retrieve solution and free memory
   CPLM_TIC(step10, "        finalize")
-  preAlps_ECGFinalize(&ecg,&sol);
+  preAlps_ECGFinalize(&ecg,sol);
   CPLM_TAC(step10)
 CPLM_TAC(step4)
 
