@@ -71,7 +71,52 @@ CPLM_POP
   return ierr;
 }
 
+//TODO Remove malloc and explain why H
+int CPLM_MatDenseKernelQR( CPLM_Mat_Dense_t*  A_io,
+                      CPLM_Mat_Dense_t*  H_io,
+                      int           index_i,
+                      int           index_j) //to be verified
+{
+CPLM_PUSH
+CPLM_BEGIN_TIME
+  int ierr          = 0;
+  int matrix_layout = -1;
+  double *tau = NULL;
 
+  tau = malloc(A_io->info.N*sizeof(double));
+  CPLM_ASSERT(tau       !=  NULL);
+
+  matrix_layout = (A_io->info.stor_type == ROW_MAJOR) ? LAPACK_ROW_MAJOR
+    : LAPACK_COL_MAJOR;
+
+  ierr = LAPACKE_dgeqrf(  matrix_layout,
+                          A_io->info.M,
+                          A_io->info.N,
+                          A_io->val,
+                          A_io->info.lda,
+                          tau);CPLM_CHKERR(ierr);
+
+  if(H_io->val != NULL)//[Q] why test on val and not on H alone?
+  {
+    ierr = CPLM_MatDenseTriangularFillBlock( A_io,
+                                        H_io,
+                                        index_i,
+                                        index_j,
+                                        A_io->info.N);CPLM_CHKERR(ierr);
+  }
+
+  ierr = LAPACKE_dorgqr(  matrix_layout,
+                          A_io->info.M,
+                          A_io->info.N,
+                          A_io->info.N,
+                          A_io->val,
+                          A_io->info.lda,
+                          tau);CPLM_CHKERR(ierr);
+  free(tau);
+CPLM_END_TIME
+CPLM_POP
+  return ierr;
+}
 
 
 int CPLM_MatDenseKernelLowerTriangularLeftSolve(CPLM_Mat_Dense_t* L, CPLM_Mat_Dense_t* B)

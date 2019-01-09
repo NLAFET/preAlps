@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cplm_utils.h>
-#include <cplm_v0_timing.h>
+#include <cplm_timing.h>
 #include <cplm_v0_ivector.h>
 #include <cplm_matcsr.h>
 #include <cplm_matdense.h>
-#include <cplm_v0_kernels.h>
+#include <cplm_kernels.h>
 
 // Convert colPos and shift colInd in order to extract more easily
 // col panels of A during matmult: Fix of CPLM_MatCSRInitializeMatMult_v2()

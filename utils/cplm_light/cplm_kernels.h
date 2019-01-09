@@ -33,6 +33,14 @@
 // C = L^t L (using MKL Lapack)
 int CPLM_MatDenseKernelCholesky(CPLM_Mat_Dense_t* C);
 
+// Function computes Q factor of Matrix A and returns it in place, the factor
+// R can be copied to another matrix H starting from H(index_i,index_j) when
+// H->val is allocated;
+int CPLM_MatDenseKernelQR(CPLM_Mat_Dense_t* A_io,
+                     CPLM_Mat_Dense_t* H_io,
+                     int          index_i,
+                     int          index_j); //to be verified
+                     
 // B = L^-1 B with L lower triangular matrix
 int CPLM_MatDenseKernelLowerTriangularLeftSolve(CPLM_Mat_Dense_t* L, CPLM_Mat_Dense_t* B);
 
