@@ -28,7 +28,8 @@ typedef struct
   //buffer to store the matrix as COO
   int *irn;
   int *jcn;
-
+  double *a;
+  
   int m_glob;     //global problem size
   int idxRowPos;  //the starting position of the processor calling the initialization routine in the distributed case in the global matrix
   int nrhs;       //The number of rhs for the analysis and the solve phase

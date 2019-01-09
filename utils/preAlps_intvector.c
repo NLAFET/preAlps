@@ -9,7 +9,7 @@ Date        : Oct 13, 2017
 */
 #include <stdlib.h>
 #include <stdio.h>
-#include <preAlps_cplm_ivector.h>
+#include <cplm_v0_ivector.h>
 #include "preAlps_param.h"
 #include "preAlps_utils.h"
 

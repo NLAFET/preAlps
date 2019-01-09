@@ -10,9 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <preAlps_cplm_utils.h>
-#include <preAlps_cplm_timing.h>
-#include <preAlps_cplm_matdense.h>
+#include <cplm_utils.h>
+#include <cplm_v0_timing.h>
+#include <cplm_matdense.h>
 /* MPI Utils */
 /*
 //define the number of champ in the structure Partial_CPLM_Mat_Dense_t

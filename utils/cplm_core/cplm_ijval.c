@@ -8,7 +8,7 @@
 
 
 #include <mpi.h>
-#include "preAlps_cplm_ijval.h"
+#include "cplm_ijval.h"
 
 int CPLM_CompareIJVal(const void* e1, const void* e2)
 {

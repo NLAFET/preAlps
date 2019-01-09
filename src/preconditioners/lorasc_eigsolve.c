@@ -31,25 +31,13 @@ Date        : oct 1, 2017
  /*
   * Solve the eigenvalues problem S*u = \lambda*Agg*u using arpack.
   * Where  S = Agg - Agi*inv(Aii)*Aig.
-  *
   * lorascA:
   *     input/output: stores the computed eigenvalues at the end of this routine
-  * comm:
-  *    input: the communicator
   * mloc:
   *    input: the number of rows of the local matrice.
-  * Agi, Aii, Aig
-  *    input: the matrices required for computing the second part of S
-  * Aggloc
-  *    input: the matrix Agg distributed on all procs
-  * Aii_sv
-  *    input: the solver object to apply to compute  Aii^{-1}v
-  * Agg_sv
-  *    input: the solver object to apply to compute  Agg^{-1}v
  */
 
- int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, MPI_Comm comm, int mloc, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig,
-                            CPLM_Mat_CSR_t *Aggloc, preAlps_solver_t *Aii_sv, preAlps_solver_t *Agg_sv){
+ int preAlps_LorascEigSolve(preAlps_Lorasc_t *lorascA, int mloc){
 
   int ierr = 0;
   int root = 0, my_rank, nbprocs;
@@ -65,36 +53,44 @@ Date        : oct 1, 2017
 
   int eigvalues_deflation = 0;
   double *eigvalues = NULL, *eigvectors = NULL, *sigma = NULL;
-  int masterGroup_myrank, masterGroup_nbprocs, localGroup_myrank, localGroup_nbprocs, local_root =0;
+  int masterLevel_myrank, masterGroup_nbprocs, localLevel_myrank, localGroup_nbprocs, local_root =0;
 
   //Retrieve parameters
-  MPI_Comm comm_masterGroup   = lorascA->comm_masterGroup;
-  MPI_Comm comm_localGroup    = lorascA->comm_localGroup;
+  MPI_Comm comm             = lorascA->comm;
+  MPI_Comm comm_masterLevel = lorascA->comm_masterLevel;
+  MPI_Comm comm_localLevel  = lorascA->comm_localLevel;
 
-  int *Aii_mcounts   = lorascA->Aii_mcounts;
-  int *Aii_moffsets  = lorascA->Aii_moffsets;
-  int *Aig_mcounts   = lorascA->Aig_mcounts;
-  int *Aig_moffsets  = lorascA->Aig_moffsets;
-  int *Agi_mcounts   = lorascA->Agi_mcounts;
-  int *Agi_moffsets  = lorascA->Agi_moffsets;
+  CPLM_Mat_CSR_t *Aii       = lorascA->Aii;
+  CPLM_Mat_CSR_t *Aig       = lorascA->Aig;
+  CPLM_Mat_CSR_t *Agi       = lorascA->Agi;
+  CPLM_Mat_CSR_t *Aggloc    = lorascA->Aggloc;
+  preAlps_solver_t *Aii_sv  = lorascA->Aii_sv;
+  preAlps_solver_t *Agg_sv  = lorascA->Agg_sv;
 
+  int *Aii_mcounts          = lorascA->Aii_mcounts;
+  int *Aii_moffsets         = lorascA->Aii_moffsets;
+  int *Aig_mcounts          = lorascA->Aig_mcounts;
+  int *Aig_moffsets         = lorascA->Aig_moffsets;
+  int *Agi_mcounts          = lorascA->Agi_mcounts;
+  int *Agi_moffsets         = lorascA->Agi_moffsets;
 
+  // Let me know who I am at each level
   MPI_Comm_rank(comm, &my_rank);
   MPI_Comm_size(comm, &nbprocs);
 
-  if(comm_masterGroup!=MPI_COMM_NULL){
-    MPI_Comm_rank(comm_masterGroup, &masterGroup_myrank);
-    MPI_Comm_size(comm_masterGroup, &masterGroup_nbprocs);
+  if(comm_masterLevel!=MPI_COMM_NULL){
+    MPI_Comm_rank(comm_masterLevel, &masterLevel_myrank);
+    MPI_Comm_size(comm_masterLevel, &masterGroup_nbprocs);
   }
-  MPI_Comm_rank(comm_localGroup, &localGroup_myrank);
-  MPI_Comm_size(comm_localGroup, &localGroup_nbprocs);
+  MPI_Comm_rank(comm_localLevel, &localLevel_myrank);
+  MPI_Comm_size(comm_localLevel, &localGroup_nbprocs);
 
-  preAlps_int_printSynchronized(0, "dbg", comm);
 
-  if(comm_masterGroup!=MPI_COMM_NULL){
+  t = MPI_Wtime();
+
+  if(comm_masterLevel!=MPI_COMM_NULL){
 
     SolverStats_init(&tstats);
-    t = MPI_Wtime();
 
     /* Create the eigensolver object*/
     Eigsolver_create(&eigs);
@@ -111,7 +107,7 @@ Date        : oct 1, 2017
     if ( !(mdispls  = (int *) malloc(masterGroup_nbprocs * sizeof(int))) ) preAlps_abort("Malloc fails for mdispls[].");
 
     //Gather the number of rows for each procs
-    MPI_Allgather(&mloc, 1, MPI_INT, mcounts, 1, MPI_INT, comm_masterGroup);
+    MPI_Allgather(&mloc, 1, MPI_INT, mcounts, 1, MPI_INT, comm_masterLevel);
 
     /* Compute the global problem size */
     m = 0;
@@ -133,10 +129,8 @@ Date        : oct 1, 2017
 
     #ifdef DEBUG
       printf("mloc:%d, m:%d, Aii: (%d x %d), Aig: (%d x %d)\n", mloc, m, Aii->info.m, Aii->info.n, Aig->info.m, Aig->info.n);
-      if(masterGroup_myrank==0) printf("m:%d, mloc:%d, ncv:%d, nev:%d\n", m, mloc, eigs->ncv, eigs->nev);
+      if(masterLevel_myrank==0) printf("m:%d, mloc:%d, ncv:%d, nev:%d\n", m, mloc, eigs->ncv, eigs->nev);
     #endif
-
-
 
     //compute displacements
     mdispls[0] = 0;
@@ -146,11 +140,9 @@ Date        : oct 1, 2017
 
   }
 
-  preAlps_int_printSynchronized(1, "dbg", comm);
-
   //broadcast the global matrix dimension to the local group
   if(localGroup_nbprocs>1){
-    MPI_Bcast(&m, 1, MPI_INT, local_root, comm_localGroup);
+    MPI_Bcast(&m, 1, MPI_INT, local_root, comm_localLevel);
   }
 
   preAlps_int_printSynchronized(m, "m in lorasc_eigsolve", comm);
@@ -168,28 +160,28 @@ Date        : oct 1, 2017
 
   while(iterate){
 
-    if(comm_masterGroup!=MPI_COMM_NULL){
+    if(comm_masterLevel!=MPI_COMM_NULL){
 
       RCI_its++;
 
       #ifdef DEBUG
-        preAlps_int_printSynchronized(RCI_its, "****************** Iteration", comm_masterGroup);
+        preAlps_int_printSynchronized(RCI_its, "****************** Iteration", comm_masterLevel);
       #endif
 
-      Eigsolver_iterate(eigs, comm_masterGroup, mloc, &X, &Y, &ido);
+      Eigsolver_iterate(eigs, comm_masterLevel, mloc, &X, &Y, &ido);
     }
 
     //broadcast ido to the local group
     if(localGroup_nbprocs>1){
-      MPI_Bcast(&ido, 1, MPI_INT, local_root, comm_localGroup);
+      MPI_Bcast(&ido, 1, MPI_INT, local_root, comm_localLevel);
     }
 
     preAlps_int_printSynchronized(ido, "ido in lorasc_eigsolve", comm);
 
     #ifdef DEBUG
-      if(comm_masterGroup!=MPI_COMM_NULL){
-        MPI_Gatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, root, comm_masterGroup);
-        if(masterGroup_myrank==root) preAlps_doubleVector_printSynchronized(ywork, m, "X", " X before matvec", MPI_COMM_SELF);
+      if(comm_masterLevel!=MPI_COMM_NULL){
+        MPI_Gatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, root, comm_masterLevel);
+        if(masterLevel_myrank==root) preAlps_doubleVector_printSynchronized(ywork, m, "X", " X before matvec", MPI_COMM_SELF);
       }
     #endif
 
@@ -200,18 +192,12 @@ Date        : oct 1, 2017
       /*
        * Compute the matrix vector product Y = OP*X = Inv(Agg)*S*X
        */
-      /*
-      ierr = matrixVectorOp_AggInvxS(comm, mloc, m, mcounts, mdispls,
-                                          Agi, Aii, Aig, Aggloc,
-                                          Aii_sv, Agg_sv, X, Y,
-                                          dwork1, dwork2, ywork, &tstats);
-      */
       ierr = matrixVectorOp_AggInvxS_mlevel(mloc, m, mcounts, mdispls,
                                           Agi, Aii, Aig, Aggloc,
                                           Aii_sv, Agg_sv, X, Y,
                                           dwork1, dwork2, ywork,
-                                          comm_masterGroup,
-                                          comm_localGroup,
+                                          comm_masterLevel,
+                                          comm_localLevel,
                                           Aii_mcounts, Aii_moffsets,
                                           Aig_mcounts, Aig_moffsets,
                                           Agi_mcounts, Agi_moffsets,
@@ -219,12 +205,12 @@ Date        : oct 1, 2017
       tstats.tOPv+= MPI_Wtime() - ttemp;
 
     }else if(ido==2){
-      if(comm_masterGroup!=MPI_COMM_NULL){
+      if(comm_masterLevel!=MPI_COMM_NULL){
         ttemp = MPI_Wtime();
 
         //Gather the vector from each procs
         ttemp1 = MPI_Wtime();
-        MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm_masterGroup);
+        MPI_Allgatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, comm_masterLevel);
         tstats.tComm+= MPI_Wtime() - ttemp1;
 
         /* Compute  Y = Agg * X */
@@ -242,20 +228,6 @@ Date        : oct 1, 2017
       preAlps_abort("[PARPACK] (Unhandled case) ido is not 99, current value:%d", ido);
     } //ido
      //if(RCI_its>=5) iterate = 0; //DEBUG: force break for debugging purpose
-
-     #ifdef DEBUG
-       if(comm_masterGroup!=MPI_COMM_NULL){
-         MPI_Gatherv(X, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, root, comm_masterGroup);
-         if(masterGroup_myrank==root) preAlps_doubleVector_printSynchronized(ywork, m, "X", " X after matvec", MPI_COMM_SELF);
-       }
-     #endif
-    #ifdef DEBUG
-      if(comm_masterGroup!=MPI_COMM_NULL){
-        MPI_Gatherv(Y, mloc, MPI_DOUBLE, ywork, mcounts, mdispls, MPI_DOUBLE, root, comm_masterGroup);
-        if(masterGroup_myrank==root) preAlps_doubleVector_printSynchronized(ywork, m, "Y", " Y gathered after matvec", MPI_COMM_SELF);
-      }
-    #endif
-
   }
 
   free(dwork1);
@@ -263,7 +235,7 @@ Date        : oct 1, 2017
 
   free(ywork);
 
-  if(comm_masterGroup!=MPI_COMM_NULL){
+  if(comm_masterLevel!=MPI_COMM_NULL){
 
     /* Select the eigenvalues to deflate */
     //if(my_rank == root){
@@ -295,7 +267,7 @@ Date        : oct 1, 2017
     if(my_rank==root) printf("Eigenvalues selected for deflation: %d/%d\n", eigvalues_deflation, eigs->nev);
 
     // Gather the local computed eigenvectors on the root process
-    Eigsolver_eigenvectorsGather(eigs, comm_masterGroup, mcounts, mdispls, &eigvectors);
+    Eigsolver_eigenvectorsGather(eigs, comm_masterLevel, mcounts, mdispls, &eigvectors);
 
     // Terminate the solver and free the allocated workspace
     ierr = Eigsolver_finalize(&eigs);
@@ -306,14 +278,14 @@ Date        : oct 1, 2017
     tstats.teigvectors = eigs->tEigVectors;
 
     #if EIGSOLVE_DISPLAY_STATS
-      preAlps_dstats_display(comm_masterGroup, tstats.tParpack, "Time Parpack");
-      preAlps_dstats_display(comm_masterGroup, tstats.tOPv, "Time OP*v");
-      preAlps_dstats_display(comm_masterGroup, tstats.tBv, "Time B*v");
-      preAlps_dstats_display(comm_masterGroup, tstats.teigvectors, "Time eigensolvers");
-      preAlps_dstats_display(comm_masterGroup, tstats.tSv, "Time S*v");
-      preAlps_dstats_display(comm_masterGroup, tstats.tInvAv, "Time Inv(Agg)*v");
-      preAlps_dstats_display(comm_masterGroup, tstats.tComm, "Time Comm");
-      preAlps_dstats_display(comm_masterGroup, tstats.tTotal, "Time EigSolve");
+      preAlps_dstats_display(comm_masterLevel, tstats.tParpack, "Time Parpack");
+      preAlps_dstats_display(comm_masterLevel, tstats.tOPv, "Time OP*v");
+      preAlps_dstats_display(comm_masterLevel, tstats.tBv, "Time B*v");
+      preAlps_dstats_display(comm_masterLevel, tstats.teigvectors, "Time eigensolvers");
+      preAlps_dstats_display(comm_masterLevel, tstats.tSv, "Time S*v");
+      preAlps_dstats_display(comm_masterLevel, tstats.tInvAv, "Time Inv(Agg)*v");
+      preAlps_dstats_display(comm_masterLevel, tstats.tComm, "Time Comm");
+      preAlps_dstats_display(comm_masterLevel, tstats.tTotal, "Time EigSolve");
     #endif
 
     // Save the eigenproblem data for the application of the preconditioner

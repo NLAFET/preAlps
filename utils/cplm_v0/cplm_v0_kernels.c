@@ -25,11 +25,11 @@
 /* CPaLAMeM */
 //#include "cpalamem_macro.h"
 #undef TIMERACTIVATE
-#include "preAlps_cplm_utils.h"
-#include "preAlps_cplm_timing.h"
-#include "preAlps_cplm_matcsr.h"
-#include "preAlps_cplm_kernels.h"
-#include "preAlps_cplm_QS.h"
+#include "cplm_utils.h"
+#include "cplm_v0_timing.h"
+#include "cplm_matcsr.h"
+#include "cplm_v0_kernels.h"
+#include "cplm_QS.h"
 //#include "cpalamem_instrumentation.h"
 /******************************************************************************/
 

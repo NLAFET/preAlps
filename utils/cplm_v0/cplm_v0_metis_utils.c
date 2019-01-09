@@ -5,10 +5,10 @@
 * Email   : sebastien.cayrols@[(gmail.com) | (inria.fr)]
 */
 #include <stdlib.h>
-#include <preAlps_cplm_utils.h>
-#include <preAlps_cplm_timing.h>
-#include <preAlps_cplm_metis_utils.h>
-#include <preAlps_cplm_ivector.h>
+#include <cplm_utils.h>
+#include <cplm_v0_timing.h>
+#include <cplm_v0_metis_utils.h>
+#include <cplm_v0_ivector.h>
 
 /**
  * \fn int CPLM_getIntPermArray(idx_t nb_parts, idx_t size_parts, idx_t *parts, CPLM_IVector_t *perm)

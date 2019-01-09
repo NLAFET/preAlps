@@ -6,8 +6,8 @@
 * Initial file: Sebastien Cayrols
 * Simplified version: Simplice Donfack
 */
-#ifndef PREALPS_CPLM_H
-#define PREALPS_CPLM_H
+#ifndef CPLM_UTILS_H
+#define CPLM_UTILS_H
 
 #include <stdarg.h>
 
@@ -26,6 +26,7 @@
 #define CPALAMEMSIGERR  "ERROR"
 #define CPALAMEMSIGWRN  "WARNING"
 #define CPALAMEMSIGABRT "ABORTING"
+
 
 /* Simplified version of CPLM_CHKERR */
 #define CPLM_CHKERR(_e) if((_e) != 0)\
@@ -54,6 +55,17 @@ void CPLM_esprintf( const char *signal,
 void CPLM_FAbort(const char *fun,  const char *format, ...);
 void CPLM_stdFErr(const char *fun, const char *file, const int line, const int ierr);
 
+
+/*
+ * Get the extension from a filename
+ */
+const char *CPLM_getFilenameExtension(const char *filename);
+
+/*
+ * Split n in P parts and
+ * returns the number of element, and the data offset for the specified index.
+ */
+void CPLM_nsplit(int n, int P, int index, int *n_i, int *offset_i);
 
 
 #endif

@@ -12,9 +12,10 @@ Date        : Sept 27, 2017
 #include "preAlps_preconditioner.h"
 #include "preAlps_utils.h"
 
+#include "block_jacobi.h"
 #include "lorasc.h"
 #include "presc.h"
-#include <preAlps_cplm_matdense.h>
+#include <cplm_matdense.h>
 
 /* Create a generic preconditioner object compatible with EcgSolver*/
 int preAlps_PreconditionerCreate(PreAlps_preconditioner_t **precond, Prec_Type_t precond_type, void *data){
@@ -36,15 +37,18 @@ int preAlps_PreconditionerMatApply(PreAlps_preconditioner_t *precond, CPLM_Mat_D
   if(precond->type==PREALPS_NOPREC){
     //Just copy the matrix
     CPLM_MatDenseCopy(A_in, B_out);
-  } else if(precond->type==PREALPS_LORASC){
+  } else if(precond->type==PREALPS_BLOCKJACOBI){
+    //Apply Block Jacobi on the matrix A_in
+    preAlps_BlockJacobiApply(A_in, B_out);
+  }else if(precond->type==PREALPS_LORASC){
 
-    /* Lorasc preconditioner */
+    // Lorasc preconditioner
     preAlps_Lorasc_t *lorascA = NULL;
 
-    /* Get the preconditioner data */
+    // Get the preconditioner data
     lorascA = (preAlps_Lorasc_t*) precond->data;
 
-    /* Apply Lorasc preconditioner on the matrix A_in */
+    // Apply Lorasc preconditioner on the matrix A_in
     preAlps_LorascMatApply(lorascA, A_in, B_out);
 
   }else if(precond->type==PREALPS_PRESC){

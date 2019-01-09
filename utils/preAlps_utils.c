@@ -17,9 +17,9 @@ Date        : Mai 15, 2017
 
 #include <cplm_iarray.h>
 
-#include <preAlps_cplm_ivector.h>
-#include "preAlps_cplm_utils.h"
-#include "preAlps_cplm_matcsr.h"
+#include <cplm_v0_ivector.h>
+#include "cplm_utils.h"
+#include "cplm_matcsr.h"
 #include "preAlps_intvector.h"
 #include "preAlps_doublevector.h"
 #include "preAlps_utils.h"
@@ -28,16 +28,7 @@ Date        : Mai 15, 2017
  * utils
  */
 
- /* MPI custom function to sum the column of a matrix using MPI_REDUCE */
- void DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype)
- {
-     int i;
-     double *invec_d = (double*) invec;
-     double *inoutvec_d = (double*) inoutvec;
 
-     for ( i=0; i<*len; i++ )
-         inoutvec_d[i] += invec_d[i];
- }
 
 /* Display a message and stop the execution of the program */
 void preAlps_abort(char *s, ... ){
@@ -144,7 +135,7 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
 
   // Split the number of rows among the processors
   for(i=0;i<nbprocs;i++){
-    preAlps_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
+    CPLM_nsplit(m, nbprocs, i, &mcounts[i], &moffsets[i]);
   }
   moffsets[nbprocs] = m;
 
@@ -204,10 +195,15 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
 #else
 
   CPLM_MatCSROrderingND(comm, &locAP, moffsets, order, sizes);
-  // Gather the ordering infos from all proc to all
+
+  preAlps_intVector_printSynchronized(order, mloc, "order", "Order after ordering", comm);
+
+  // Gather the ordering infos from all to all
   ierr = MPI_Allgatherv(order, mloc, MPI_INT, perm, mcounts, moffsets, MPI_INT, comm); preAlps_checkError(ierr);
 #endif
 
+
+  preAlps_intVector_printSynchronized(perm, m, "perm", "Permutation vector after ordering", comm);
 
   if ( !(mwork  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for mwork[].");
   if ( !(partwork = (int *)  malloc((nparts*sizeof(int)))) ) preAlps_abort("Malloc fails for partwork[].");
@@ -225,6 +221,8 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
   // Get the permutation vector
 
   preAlps_pinv_outplace (perm, m, mwork);
+
+  preAlps_intVector_printSynchronized(mwork, m, "mwork", "Permutation vector after ordering", comm);
 
   // Determine the leaves from the partitioning
   preAlps_binaryTreeIsLeaves(nparts, partwork);
@@ -332,6 +330,88 @@ int preAlps_blockArrowStructDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP,
   return ierr;
 }
 
+/*
+ * Perform a block arrow partitioning of a matrix and distribute the separator to all procs
+ * comm:
+ *     input: the communicator for all the processors calling the routine
+ * A:
+ *     input: the input matrix on processor 0
+ * locAP:
+ *     output: the local permuted matrix on each proc after the preconditioner is built
+ * partCount:
+ *     output: the number of rows in each part
+ * partBegin:
+ *     output: the begining rows of each part.
+ * perm:
+ *     output: the permutation vector
+*/
+int preAlps_blockArrowStructPartitioning(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, int **partCount, int **partBegin, int *perm){
+
+  int ierr = 0, nbprocs, my_rank, root = 0;
+
+  int *perm1=NULL, m, n, nnz;
+  int nparts, *partCountWork=NULL, *partBeginWork=NULL;
+  int *sep_mcounts = NULL, *sep_moffsets=NULL;
+
+  CPLM_Mat_CSR_t AP = CPLM_MatCSRNULL();
+  CPLM_Mat_CSR_t *Aii = NULL, *Aig =NULL, *Agi=NULL, *Aggloc=NULL;
+
+  // Let me know who I am at each level
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+  // Create matrix objects
+  CPLM_MatCSRCreateNULL(&Aii);
+  CPLM_MatCSRCreateNULL(&Aig);
+  CPLM_MatCSRCreateNULL(&Agi);
+  CPLM_MatCSRCreateNULL(&Aggloc);
+
+  // Broadcast the global matrix dimension from the root to the other procs
+
+  CPLM_MatCSRDimensions_Bcast(A, root, &m, &n, &nnz, comm);
+
+  // Allocate memory for the permutation array
+  //if ( !(perm  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm[].");
+  if ( !(perm1  = (int *) malloc(m*sizeof(int))) ) preAlps_abort("Malloc fails for perm1[].");
+
+  // Allocate memory for the distribution of the separator
+  if ( !(sep_mcounts  = (int *) malloc((nbprocs) * sizeof(int))) ) preAlps_abort("Malloc fails for sep_mcounts[].");
+  if ( !(sep_moffsets = (int *) malloc((nbprocs+1) * sizeof(int))) ) preAlps_abort("Malloc fails for sep_moffsets[].");
+
+  // Create a block arrow structure of the matrix
+
+  preAlps_blockArrowStructCreate(comm, m, A, &AP, perm1, &nparts, &partCountWork, &partBeginWork);
+
+  // Check if each processor has at least one block
+  if(nbprocs!=nparts-1){
+    preAlps_abort("This number of process is not support yet. Please use a multiple of 2. nbprocs (level 1): %d, nparts created:%d\n", nbprocs, nparts-1);
+  }
+
+  // Distribute the permuted matrix to all the processors
+  //TODO: create a distribute version which will not allocate the matrices Aii, Aig, Agi, Aggloc when they are not needed
+
+  preAlps_blockArrowStructDistribute(comm, m, &AP, perm1, nparts, partCountWork, partBeginWork, locAP, perm,
+                                       Aii, Aig, Agi, Aggloc, sep_mcounts, sep_moffsets);
+
+  //Save partitioning arrays
+  *partCount = partCountWork;
+  *partBegin = partBeginWork;
+
+  //Free matrices objects
+  if(Aii)    CPLM_MatCSRFree(Aii);
+  if(Aig)    CPLM_MatCSRFree(Aig);
+  if(Agi)    CPLM_MatCSRFree(Agi);
+  if(Aggloc) CPLM_MatCSRFree(Aggloc);
+  //free separator infos
+  if(sep_mcounts)     free(sep_mcounts);
+  if(sep_moffsets)    free(sep_moffsets);
+  // Free memory
+  free(perm1);
+  CPLM_MatCSRFree(&AP);
+
+  return ierr;
+}
+
 
 /* Distribute the separator to each proc and permute the matrix such as their are contiguous in memory */
 int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
@@ -362,7 +442,7 @@ int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_C
 
   // Split the separator among all the processors
   for(i=0;i<nbprocs;i++){
-    preAlps_nsplit(sep_nrows, nbprocs, i, &sep_mcounts[i], &sep_moffsets[i]);
+    CPLM_nsplit(sep_nrows, nbprocs, i, &sep_mcounts[i], &sep_moffsets[i]);
   }
   sep_moffsets[nbprocs] = sep_nrows;
 
@@ -415,6 +495,9 @@ int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_C
 
   return ierr;
 }
+
+
+
 
 /*
  *
@@ -600,7 +683,38 @@ void preAlps_checkError_srcLine(int err, int line, char *src){
   }
 }
 
+/* Create a multilevel communicator by spliting the communicator on two groups based on the number of processors provided*/
+int preAlps_comm2LevelsSplit(MPI_Comm comm, int npLevel1, MPI_Comm *commMultilevel){
 
+  int ierr = 0, nbprocs, my_rank, npLevel2, masterLevelMark, localLevelMark;
+  MPI_Comm comm_masterLevel = MPI_COMM_NULL, comm_localLevel = MPI_COMM_NULL;
+
+  //Get some infos about the communicator
+  MPI_Comm_size(comm, &nbprocs);
+  MPI_Comm_rank(comm, &my_rank);
+
+  // Check args
+  if((npLevel1<=0) || (npLevel1>nbprocs)) npLevel1 = nbprocs;
+
+  // Number of processors within each blocks
+  npLevel2 = nbprocs / npLevel1;
+  //printf("npLevel1:%d, npLevel2:%d\n", npLevel1, npLevel2);
+
+  // Create a communicator with only the master of each groups of procs
+  masterLevelMark = my_rank%npLevel2;
+  MPI_Comm_split(comm, masterLevelMark==0?0:MPI_UNDEFINED, my_rank, &comm_masterLevel);
+
+  // Create a communicator with only the process of each local groups
+  localLevelMark  = my_rank / npLevel2;
+  MPI_Comm_split(comm, localLevelMark, my_rank, &comm_localLevel);
+
+  //Save the communicator
+  commMultilevel[0] = comm;
+  commMultilevel[1] = comm_masterLevel;
+  commMultilevel[2] = comm_localLevel;
+
+  return ierr;
+}
 
 /* Display statistiques min, max and avg of a double*/
 void preAlps_dstats_display(MPI_Comm comm, double d, char *str){
@@ -621,6 +735,17 @@ void preAlps_dstats_display(MPI_Comm comm, double d, char *str){
   }
 }
 
+
+/* MPI custom function to sum the column of a matrix using MPI_REDUCE */
+void preAlps_DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype)
+{
+    int i;
+    double *invec_d = (double*) invec;
+    double *inoutvec_d = (double*) inoutvec;
+
+    for ( i=0; i<*len; i++ )
+        inoutvec_d[i] += invec_d[i];
+}
 
 /*
  * Each processor print the value of type int that it has
@@ -761,25 +886,7 @@ void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int
     }
 }
 
-/*
- * Split n in P parts.
- * Returns the number of element, and the data offset for the specified index.
- */
-void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i){
 
-  int r;
-
-  r = n % P;
-
-  *n_i = (int)(n-r)/P;
-
-  *offset_i = index*(*n_i);
-
-  if(index<r) (*n_i)++;
-
-  if(index < r) *offset_i+=index;
-  else *offset_i+=r;
-}
 
 /* pinv = p', or p = pinv' */
 int *preAlps_pinv (int const *p, int n){

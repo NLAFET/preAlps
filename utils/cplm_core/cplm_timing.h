@@ -1,5 +1,5 @@
-#ifndef PREALPS_CPLM_TIMING_H
-#define PREALPS_CPLM_TIMING_H
+#ifndef CPLM_TIMING_H
+#define CPLM_TIMING_H
 
 #ifndef USE_CPALAMEM
 /* Disable timing and instrumentation macro and functions when preAlps is compiled without cpalamem */

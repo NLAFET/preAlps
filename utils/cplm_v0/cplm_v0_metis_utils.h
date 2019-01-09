@@ -5,11 +5,11 @@
 * Email   : sebastien.cayrols@[(gmail.com) | (inria.fr)]
 */
 
-#ifndef PREALPS_CPLM_METIS_H
-#define PREALPS_CPLM_METIS_H
+#ifndef CPLM_V0_METIS_H
+#define CPLM_V0_METIS_H
 
 #include <metis.h>
-#include <preAlps_cplm_ivector.h>
+#include <cplm_v0_ivector.h>
 
 /*Function which returns the integer perm array from parts array given by METIS_PartGraphKway*/
 int CPLM_getIntPermArray(idx_t nb_parts, idx_t size_parts, idx_t *parts, CPLM_IVector_t* perm);

@@ -8,8 +8,8 @@ and debugging purpose only, it will be removed later.
 Date        : jun 13, 2018
 ============================================================================
 */
-#ifndef PREALPS_IVECTOR_H
-#define PREALPS_IVECTOR_H
+#ifndef CPLM_V0_IVECTOR_H
+#define CPLM_V0_IVECTOR_H
 
 #include<mpi.h>
 /**

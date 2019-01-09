@@ -16,11 +16,11 @@ Date        : Mai 15, 2017
 #include <mkl.h>
 #endif
 
-#include "preAlps_cplm_ivector.h"
-#include "preAlps_cplm_matcsr.h"
+#include "cplm_v0_ivector.h"
+#include "cplm_matcsr.h"
 #include "preAlps_intvector.h"
 #include "preAlps_doublevector.h"
-#include "preAlps_cplm_matcsr.h"
+#include "cplm_matcsr.h"
 
 #ifndef max
 #define max(a,b) ((a) > (b) ? a : b)
@@ -40,8 +40,7 @@ Date        : Mai 15, 2017
  * Functions
  */
 
- /* MPI custom function to sum the column of a matrix using MPI_REDUCE */
- void DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype);
+
 
 
 /* Display a message and stop the execution of the program */
@@ -91,6 +90,24 @@ int preAlps_blockArrowStructCreate(MPI_Comm comm, int m, CPLM_Mat_CSR_t *A, CPLM
    CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *Aii, CPLM_Mat_CSR_t *Aig, CPLM_Mat_CSR_t *Agi, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
 
 
+ /*
+  * Perform a block arrow partitioning of a matrix and distribute the separator to all procs
+  * comm:
+  *     input: the communicator for all the processors calling the routine
+  * A:
+  *     input: the input matrix on processor 0
+  * locAP:
+  *     output: the local permuted matrix on each proc after the preconditioner is built
+  * partCount:
+  *     output: the number of rows in each part
+  * partBegin:
+  *     output: the begining rows of each part.
+  * perm:
+  *     output: the permutation vector
+ */
+ int preAlps_blockArrowStructPartitioning(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_CSR_t *locAP, int **partCount, int **partBegin, int *perm);
+
+
 /* Distribute the separator to each proc and permute the matrix such as their are contiguous in memory */
 int preAlps_blockArrowStructSeparatorDistribute(MPI_Comm comm, int m, CPLM_Mat_CSR_t *AP, int *perm, int nparts, int *partCount, int *partBegin,
     CPLM_Mat_CSR_t *locAP, int *newPerm, CPLM_Mat_CSR_t *locAgg, int *sep_mcounts, int *sep_moffsets);
@@ -124,11 +141,14 @@ int preAlps_blockDiagODBStructCreate(MPI_Comm comm, CPLM_Mat_CSR_t *A, CPLM_Mat_
 void preAlps_checkError_srcLine(int err, int line, char *src);
 
 
+/* Split the communicator on two groups based on the number of processors provided */
+int preAlps_comm2LevelsSplit(MPI_Comm comm, int npLevel1, MPI_Comm *commArray);
 
 /* Display statistiques min, max and avg of a double*/
 void preAlps_dstats_display(MPI_Comm comm, double d, char *str);
 
-
+/* MPI custom function to sum the column of a matrix using MPI_REDUCE */
+void preAlps_DtColumnSum(void *invec, void *inoutvec, int *len, MPI_Datatype *dtype);
 
 /*
  * Each processor print the value of type int that it has
@@ -166,12 +186,6 @@ void preAlps_NodeNDPostOrder(int nparts, int *part_in, int *part_out);
 */
 void preAlps_NodeNDPostOrder_targetLevel(int targetLevel, int twoPowerLevel, int part_root, int *part_in, int *part_out, int *pos);
 
-
-/*
- * Split n in P parts.
- * Returns the number of element, and the data offset for the specified index.
- */
-void preAlps_nsplit(int n, int P, int index, int *n_i, int *offset_i);
 
 /* pinv = p', or p = pinv' */
 int *preAlps_pinv (int const *p, int n);

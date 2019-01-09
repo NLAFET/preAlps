@@ -5,11 +5,11 @@
 *         : Hussam Al Daas
 *         : Simplice Donfack
 */
-#ifndef PREALPS_MATMULT_V2
-#define PREALPS_MATMULT_V2
+#ifndef CPLM_VO_MATMULT_V2
+#define CPLM_V0_MATMULT_V2
 
-#include <preAlps_cplm_matcsr.h>
-#include <preAlps_cplm_matdense.h>
+#include <cplm_matcsr.h>
+#include <cplm_matdense.h>
 
 // Convert colPos and shift colInd in order to extract more easily
 // col panels of A during matmult: Fix of CPLM_MatCSRInitializeMatMult_v2()

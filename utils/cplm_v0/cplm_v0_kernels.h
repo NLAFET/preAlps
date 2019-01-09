@@ -7,17 +7,17 @@
 *         : olivier.tissot@inria.fr
 */
 
-#ifndef PREALPS_CPLM_KERNELS_H
-#define PREALPS_CPLM_KERNELS_H
+#ifndef CPLM_V0_KERNELS_H
+#define CPLM_V0_KERNELS_H
 
 
 /******************************************************************************/
 /*                                  INCLUDE                                   */
 /******************************************************************************/
 
-#include "preAlps_cplm_matcsr.h"
-#include "preAlps_cplm_matdense.h"
-#include "preAlps_cplm_dvector.h"
+#include "cplm_matcsr.h"
+#include "cplm_matdense.h"
+#include "cplm_v0_dvector.h"
 /* MKL */
 #ifdef MKLACTIVATE
   #include <mkl.h>

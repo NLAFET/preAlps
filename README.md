@@ -74,6 +74,12 @@ ECG can be used as an iterative solver and can be combined with block Jacobi, LO
 
   PreAlps is free software licensed under the [BSD-3 License](https://opensource.org/licenses/BSD-3-Clause).
 
+  The preAlps software contains proprietary of Inria.  
+
+  Version V1.0, August 2018  
+  Authors: Simplice Donfack, Olivier Tissot, Laura Grigori, Sebastien Cayrols, Alan Ayala Obregon
+  Copyright (C) 2018, Inria
+
 # References
 
   1. Laura Grigori, Sophie Moufawad, and Frederic Nataf. Enlarged Krylov subspace conjugate gradient methods for reducing communication. SIAM J. Matrix Anal. Appl., 2016.

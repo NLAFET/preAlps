@@ -7,8 +7,8 @@
 *         : olivier.tissot@inria.fr
 */
 
-#ifndef PREALPS_CPLM_MATDENSE_H
-#define PREALPS_CPLM_MATDENSE_H
+#ifndef CPLM_V0_MATDENSE_H
+#define CPLM_V0_MATDENSE_H
 
 #include <mpi.h>
 

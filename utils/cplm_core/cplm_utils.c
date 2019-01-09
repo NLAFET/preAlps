@@ -7,9 +7,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <mpi.h>
 
-#include <preAlps_cplm_utils.h>
+#include <cplm_utils.h>
 
 
 
@@ -82,7 +83,7 @@ void CPLM_esprintf( const char *signal,
 /*Function which checks the return of an MPI call*/
 void CPLM_checkMPIERR(int cr, const char *action){
 
-#ifdef DEBUG
+#ifdef DEBUG_MPIERR
 	switch(cr){
 		case MPI_SUCCESS :
 				printf("%s -- SUCCESS\n",action);
@@ -127,7 +128,7 @@ void CPLM_stdFErr(const char  *fun,
 {
 
   //Quick printing the error --Sim
-  printf("ERROR from %s: Error in %s, line %d\tcode : %d\n", fun, file, line, ierr); 
+  printf("ERROR from %s: Error in %s, line %d\tcode : %d\n", fun, file, line, ierr);
 
   //TODO: fix this function
   CPLM_esprintf(CPALAMEMSIGERR, fun, "Error in %s, line %d\tcode : %d\n",
@@ -135,4 +136,34 @@ void CPLM_stdFErr(const char  *fun,
       line,
       ierr);
 
+}
+
+
+/*
+ * Get the extension from a filename
+ */
+const char *CPLM_getFilenameExtension(const char *filename) {
+    const char *ext = strrchr(filename, '.');
+    if(!ext) return filename;
+    return ext + 1;
+}
+
+/*
+ * Split n in P parts and
+ * returns the number of element, and the data offset for the specified index.
+ */
+void CPLM_nsplit(int n, int P, int index, int *n_i, int *offset_i){
+
+  int r;
+
+  r = n % P;
+
+  *n_i = (int)(n-r)/P;
+
+  *offset_i = index*(*n_i);
+
+  if(index<r) (*n_i)++;
+
+  if(index < r) *offset_i+=index;
+  else *offset_i+=r;
 }

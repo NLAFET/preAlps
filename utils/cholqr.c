@@ -19,10 +19,10 @@
 //#include <cpalamem_macro.h>
 #undef TIMERACTIVATE
 //#include "cholqr.h"
-#include <preAlps_cplm_utils.h>
-#include <preAlps_cplm_timing.h>
-#include <preAlps_cplm_matdense.h>
-#include <preAlps_cplm_kernels.h>
+#include <cplm_utils.h>
+#include <cplm_v0_timing.h>
+#include <cplm_matdense.h>
+#include <cplm_v0_kernels.h>
 //#include <matmult.h>
 //#include <cpalamem_instrumentation.h>
 /******************************************************************************/
