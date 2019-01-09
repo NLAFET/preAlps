@@ -23,14 +23,12 @@
 /* CPaLAMeM */
 //#include <cpalamem_macro.h>
 #include <cplm_utils.h>
-#include <cplm_v0_timing.h>
+#include <cplm_timing.h>
 #include <cplm_matcsr.h>
 #include <cplm_matdense.h>
-#include <cplm_v0_ivector.h>
-#include <cplm_v0_dvector.h>
 #include <cholqr.h>
 //#include <matmult.h>
-#include <cplm_v0_kernels.h>
+#include <cplm_kernels.h>
 //#include <cpalamem_instrumentation.h>
 /* preAlps */
 #include "ecg.h"

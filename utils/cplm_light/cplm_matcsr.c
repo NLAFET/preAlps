@@ -23,7 +23,7 @@ Date        : June 22, 2018
 
 #include "preAlps_param.h"
 #include "cplm_utils.h"
-#include "cplm_v0_timing.h"
+#include "cplm_timing.h"
 #include "cplm_ijval.h"
 #include "cplm_QS.h"
 
