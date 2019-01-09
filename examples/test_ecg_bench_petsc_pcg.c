@@ -74,6 +74,13 @@ void _print_help() {
 }
 
 #ifdef PETSC
+// Used for the shell matrix definition
+typedef struct {
+  Mat A;  // petsc non-shell matrix
+  int M;  // global row count
+  int m;  // local row count
+} AppCtx;
+
 /** \brief Simple wrapper to PETSc MatMatMult */
 void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
   Mat V_petsc, AV_petsc;
@@ -81,6 +88,16 @@ void petsc_operator_apply(Mat A, double* V, double* AV, int M, int m, int n) {
   MatCreateDense(PETSC_COMM_WORLD,m,PETSC_DECIDE,M,n,AV,&AV_petsc);
   MatMatMult(A, V_petsc, MAT_REUSE_MATRIX, PETSC_DEFAULT, &AV_petsc);
   MatDestroy(&V_petsc);MatDestroy(&AV_petsc);
+}
+
+int petsc_spmm(Mat A, Vec v, Vec Av) {
+  int ierr = 0;
+  AppCtx *ctx;
+  const double* v_p; double* Av_p;
+  VecGetArrayRead(v,&v_p); VecGetArray(Av,&Av_p);
+  MatShellGetContext(A,(void *)&ctx);
+  petsc_operator_apply(ctx->A,v_p,Av_p,ctx->M,ctx->m,1);
+  return ierr;
 }
 #endif
 
@@ -211,39 +228,45 @@ int main(int argc, char** argv) {
   buildprec_t += MPI_Wtime() - trash_t;
 
   /*=== Construct a normalized random rhs if not already read from a file ===*/
-  if (rhsFilename == NULL) {
-    rhs = (double*) malloc(m*sizeof(double));
-    srand(0);
-    double normb = 0.0;
-    for (int i = 0; i < m; ++i) {
-      rhs[i] = ((double) rand() / (double) RAND_MAX);
-      normb += pow(rhs[i],2);
-    }
-    // Compute the norm of rhs and scale it accordingly
-    MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    normb = sqrt(normb);
-    for (int i = 0; i < m; ++i)
-      rhs[i] /= normb;
+  rhs = (double*) malloc(m*sizeof(double));
+  srand(0);
+  double normb = 0.0;
+  for (int i = 0; i < m; ++i) {
+    rhs[i] = ((double) rand() / (double) RAND_MAX);
+    normb += pow(rhs[i],2);
   }
+  // Compute the norm of rhs and scale it accordingly
+  MPI_Allreduce(MPI_IN_PLACE,&normb,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+  normb = sqrt(normb);
+  for (int i = 1; i < m; ++i)
+    rhs[i] /= normb;
 
   /*================ Petsc solve ================*/
-  Mat A_petsc;
+  // Set RHS and solution
   Vec X, B;
-  KSP ksp;
-  KSP *subksp;
-  PC pc, subpc;
-  int first,nlocal;
-
-  // Set RHS
   VecCreateMPIWithArray(MPI_COMM_WORLD,1,m,M,rhs,&B);
   VecCreateMPI(MPI_COMM_WORLD,m,M,&X);
   VecAssemblyBegin(X);
   VecAssemblyBegin(X);
   VecAssemblyBegin(B);
   VecAssemblyBegin(B);
-  // Set solver
-  KSPCreate(MPI_COMM_WORLD,&ksp);
+  // Set operator
+  Mat A_petsc;
   CPLM_petscCreateMatFromMatCSR(&A,&A_petsc);
+  Mat A_shell;
+  AppCtx ctx;
+  MatCreateShell(MPI_COMM_WORLD, m, m, M, M, (void *)&ctx, &A_shell);
+  ctx.A = A_petsc; ctx.m = m; ctx.M = M;
+  MatShellSetContext(A_shell,(void *)&ctx);
+  MatShellSetOperation(A_shell, MATOP_MULT, (void(*)(void)) petsc_spmm);
+  MatSetOption(A_shell,MAT_SYMMETRIC,PETSC_TRUE);
+
+  // Set solver
+  KSP ksp;
+  KSP *subksp;
+  PC pc, subpc;
+  int first,nlocal;
+  KSPCreate(MPI_COMM_WORLD,&ksp);
   KSPSetOperators(ksp,A_petsc,A_petsc);
   KSPSetType(ksp,KSPCG);
   KSPSetTolerances(ksp,tol,PETSC_DEFAULT,PETSC_DEFAULT,maxIter);
