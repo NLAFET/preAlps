@@ -21,7 +21,7 @@
 #include <mkl.h>
 
 /* CPaLAMeM */
-#include <preAlps_cplm_timing.h>
+#include <cplm_core/cplm_timing.h>
 
 #ifdef PETSC
 #include <preAlps_cplm_petsc_interface.h>
@@ -33,7 +33,7 @@
 #include "operator.h"
 #include "block_jacobi.h"
 #include "ecg.h"
-#include <preAlps_cplm_utils.h>
+#include <cplm_core/cplm_utils.h>
 
 /* Command line parser */
 #include <getopt.h>

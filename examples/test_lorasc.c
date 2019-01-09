@@ -12,9 +12,9 @@ Date        : Mai 15, 2017
 #include <string.h>
 #include <mpi.h>
 
-#ifdef PETSC
+#ifdef USE_PETSC
 /* Petsc */
-#include <preAlps_cplm_petsc_interface.h>
+#include <preAlps_petsc_interface.h>
 #include <petscksp.h>
 #endif
 
@@ -487,21 +487,6 @@ int main(int argc, char** argv){
 
       free(xTmp);
     }
-
-    //preAlps_abort("dbgSolve brk1");
-
-    if(monitorResidual && my_rank==root) printf("Iteration: %d, \tres: %e\n", ecg.iter, ecg.res);
-  }
-
-  if(comm_masterGroup!=MPI_COMM_NULL){
-
-    double* sol = NULL;
-    sol = (double*) malloc(m*sizeof(double));
-
-    // Retrieve solution and free memory
-    preAlps_ECGFinalize(&ecg, sol);
-
-    tSolve = MPI_Wtime() - ttemp;
 
     if (my_rank == 0)
       printf("=== ECG ===\n\tSolver iterations: %d\n\tnorm(res): %e\n",ecg.iter,ecg.res);

@@ -25,7 +25,7 @@
 #endif
 
 /* preAlps */
-#include "preAlps_cplm_matdense.h"
+#include "cplm_light/cplm_matdense.h"
 #include "operator.h"
 #include "block_jacobi.h"
 /******************************************************************************/

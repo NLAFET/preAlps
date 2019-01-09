@@ -11,9 +11,9 @@
 #include <petscsys.h>
 #include <petscmat.h>
 
-#include <preAlps_cplm_timing.h>
+#include <cplm_core/cplm_timing.h>
 #include <preAlps_cplm_petsc_interface.h>
-#include <preAlps_cplm_utils.h>
+#include <cplm_core/cplm_utils.h>
 
 
 int CPLM_petscCreateSeqMatFromMatCSR(CPLM_Mat_CSR_t *m, Mat *M)

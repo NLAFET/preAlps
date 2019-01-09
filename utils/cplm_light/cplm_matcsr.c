@@ -17,6 +17,9 @@ Date        : June 22, 2018
 #ifdef USE_PARMETIS
   #include <parmetis.h>
 #endif
+#ifdef PETSC
+  #include<preAlps_cplm_petsc_interface.h>
+#endif
 
 #include "preAlps_param.h"
 #include "cplm_utils.h"
@@ -1072,7 +1075,7 @@ int CPLM_LoadMatrix( const char* matrix_filename, CPLM_Mat_CSR_t* A_out){
   if (strcmp(ext,"mtx") == 0) {
     CPLM_LoadMatrixMarket(matrix_filename, A_out);
   }else{
-    #ifdef USE_PETSC
+    #ifdef PETSC
       Mat A_petsc;
       petscMatLoad(&A_petsc, matrix_filename, PETSC_COMM_SELF);
       petscCreateMatCSR(A_petsc, A_out);

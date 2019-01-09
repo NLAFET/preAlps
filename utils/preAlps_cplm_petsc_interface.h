@@ -11,8 +11,8 @@
 
 #include <petscmat.h>
 #include <petscsys.h>
-#include <preAlps_cplm_matcsr.h>
-#include <preAlps_cplm_matdense.h>
+#include <cplm_light/cplm_matcsr.h>
+#include <cplm_light/cplm_matdense.h>
 
 //This function creates a sequential matrix from a MatCSR format
 int CPLM_petscCreateSeqMatFromMatCSR(CPLM_Mat_CSR_t *m, Mat *M);
