@@ -393,7 +393,8 @@ CPLM_PUSH
       // Update block size
       ecg->bs = t;
     }
-    /**************************************************************************/// Now we need A*P to continue
+    /**************************************************************************/
+    // Now we need A*P to continue
     *rci_request = 0;
   }
 CPLM_POP
