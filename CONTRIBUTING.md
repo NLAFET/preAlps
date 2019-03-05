@@ -30,8 +30,7 @@ nlafet	https://github.com/NLAFET/preAlps.git (push)
 origin	https://gitlab.inria.fr/alps/preAlps.git (fetch)  
 origin	https://gitlab.inria.fr/alps/preAlps.git (push)  
 
-
-#2. Working with origin repository.
+# 2. Working with origin repository.  
 
 Pull the latest version from origin (inria)
 ```
@@ -53,7 +52,7 @@ OR
  git push
 ```
 
-#3. Updating  nlafet remote repository
+# 3. Updating  nlafet remote repository.  
 In order to push later changes on nlafet, first push the latest version on "inria gitlab" (step 2), then get the latest version of "nlafet github" and push.  
 
 Pull the latest version from nlafet
